@@ -1,0 +1,13 @@
+#!/bin/bash
+
+################################################################################
+# Copyright (c) 2020 ModalAI, Inc. All rights reserved.
+################################################################################
+
+systemctl daemon-reload
+
+echo ""
+echo "Done installing voxl-camera-server"
+echo ""
+echo "Please run voxl-configure-cameras"
+echo ""
