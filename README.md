@@ -1,48 +1,35 @@
-# voxl-camera-server
-
-This document explains the internal details of the camera server and how clients interact with the server. The build steps and instructions to deploy it on VOXL are given at the end of the document.
+# RB5 Camera Server
 
 ## Build Instructions
 
-NOTE: v0.5.0+ of camera server requires voxl system image 3.2+ to run and emulator build 1.5+ to build [(details)](https://docs.modalai.com/voxl-system-image/)
-
-1. Requires the voxl-emulator (found [here](https://gitlab.com/voxl-public/voxl-docker)) to run docker ARM image
+1. Requires the rb5-flight-emulator (found [here](https://developer.modalai.com/asset)) to run docker ARM image
     * (PC) cd [Path To]/voxl-camera-server
-    * (PC) sudo voxl-docker -i voxl-emulator
+    * (PC) rb5-flight-docker
 2. Build project binary:
-    * (VOXL-EMULATOR) ./install_build_deps.sh
-    * (VOXL-EMULATOR) ./clean.sh
-    * (VOXL-EMULATOR) ./build.sh
-    * (VOXL-EMULATOR) ./make_package.sh
+    * (RB5-FLIGHT-EMULATOR) ./install_build_deps.sh
+    * (RB5-FLIGHT-EMULATOR) ./clean.sh
+    * (RB5-FLIGHT-EMULATOR) ./build.sh
+    * (RB5-FLIGHT-EMULATOR) ./make_package.sh
 
 ## Installing and running on VOXL
 
-* (PC) cd [Path To]/voxl-camera-server
 * (PC) ./install_on_voxl.sh
-* (VOXL) voxl-configure-camera-server -f hires stereo tracking
-
-  __It is strongly recommended that you install the latest version of [voxl-utils](https://gitlab.com/voxl-public/utilities/voxl-utils) and use the voxl-configure-cameras script to set up the configuration file for this server instead of voxl-configure-camera-server. If you do not wish to install voxl-utils, you can run voxl-configure-camera-server to set up only this server, but this will not safety check supported voxl camera configurations and may yield unexpected results if invalid setups are provided__
-* (VOXL) voxl-camera-server
+* (RB5) rb5-configure-cameras
+* (RB5) systemctl start rb5-camera-server
 
 ### Testing
 
 You can test with the tracking camera running the following command on VOXL:
 
 ```
-$ voxl-streamer -c tracking
+$ voxl-portal
 ```
+
+And then pulling up the drone's IP address on a mobile or desktop device connected to the same network can pull up a web view of any of the cameras.
 
 #### ModalAI Auto-Exposure
 
-To test modalai auto-exposure algorithm, currently only supported on tracking and stereo cameras:
-
-edit /etc/modalai/voxl-camera-server.conf for the "tracking" entry:
-
-```
-"auto_exposure_mode":   "modalai"
-```
-
-The code for the auto-exposure algorithm can be found [here](https://gitlab.com/voxl-public/modal-pipe-architecture/voxl-mpa-exposure)
+ModalAI Cameras use our internal auto-exposure algorithm using histograms. The code for the auto-exposure algorithm can be found [here](https://gitlab.com/voxl-public/modal-pipe-architecture/voxl-mpa-exposure)
 
 Questions
 =========
