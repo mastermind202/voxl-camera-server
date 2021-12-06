@@ -48,6 +48,8 @@
 
 #define PROCESS_NAME "rb5-camera-server"
 
+#define MAX_ALLOWED_CAMERAS 6
+
 void EStopCameraServer();
 
 #endif

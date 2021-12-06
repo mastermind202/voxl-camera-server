@@ -35,6 +35,7 @@
 #include "common_defs.h"
 #include "debug_log.h"
 #include "hal3_camera.h"
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Get the camera module (and initialize it if it hasn't been)
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -75,23 +76,64 @@ camera_module_t* HAL3_get_camera_module()
 
 }
 
-void HAL3_print_camera_resolutions(){
+bool HAL3_is_config_supported(int camId, int width, int height, int format)
+{
+
+	camera_info halCameraInfo;
+    camera_module_t* cameraModule = HAL3_get_camera_module();
+
+    if(cameraModule == NULL){
+        printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
+
+        return false;
+    }
+
+	cameraModule->get_camera_info(camId, &halCameraInfo);
+
+
+    camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
+    camera_metadata_ro_entry entry;
+
+    // Get the list of all stream resolutions supported and then go through each one of them looking for a match
+    int status = find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
+
+    if ((0 == status) && (0 == (entry.count % 4)))
+    {
+        for (size_t i = 0; i < entry.count; i+=4)
+        {
+            if ((entry.data.i32[i]   == format) &&
+            	(entry.data.i32[i+1] == width ) &&
+                (entry.data.i32[i+2] == height) &&
+            	(entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
+            {
+            	return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void HAL3_print_camera_resolutions(int camId){
 
 	camera_module_t* cameraModule = HAL3_get_camera_module();
 
 	if(cameraModule == NULL){
-		printf("ERROR: Could not open camera module\n");
+		printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
 		return;
 	}
 
-    int numCameras = cameraModule->get_number_of_cameras();
+	if(camId == -1){
+	    int numCameras = cameraModule->get_number_of_cameras();
 
-    printf("Number of cameras: %d\n\n", numCameras);
+	    printf("Number of cameras: %d\n\n", numCameras);
 
-	for(int i = 0; i < numCameras; i++){
-
+		for(int i = 0; i < numCameras; i++){
+            HAL3_print_camera_resolutions(i);
+	    }
+	} else {
 		camera_info cameraInfo;
-		cameraModule->get_camera_info(i, &cameraInfo);
+		cameraModule->get_camera_info(camId, &cameraInfo);
 
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)cameraInfo.static_camera_characteristics;
         camera_metadata_ro_entry entry;
@@ -99,12 +141,12 @@ void HAL3_print_camera_resolutions(){
         // Get the list of all stream resolutions supported and then go through each one of them looking for a match
         find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
 
-        printf("Available resolutions for camera: %d:\n", i);
+        printf("Available resolutions for camera: %d:\n", camId);
         for (size_t j = 0; j < entry.count; j+=4)
         {
-            if (ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT == entry.data.i32[j + 3])
+            if (entry.data.i32[j + 3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT)
             {
-            	if(i == 3){
+            	if(camId == 3){
                 	if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888){
                     	printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
                 	}
@@ -116,6 +158,7 @@ void HAL3_print_camera_resolutions(){
                 }
             }
         }
-    }
+
+	}
 
 }

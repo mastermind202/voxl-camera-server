@@ -7,8 +7,7 @@
 ################################################################################
 set -e
 
-PACKAGE=$(cat package
-	/control | grep "Package" | cut -d' ' -f 2)
+PACKAGE=$(cat package/control | grep "Package" | cut -d' ' -f 2)
 
 # count deb files in current directory
 NUM_FILES=$(ls -1q $PACKAGE*.deb | wc -l)

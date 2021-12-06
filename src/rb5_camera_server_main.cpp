@@ -51,106 +51,17 @@
 #include "hal3_camera.h"
 #include "rb5_camera_server.h"
 
-#define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
+#include "config_defaults.h"
 
 // Function prototypes
 void   PrintHelpMessage();
-int    ErrorCheck(int numInputsScanned, const char* pOptionName);
 int    ParseArgs(int         argc,
-               char* const pArgv[],
-               char*       pConfigFileName,
-               DebugLevel* pDebugLevel);
+                 char* const argv[]);
 
-Status StartCamera(CameraType camType);
+Status StartCamera(PerCameraInfo cam);
 
-///<@todo Assumes only one instance of one camera type
-PerCameraInfo*          g_pCameraInfo;
-bool                    force_enable                            = false;
-char                    pipeNames[PIPE_SERVER_MAX_CHANNELS][MODAL_PIPE_MAX_NAME_LEN];
-
-// Attributes for the cleanup thread
-pthread_cond_t     quit_cond        = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t    quit_mutex;
-pthread_t          quit_thread;
-volatile bool      stopped_smoothly = false;
-const int          quit_estop_delay = 10;   //ESTOP the camera server if it fails to stop normally after 10 seconds
-void*  ThreadExitCheck(void *data);
-
-
-
-static inline Status setupPipes(){
-
-    Status status = S_OK;
-/*
-    for (int i = 0; i < g_numCameras && status == S_OK; i++)
-    {
-        if (g_pCameraInfo[i].isEnabled)
-        {
-
-            pipe_info_t info;
-
-            strcpy(info.name       , g_pCameraInfo[i].name);
-            strcpy(info.type       , "camera_image_metadata_t");
-            strcpy(info.server_name, PROCESS_NAME);
-
-            g_outputChannels[g_pCameraInfo[i].type] = g_maxValidChannel;
-
-            switch (g_pCameraInfo[i].type)
-            {
-                case CAMTYPE_HIRES:
-                    strcat(info.name, "_preview");
-
-                    info.size_bytes = 256*1024*1024;
-
-                    strcpy(info.location, info.name);
-                    // 0 means success
-                    if (0 == pipe_server_create(g_maxValidChannel,
-                                                      info,
-                                                      SERVER_FLAG_EN_CONTROL_PIPE))
-                    {
-                        pipe_server_set_available_control_commands(g_maxValidChannel, CONTROL_COMMANDS);
-                        strcpy(pipeNames[g_maxValidChannel], info.name);
-                    } else {
-                        status = S_ERROR;
-                    }
-                    g_maxValidChannel++;
-
-                    break;
-                    
-                case CAMTYPE_TRACKING:
-                case CAMTYPE_STEREO:
-
-                    info.size_bytes = 64*1024*1024;
-
-                    strcpy(info.location, info.name);
-                    // 0 means success
-                    if (0 == pipe_server_create(g_maxValidChannel,
-                                                      info,
-                                                      SERVER_FLAG_EN_CONTROL_PIPE))
-                    {
-                        pipe_server_set_available_control_commands(g_maxValidChannel, CONTROL_COMMANDS);
-                        strcpy(pipeNames[g_maxValidChannel], info.name);
-                    } else {
-                        status = S_ERROR;
-                    }
-                    g_maxValidChannel++;
-
-                    break;
-
-                default:
-                    VOXL_LOG_WARNING("------voxl-camera-server WARNING: Bad camera type: %d\n", g_pCameraInfo[i].type);
-                    break;
-            }
-            if(status == S_OK){
-                VOXL_LOG_INFO( "Created pipe: %s channel: %d\n", info.name, g_maxValidChannel-1);
-            } else {
-                VOXL_LOG_ERROR("Failed to create pipe: %s channel: %d\n", info.name, g_maxValidChannel-1);
-            }
-        }
-    }
-*/
-    return status;
-}
+static int            g_numCameras;
+static PerCameraInfo* g_pCameraInfo;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Main camera server function that reads the config file, starts different cameras (using the requested API), sends the
@@ -159,11 +70,6 @@ static inline Status setupPipes(){
 int main(int argc, char* const argv[])
 {
 
-    int           status;
-    char          configFileName[FILENAME_MAX] = RB5_CAMERA_SERVER_CONF_FILE;
-    DebugLevel    debugLevel = DebugLevel::ERROR; //Default only show errors
-
-    main_running = 1;
     ////////////////////////////////////////////////////////////////////////////////
     // gracefully handle an existing instance of the process and associated PID file
     ////////////////////////////////////////////////////////////////////////////////
@@ -187,111 +93,41 @@ int main(int argc, char* const argv[])
     // make our own safely.
     make_pid_file(PROCESS_NAME);
 
-    status = ParseArgs(argc, argv, &configFileName[0], &debugLevel);
-
-    Debug::SetDebugLevel(debugLevel);
-
-    if (status == S_OK)
-    {
-        ///<@todo Add support for multiple cameras of the same type - question is how to differentiate one from the other
-        //status = ConfigFile::Read(&configFileName[0], &g_numCameras, &g_pCameraInfo);
-    }
-    else
-    {
+    if(int retval = ParseArgs(argc, argv)){
+    	if(retval > 0) {
+    		return 0;
+    	}
         PrintHelpMessage();
+    	return -1;
     }
 
-    if(status == S_OK){
-        status = setupPipes();
+    main_running = 1;
+
+    if(ReadConfigFile(&g_numCameras, &g_pCameraInfo)){
+    	VOXL_LOG_FATAL("ERROR: Failed to read config file\n");
+    	return -1;
     }
 
-    if (status == S_OK)
+    g_numCameras = 1;
+    g_pCameraInfo = new PerCameraInfo[1];
+    g_pCameraInfo[0] = getDefaultCameraInfo(CAMTYPE_OV7251);
+    g_pCameraInfo[0].camId = 2;
+    g_pCameraInfo[0].isMono = true;
+    strcpy(g_pCameraInfo[0].name, "tracking");
+
+    PerCameraMgr* mgr = new PerCameraMgr(g_pCameraInfo[0]);
+    mgr->Start();
+
+    VOXL_LOG_FATAL("------ voxl-camera-server: Camera server is now running\n");
+
+    while (main_running)
     {
-
-
-        // @todo we probably have to do this because of the camera starting order requirements
-        // Tracking-HiRes-Stereo
-        // Tracking-ToF-HiRes
-        bool isTracking = false;
-        bool isStereo   = false;
-        bool isHiRes    = false;
-/*
-        for (int i = 0; i < g_numCameras; i++)
-        {
-            if (g_pCameraInfo[i].isEnabled)
-            {
-
-                switch (g_pCameraInfo[i].type)
-                {
-                    case CAMTYPE_TRACKING:
-                        if(isTracking){
-                            VOXL_LOG_FATAL("Camera Server Does not currently support multiple cameras of the same type\n");
-                            VOXL_LOG_FATAL("Exiting\n");
-                            i = g_numCameras;
-                        } else {
-                            isTracking = true;
-                        }
-                        break;
-
-                    case CAMTYPE_HIRES:
-                        if(isHiRes){
-                            VOXL_LOG_FATAL("Camera Server Does not currently support multiple cameras of the same type\n");
-                            VOXL_LOG_FATAL("Exiting\n");
-                            i = g_numCameras;
-                        } else {
-                            isHiRes = true;
-                        }
-                        break;
-
-                    case CAMTYPE_STEREO:
-                        if(isStereo){
-                            VOXL_LOG_FATAL("Camera Server Does not currently support multiple cameras of the same type\n");
-                            VOXL_LOG_FATAL("Exiting\n");
-                            i = g_numCameras;
-                        } else {
-                            isStereo = true;
-                        }
-                        break;
-
-                    default:
-                        break;
-                }
-            }
-        }
-
-        if (status == S_OK && isTracking == true)
-        {
-            status = StartCamera(CAMTYPE_TRACKING);
-        }
-
-        if (status == S_OK && isHiRes == true)
-        {
-            status = StartCamera(CAMTYPE_HIRES);
-        }
-
-        if (status == S_OK && isStereo == true)
-        {
-            status = StartCamera(CAMTYPE_STEREO);
-        }*/
-
-        if(status == S_OK){
-
-            VOXL_LOG_FATAL("------ voxl-camera-server: Camera server is now running\n");
-
-            while (main_running)
-            {
-                usleep(500000);
-            }
-        }
+        usleep(500000);
     }
-/*
-    //Start timed ESTOP if cameras hang
-    pthread_attr_t quitAttr;
-    pthread_attr_init(&quitAttr);
-    pthread_attr_setdetachstate(&quitAttr, PTHREAD_CREATE_JOINABLE);
-    pthread_create(&quit_thread, &quitAttr, ThreadExitCheck, NULL);
-    pthread_attr_destroy(&quitAttr);
 
+    mgr->Stop();
+
+/*
     VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server is now stopping\n");
     VOXL_LOG_FATAL("\t\tThere is a chance that it may segfault here, this is a mmqcamera bug, ignore it\n");
     for (int i = 0; i < CAMTYPE_MAX_TYPES; i++)
@@ -310,12 +146,7 @@ int main(int argc, char* const argv[])
         }
     }
 
-    stopped_smoothly = true;
-    pthread_cond_signal(&quit_cond);
-
-    void *returnval;
-    pthread_join(quit_thread, &returnval);
-
+	//Hal3 managers should deal with this but safer to call here anyways
     pipe_server_close_all();
 
     if (g_pCameraInfo != NULL)
@@ -331,122 +162,92 @@ int main(int argc, char* const argv[])
     }
     return status;*/
 }
-/*
-void*  ThreadExitCheck(void *data){
 
-    struct timespec timeToWait;
-
-    clock_gettime(CLOCK_REALTIME, &timeToWait);
-
-    timeToWait.tv_sec = timeToWait.tv_sec+quit_estop_delay;
-
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mutex);
-    pthread_cond_timedwait(&quit_cond, &mutex, &timeToWait);
-    pthread_mutex_unlock(&mutex);
-    if(stopped_smoothly) return (void *) 0;
-
-    VOXL_LOG_FATAL("Camera Server failed to close cleanly, applying estop\n");
-
-    EStopCameraServer();
-
-    clock_gettime(CLOCK_REALTIME, &timeToWait);
-
-    timeToWait.tv_sec = timeToWait.tv_sec+quit_estop_delay;
-
-    pthread_mutex_lock(&mutex);
-    VOXL_LOG_FATAL("Waiting %d more seconds before kill\n", quit_estop_delay);
-    pthread_cond_timedwait(&quit_cond, &mutex, &timeToWait);
-    pthread_mutex_unlock(&mutex);
-    if(stopped_smoothly) return (void *) 1;
-
-    VOXL_LOG_FATAL("Critial Error: Camera Server ESTOP failed, forcing exit\n");
-
-    exit(-1);
-}
-*/
 // -----------------------------------------------------------------------------------------------------------------------------
 // Parses the command line arguments to the main function
+//
+// retvals:
+// 		-1 : error
+// 		 0 : ready to run camera server
+// 		 1 : no error, but completed a subtask and do not need to run camera server
+//
 // -----------------------------------------------------------------------------------------------------------------------------
 int ParseArgs(int         argc,                 ///< Number of arguments
-              char* const pArgv[],              ///< Argument list
-              char*       pConfigFileName,      ///< Returned config file name
-              DebugLevel* pDebugLevel)          ///< Returned debug level
+              char* const argv[])               ///< Argument list
 {
+
     static struct option LongOptions[] =
     {
-        {"config_file",      required_argument,  0, 'c'},
-        {"debug_level",      required_argument,  0, 'd'},
-        {"force_enable",     no_argument,        0, 'e'},
+    	{"configure",        required_argument,  0, 'c'},
+        {"debug-level",      required_argument,  0, 'd'},
         {"help",             no_argument,        0, 'h'},
         {"list-resolutions", no_argument,        0, 'r'},
     };
 
-    int numInputsScanned = 0;
     int optionIndex      = 0;
-    int status           = 0;
-    int debugLevel       = 0;
     int option;
 
-    while ((status == S_OK) && (option = getopt_long_only (argc, pArgv, ":c:d:ehr", &LongOptions[0], &optionIndex)) != -1)
+    while ((option = getopt_long (argc, argv, ":c:d:hr", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
-            case 'c':
-                numInputsScanned = sscanf(optarg, "%s", pConfigFileName);
 
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+            case 'c':
+
+            	int config;
+                if (sscanf(optarg, "%d", &config) != 1)
                 {
-                    printf("No config file specified!\n");
-                    status = -EINVAL;
+                    printf("ERROR: failed to parse config number specified after -c flag\n");
+                    return -1;
                 }
 
-                break;
+                if(MakeDefaultConfigFile(config)){
+                	return -1;
+                }
+
+                return 1;
 
             case 'd':
-                numInputsScanned = sscanf(optarg, "%d", &debugLevel);
 
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+            	int debugLevel;
+                if (sscanf(optarg, "%d", &debugLevel) != 1)
                 {
-                    printf("No preview dump frames specified\n");
-                    status = -EINVAL;
-                }
-                else
-                {
-                    *pDebugLevel = (DebugLevel)debugLevel;
-
-                    if (*pDebugLevel >= DebugLevel::MAX_DEBUG_LEVELS)
-                    {
-                        VOXL_LOG_FATAL("----- Invalid debug level specified: %d\n", *pDebugLevel);
-                        VOXL_LOG_FATAL("----- Max debug level: %d\n", ((int)DebugLevel::MAX_DEBUG_LEVELS - 1));
-                        status = S_ERROR;
-                        break;
-                    }
+                    printf("ERROR: failed to parse debug level specified after -d flag\n");
+                    return -1;
                 }
 
-                break;
+                if (debugLevel >= DebugLevel::MAX_DEBUG_LEVELS || debugLevel < DebugLevel::ALL)
+                {
+                    VOXL_LOG_FATAL("ERROR: Invalid debug level specified: %d\n", debugLevel);
+                    VOXL_LOG_FATAL("-----  Max debug level: %d\n", ((int)DebugLevel::MAX_DEBUG_LEVELS - 1));
+                    VOXL_LOG_FATAL("-----  Min debug level: %d\n", ((int)DebugLevel::ALL));
+                    return -1;
+                }
 
-            case 'e':
-                force_enable = true;
+                SetDebugLevel((DebugLevel)debugLevel);
+
                 break;
 
             case 'h':
-                status = -EINVAL; // This will have the effect of printing the help message and exiting the program
-                break;
-            case 'r':
-            	HAL3_print_camera_resolutions();
-            	exit(0);
+            	PrintHelpMessage();
+                return 1;
 
+            case 'r':
+            	// -1 Tells the module to print all cameras
+            	HAL3_print_camera_resolutions(-1);
+            	return 1;
+
+            case ':':
+            	printf("ERROR: Missing argument for %s\n", argv[optopt]);
+				return -1;
             // Unknown argument
             case '?':
-            default:
-                printf("Invalid argument passed!\n");
-                status = -EINVAL;
-                break;
+                printf("ERROR: Invalid argument passed: %s\n", argv[optopt]);
+                return -1;
         }
     }
 
-    return status;
+    return 0;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -455,33 +256,15 @@ int ParseArgs(int         argc,                 ///< Number of arguments
 void PrintHelpMessage()
 {
     printf("\n\nCommand line arguments are as follows:\n");
-    printf("\n-c, --config_file  : config file name (No default)");
-    printf("\n-d, --debug_level  : debug level (Default 3)");
-    printf("\n                 0 : Print all logs");
-    printf("\n                 1 : Print info logs");
-    printf("\n                 2 : Print warning logs");
-    printf("\n                 3 : Print fatal logs");
-    //printf("\n-e, --force_enable : Force the camera server to run all cameras");
-    //printf("\n                   : even if there are no clients connected");
-    printf("\n                   : (will disable non-fatal debug prints)");
-    printf("\n-h, --help         : Print this help message");
-    printf("\n\nFor example: voxl-camera-server -c /etc/modalai/voxl-camera-server.conf -d 2");
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// Check for error in parsing the arguments
-// -----------------------------------------------------------------------------------------------------------------------------
-int ErrorCheck(int numInputsScanned, const char* pOptionName)
-{
-    int error = 0;
-/*
-    if (numInputsScanned != 1)
-    {
-        VOXL_LOG_INFO("ERROR: Invalid argument for %s option\n", pOptionName);
-        error = -1;
-    }
-*/
-    return error;
+    printf("\n-d, --debug-level       : debug level (Default 2)");
+    printf("\n                      0 : Print all logs");
+    printf("\n                      1 : Print info logs");
+    printf("\n                      2 : Print warning logs");
+    printf("\n                      3 : Print fatal logs");
+    printf("\n                        : (will disable non-fatal debug prints)");
+    printf("\n-h, --help              : Print this help message");
+    printf("\n-r, --list-resolutions  : List the available cameras and their resolutions");
+    printf("\n\n");
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------

@@ -83,3 +83,34 @@ const CameraType GetCameraTypeFromString(char *type)
     return CAMTYPE_INVALID;
 }
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// Prints The info for a specific camera
+// -----------------------------------------------------------------------------------------------------------------------------
+void PrintCameraInfo(PerCameraInfo pCameraInfo)    ///< Camera info
+{
+
+    printf("\t Name       : %s\n", pCameraInfo.name);
+    printf("\t Enabled    : %d\n", pCameraInfo.isEnabled);
+
+    if(pCameraInfo.isMono){
+
+    	printf("\t Type       : mono %s\n", GetTypeString(pCameraInfo.type));
+    	printf("\t Cam ID     : %d\n", pCameraInfo.camId);
+
+    } else {
+
+    	printf("\t Type       : stereo %s\n", GetTypeString(pCameraInfo.type));
+    	printf("\t Cam ID 1   : %d\n", pCameraInfo.camId);
+    	printf("\t Cam ID 2   : %d\n", pCameraInfo.camId2);
+
+    }
+
+    printf("\t Width      : %d\n", pCameraInfo.width);
+    printf("\t Height     : %d\n", pCameraInfo.height);
+    printf("\t Format     : %s\n", GetImageFmtString(pCameraInfo.format));
+    printf("\t FPS        : %d\n", pCameraInfo.fps);
+
+    modal_exposure_print_config(pCameraInfo.expGainInfo);
+
+    printf("\n");
+}

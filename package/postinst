@@ -7,7 +7,7 @@
 systemctl daemon-reload
 
 echo ""
-echo "Done installing voxl-camera-server"
+echo "Done installing rb5-camera-server"
 echo ""
-echo "Please run voxl-configure-cameras"
+echo "Please run rb5-configure-cameras"
 echo ""

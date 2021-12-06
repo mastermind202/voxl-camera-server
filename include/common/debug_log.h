@@ -34,20 +34,9 @@
 #ifndef DEBUG_LOG_H
 #define DEBUG_LOG_H
 
-#include <stdio.h>
-
-#ifdef DEBUG
-///<@todo add debug assert
-#define DEBUG_ASSERT(x, y)
-#else
-#define DEBUG_ASSERT(x)
-#endif // #ifndef DEBUG
-
-#define DISABLE_WRAP		"\033[?7l"	// disables line wrap, be sure to enable before exiting
-#define ENABLE_WRAP			"\033[?7h"	// default terminal behavior
 
 // Different debug levels
-enum class DebugLevel
+enum DebugLevel
 {
 	ALL = 0,            ///< Log everything
 	INFO,               ///< Enable info only logs
@@ -57,47 +46,19 @@ enum class DebugLevel
 	MAX_DEBUG_LEVELS
 };
 
-// -----------------------------------------------------------------------------------------------------------------------------
-// Static singleton class to enable debug logs
-// -----------------------------------------------------------------------------------------------------------------------------
-class Debug
-{
-public:
-	// Set debug level
-	///<@todo This will affect all threads if any one thread changes the debug level at runtime
-	static void SetDebugLevel(DebugLevel level)
-	{
-		m_currentDebugLevel = level;
-	}
+void SetDebugLevel(DebugLevel level);
 
-	static DebugLevel GetDebugLevel(){
-		return m_currentDebugLevel;
-	}
+DebugLevel GetDebugLevel();
 
-	// Core function to print the debug log message
-	static void DebugPrint(DebugLevel level,			///< Debug level
-				           const char location[],		///< Print location (file, line number etc)
-				           const char * format, ...);	///< Print args
+// Core function to print the debug log message
+void DebugPrint(DebugLevel level,			///< Debug level
+			    const char * format, ...);	///< Print args
 
-private:
-	// Disable instantiation
-	Debug();
-	// Disable destruction
-	~Debug();
 
-	static DebugLevel m_currentDebugLevel;	///< Current debug level that can be changed with SetDebugLevel()
-};
-
-// Convert to string
-#define TOSTRING(x) #x
-
-// Add file line number to the message
-#define VOXL_LOG_LOCATION "(" __FILE__ ":" TOSTRING(__LINE__) "): "
-
-#define VOXL_LOG_ALL(x...) 	    Debug::DebugPrint(DebugLevel::ALL,     VOXL_LOG_LOCATION, x)
-#define VOXL_LOG_INFO(x...)     Debug::DebugPrint(DebugLevel::INFO,    VOXL_LOG_LOCATION, x)
-#define VOXL_LOG_WARNING(x...)  Debug::DebugPrint(DebugLevel::WARNING, VOXL_LOG_LOCATION, x)
-#define VOXL_LOG_ERROR(x...)    Debug::DebugPrint(DebugLevel::ERROR,   VOXL_LOG_LOCATION, x)
-#define VOXL_LOG_FATAL(x...)    Debug::DebugPrint(DebugLevel::FATAL,   VOXL_LOG_LOCATION, x)
+#define VOXL_LOG_ALL(x...) 	    DebugPrint(DebugLevel::ALL,     x)
+#define VOXL_LOG_INFO(x...)     DebugPrint(DebugLevel::INFO,    x)
+#define VOXL_LOG_WARNING(x...)  DebugPrint(DebugLevel::WARNING, x)
+#define VOXL_LOG_ERROR(x...)    DebugPrint(DebugLevel::ERROR,   x)
+#define VOXL_LOG_FATAL(x...)    DebugPrint(DebugLevel::FATAL,   x)
 
 #endif

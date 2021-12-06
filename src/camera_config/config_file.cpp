@@ -42,6 +42,31 @@
 #include "config_defaults.h"
 #include "debug_log.h"
 
+
+// Parse the JSON entries from the linked list represented by pJsonParent
+static Status GetCameraInfo(cJSON*          pJsonParent,       ///< Main Json linked list
+                            PerCameraInfo*  pPerCameraInfo);   ///< Camera info from the config file
+static bool         IsConfigFileVersionSupported(cJSON* pJsonParent);
+static CameraType   GetCameraType(cJSON* pCameraInfo);
+
+// These are the main element strings in the JSON camera config file - so to speak these are variable names in the config
+// file. Each of these variables have values associated with them and the values could be integer, int64, strings etc
+#define JsonVersionString      "version"                  ///< Config file version
+#define JsonTypeString         "type"                     ///< Camera type
+#define JsonNameString         "name"                     ///< Camera name
+#define JsonWidthString        "width"                    ///< Frame width
+#define JsonHeightString       "height"                   ///< Frame height
+#define JsonFpsString          "frame_rate"               ///< Fps
+#define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
+#define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
+#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
+#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
+#define JsonOverrideIdString   "override_id"              ///< Override id
+#define JsonEnabledString      "enabled"                  ///< Is camera enabled
+
+#define DoesNotExistString     "DoesNotExist";
+
+
 /*
 // -----------------------------------------------------------------------------------------------------------------------------
 // Gets the camera type from the config file
@@ -164,30 +189,7 @@ Status ConfigFile::GetCameraInfo(cJSON*          pJsonParent,       ///< Main Js
     VOXL_LOG_INFO("------ voxl-camera-server: Done configuring %s camera\n", pPerCameraInfo->name);
 
     return S_OK;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// Parses the command line arguments to the main function
-// -----------------------------------------------------------------------------------------------------------------------------
-void ConfigFile::PrintCameraInfo(PerCameraInfo* pCameraInfo)    ///< Camera info
-{
-
-    printf("\t Name       : %s\n", pCameraInfo->name);
-    printf("\t Enabled    : %d\n", pCameraInfo->isEnabled);
-    printf("\t Type       : %s%s\n", (pCameraInfo->isMono ? "" : "stereo "), GetTypeString(pCameraInfo->type));
-
-    printf("\t Width      : %d\n", pCameraInfo->width);
-    printf("\t Height     : %d\n", pCameraInfo->height);
-    printf("\t Format     : %s\n", GetImageFmtString(pCameraInfo->format));
-
-    printf("\t FPS        : %d\n", pCameraInfo->fps);
-    printf("\t Cam ID     : %d\n", pCameraInfo->overrideId);
-
-    modal_exposure_print_config(pCameraInfo->expGainInfo);
-
-    printf("\n");
-}
-*/
+}*/
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Read and parse the config file. This function can be modified to support any config file format. The information for each
@@ -196,9 +198,8 @@ void ConfigFile::PrintCameraInfo(PerCameraInfo* pCameraInfo)    ///< Camera info
 // Note:
 // "ppPerCameraInfo" will point to memory allocated by this function and it is the callers responsibility to free it.
 // -----------------------------------------------------------------------------------------------------------------------------
-Status ConfigFile::Read(const char*     pConfigFileName,    ///< Config filename
-                        int*            pNumCameras,        ///< Returned number of cameras detected in the config file
-                        PerCameraInfo** ppPerCameraInfo)    ///< Returned camera info for each camera in the config file
+Status ReadConfigFile(int*            pNumCameras,        ///< Returned number of cameras detected in the config file
+                      PerCameraInfo** ppPerCameraInfo)    ///< Returned camera info for each camera in the config file
 {/*
     cJSON* pJsonParent;
 
@@ -266,14 +267,18 @@ Status ConfigFile::Read(const char*     pConfigFileName,    ///< Config filename
     return S_OK;
 }
 
+
+Status MakeDefaultConfigFile(int config){
+	return S_OK;
+}
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Read and parse the config file. This function can be modified to support any config file format. The information for each
 // camera read from the config file is returned from this function.
 //
 // -----------------------------------------------------------------------------------------------------------------------------
-Status ConfigFile::Write(const char*     pConfigFileName,      ///< Config filename
-                         int             pNumCameras,          ///< Number of cameras
-                         PerCameraInfo   pPerCameraInfo[])     ///< Camera info for each camera in the config file
+Status WriteConfigFile(int             pNumCameras,          ///< Number of cameras
+                       PerCameraInfo   pPerCameraInfo[])     ///< Camera info for each camera in the config file
 {
 /*
     Status returnStatus = S_ERROR;

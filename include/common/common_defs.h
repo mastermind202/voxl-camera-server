@@ -34,6 +34,7 @@
 #define COMMON_DEFS_H
 
 #include "debug_log.h"
+#include "stdio.h"
 #include "exposure-hist.h"
 
 #define PADDING_DISABLED __attribute__((packed))
@@ -114,5 +115,7 @@ struct PerCameraInfo
 
     modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
 };
+
+void PrintCameraInfo(PerCameraInfo pCameraInfo);
 
 #endif // COMMON_DEFS

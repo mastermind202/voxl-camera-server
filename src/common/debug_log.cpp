@@ -33,17 +33,26 @@
 
 #include "debug_log.h"
 #include <cstdarg>
+#include <stdio.h>
 
-// Initialize the static variables of the class
-DebugLevel Debug::m_currentDebugLevel = DebugLevel::ALL;
+static DebugLevel currentDebugLevel = DebugLevel::ERROR;
+
+void SetDebugLevel(DebugLevel level)
+{
+	currentDebugLevel = level;
+}
+
+DebugLevel GetDebugLevel(){
+	return currentDebugLevel;
+}
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function to print the debug messages conditionally depending on the debug level
 // -----------------------------------------------------------------------------------------------------------------------------
-void Debug::DebugPrint(DebugLevel level, const char location[], const char * format, ...)
+void DebugPrint(DebugLevel level, const char * format, ...)
 {
 	// Only print for the current debug level
-	if (level < m_currentDebugLevel)
+	if (level < currentDebugLevel)
 	{
 		return;
 	}

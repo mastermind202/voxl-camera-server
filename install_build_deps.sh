@@ -5,6 +5,6 @@
 
 cd deps
 
-dpkg -i *.deb
+dpkg -i --force-downgrade *.deb
 
 exit 0
