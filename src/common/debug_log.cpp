@@ -62,7 +62,5 @@ void DebugPrint(DebugLevel level, const char * format, ...)
 	vprintf(format, args);
 	va_end(args);
 
-    if(level >= DebugLevel::ERROR){
-        fflush(stdout);
-    }
+    fflush(stdout);
 }

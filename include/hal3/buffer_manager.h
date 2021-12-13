@@ -49,7 +49,7 @@ void bufferAllocateBuffers(
     unsigned long int consumerFlags);
 
 void bufferDeleteBuffers(BufferGroup* buffer);
-
+void bufferMakeYUVContiguous(BufferBlock* pBufferInfo);
 void bufferPush(BufferGroup* bufferGroup, buffer_handle_t* buffer);
 buffer_handle_t* bufferPop(BufferGroup* bufferGroup);
 BufferBlock* bufferGetBufferInfo(BufferGroup* bufferGroup, buffer_handle_t* buffer);

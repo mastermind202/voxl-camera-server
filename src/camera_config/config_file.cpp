@@ -37,11 +37,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <modal_json.h>
+#include <map>
+#include <iostream>
+#include <stdint.h>
+#include <string>
 
 #include "config_file.h"
 #include "config_defaults.h"
 #include "debug_log.h"
 
+using namespace std;
 
 // Parse the JSON entries from the linked list represented by pJsonParent
 static Status GetCameraInfo(cJSON*          pJsonParent,       ///< Main Json linked list
@@ -198,9 +203,67 @@ Status ConfigFile::GetCameraInfo(cJSON*          pJsonParent,       ///< Main Js
 // Note:
 // "ppPerCameraInfo" will point to memory allocated by this function and it is the callers responsibility to free it.
 // -----------------------------------------------------------------------------------------------------------------------------
-Status ReadConfigFile(int*            pNumCameras,        ///< Returned number of cameras detected in the config file
-                      PerCameraInfo** ppPerCameraInfo)    ///< Returned camera info for each camera in the config file
-{/*
+Status ReadConfigFile(list<PerCameraInfo>* cameras)    ///< Returned camera info for each camera in the config file
+{
+
+    PerCameraInfo sfl_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    sfl_info.camId  = 0;
+    sfl_info.isMono = true;
+    sfl_info.width  = 640;
+    sfl_info.height = 480;
+    strcpy(sfl_info.name, "stereo_front_left");
+
+    PerCameraInfo sfr_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    sfr_info.camId  = 1;
+    sfr_info.isMono = true;
+    sfr_info.width  = 640;
+    sfr_info.height = 480;
+    strcpy(sfr_info.name, "stereo_front_right");
+
+    PerCameraInfo tracking_info
+                         = getDefaultCameraInfo(CAMTYPE_OV7251);
+    tracking_info.camId  = 2;
+    tracking_info.isMono = true;
+    tracking_info.width  = 640;
+    tracking_info.height = 480;
+    strcpy(tracking_info.name, "tracking");
+
+    PerCameraInfo srl_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    srl_info.camId  = 4;
+    srl_info.isMono = true;
+    srl_info.width  = 640;
+    srl_info.height = 480;
+    strcpy(srl_info.name, "stereo_rear_left");
+
+    PerCameraInfo srr_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    srr_info.camId  = 5;
+    srr_info.isMono = true;
+    srr_info.width  = 640;
+    srr_info.height = 480;
+    strcpy(srr_info.name, "stereo_rear_right");
+
+    PerCameraInfo hires_info
+                      = getDefaultCameraInfo(CAMTYPE_IMX214);
+    hires_info.camId  = 3;
+    hires_info.isMono = true;
+    hires_info.width  = 640;
+    hires_info.height = 480;
+    strcpy(hires_info.name, "hires");
+
+
+    cameras->push_back(tracking_info);
+    cameras->push_back(hires_info);
+    //cameras->push_back(sfl_info);
+    //cameras->push_back(sfr_info);
+    //cameras->push_back(srl_info);
+    //cameras->push_back(srr_info);
+
+
+    /*
     cJSON* pJsonParent;
 
     m_sFmtMap[0]["raw8"]  = FMT_RAW8;

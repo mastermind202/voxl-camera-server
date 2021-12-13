@@ -39,6 +39,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <mutex>
+#include <list>
 #include <condition_variable>
 #include <modal_start_stop.h>
 #include <modal_pipe.h>
@@ -58,10 +59,8 @@ void   PrintHelpMessage();
 int    ParseArgs(int         argc,
                  char* const argv[]);
 
-Status StartCamera(PerCameraInfo cam);
-
-static int            g_numCameras;
-static PerCameraInfo* g_pCameraInfo;
+static list<PerCameraMgr*> mgrs;
+static void cleanManagers();
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Main camera server function that reads the config file, starts different cameras (using the requested API), sends the
@@ -93,6 +92,8 @@ int main(int argc, char* const argv[])
     // make our own safely.
     make_pid_file(PROCESS_NAME);
 
+    main_running = 1;
+
     if(int retval = ParseArgs(argc, argv)){
     	if(retval > 0) {
     		return 0;
@@ -101,22 +102,33 @@ int main(int argc, char* const argv[])
     	return -1;
     }
 
-    main_running = 1;
 
-    if(ReadConfigFile(&g_numCameras, &g_pCameraInfo)){
-    	VOXL_LOG_FATAL("ERROR: Failed to read config file\n");
-    	return -1;
+    list<PerCameraInfo> cameraInfo;
+
+    if(ReadConfigFile(&cameraInfo)){
+        VOXL_LOG_FATAL("ERROR: Failed to read config file\n");
+        return -1;
     }
 
-    g_numCameras = 1;
-    g_pCameraInfo = new PerCameraInfo[1];
-    g_pCameraInfo[0] = getDefaultCameraInfo(CAMTYPE_OV7251);
-    g_pCameraInfo[0].camId = 2;
-    g_pCameraInfo[0].isMono = true;
-    strcpy(g_pCameraInfo[0].name, "tracking");
+    for(PerCameraInfo info : cameraInfo){
 
-    PerCameraMgr* mgr = new PerCameraMgr(g_pCameraInfo[0]);
-    mgr->Start();
+        if(!info.isEnabled) continue;
+
+        VOXL_LOG_WARNING("Starting Camera: %s\n", info.name);
+
+        try{
+            PerCameraMgr *mgr = new PerCameraMgr(info);
+            mgr->Start();
+            mgrs.push_back(mgr);
+        } catch(int) {
+            VOXL_LOG_FATAL("Encountered error starting camera: %s, exiting\n", info.name);
+            cleanManagers();
+            cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
+            return -1;
+        }
+
+    }
+    cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
 
     VOXL_LOG_FATAL("------ voxl-camera-server: Camera server is now running\n");
 
@@ -125,42 +137,24 @@ int main(int argc, char* const argv[])
         usleep(500000);
     }
 
-    mgr->Stop();
-
-/*
     VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server is now stopping\n");
-    VOXL_LOG_FATAL("\t\tThere is a chance that it may segfault here, this is a mmqcamera bug, ignore it\n");
-    for (int i = 0; i < CAMTYPE_MAX_TYPES; i++)
-    {
-        if (g_pCamera[i] != NULL)
-        {
-            VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Stopping %s camera\n",
-                             GetTypeString((CameraType)i));
-            //<@todo Need to wrap any hal3 calls behind a API agnostic interface
-            // Stop the camera and delete the instance
-            g_pCamera[i]->Stop();
-            delete g_pCamera[i];
-            g_pCamera[i] = NULL;
-            VOXL_LOG_FATAL("------ voxl-camera-server INFO: %s camera stopped successfully\n",
-                             GetTypeString((CameraType)i));
-        }
+    cleanManagers();
+
+    VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server exited gracefully\n\n");
+
+    return 0;
+}
+
+static void cleanManagers(){
+    for(PerCameraMgr *mgr : mgrs){
+        VOXL_LOG_WARNING("\n------ voxl-camera-server INFO: Stopping %s camera\n",
+                         mgr->GetName());
+
+        mgr->Stop();
+        delete mgr;
     }
 
-	//Hal3 managers should deal with this but safer to call here anyways
-    pipe_server_close_all();
-
-    if (g_pCameraInfo != NULL)
-    {
-        delete g_pCameraInfo;
-        g_pCameraInfo = NULL;
-    }
-
-    if(((long) returnval) == 0){
-        VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server exited gracefully\n\n");
-    } else {
-        VOXL_LOG_FATAL("\n------ voxl-camera-server ERROR: One or more cameras hung on exit, had to ESTOP\n\n");
-    }
-    return status;*/
+    mgrs.erase(mgrs.begin(), mgrs.end());
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -268,67 +262,15 @@ void PrintHelpMessage()
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Calling this function will start the passed in camera
-// -----------------------------------------------------------------------------------------------------------------------------
-Status StartCamera(CameraType camType)
-{
-    Status status = S_OK;/*
-    PerCameraInfo* pCameraInfo = NULL;
-
-    VOXL_LOG_INFO("Starting Camera: %s\n", GetTypeString(camType));
-
-    // If the camera has already been started, simply return
-    ///<@todo Does not handle multiple cameras of the same type
-    if (g_pCamera[camType] == NULL)
-    {
-        for (int i = 0; i < g_numCameras; i++)
-        {
-            if (g_pCameraInfo[i].type == camType)
-            {
-                pCameraInfo = &g_pCameraInfo[i];
-                break;
-            }
-        }
-
-        if (pCameraInfo != NULL)
-        {
-            if (pCameraInfo->isEnabled)
-            {
-                g_pCamera[camType] = new CameraHAL3;
-
-                if (g_pCamera[camType] != NULL)
-                {
-                    status = g_pCamera[camType]->Start(pCameraInfo);
-                }
-            }
-        }
-        else
-        {
-            VOXL_LOG_ERROR("------ voxl-camera-server ERROR: Invalid camera type given by external interface %d\n", camType);
-        }
-    }
-
-    if (status == S_OK)
-    {
-        ConfigFile::PrintCameraInfo(pCameraInfo);
-    }
-*/
-    return status;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
 // Calling this function will perform an emergency stop of the camera server,
 // signalling to all camera worker threads that they should stop as soon as possible
 // -----------------------------------------------------------------------------------------------------------------------------
 void EStopCameraServer()
-{/*
-    for (int i = 0; i < CAMTYPE_MAX_TYPES; i++)
+{
+    for (PerCameraMgr *mgr : mgrs)
     {
-        if (g_pCamera[i] != NULL)
-        {
-            g_pCamera[i]->EStop();
-        }
-    }*/
+        mgr->EStop();
+    }
 
     main_running = 0;
 }

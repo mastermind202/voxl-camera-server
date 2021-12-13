@@ -34,15 +34,11 @@
 #ifndef CONFIG_FILE_H
 #define CONFIG_FILE_H
 
-#include <map>
-#include <iostream>
-#include <stdint.h>
-#include <string>
+#include <list>
 #include "common_defs.h"
 
 // Read and parse the config file given in the command line argument
-Status ReadConfigFile(int*            pNumCameras,         ///< Returned number of cameras detected in the config file
-                      PerCameraInfo** ppPerCameraInfo);    ///< Returned camera info for each camera in the config file
+Status ReadConfigFile(std::list<PerCameraInfo>* cameras);    ///< Returned camera info for each camera in the config file
 
 // Read and parse the config file given in the command line argument
 Status WriteConfigFile(int             pNumCameras,           ///< Passed number of cameras

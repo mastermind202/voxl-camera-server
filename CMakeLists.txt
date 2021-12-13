@@ -35,7 +35,7 @@ cmake_minimum_required(VERSION 3.3)
 
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -fPIC")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC")
 set(SERVERNAME rb5-camera-server)
 
 set(CONFNAME camera-server-config-helper)

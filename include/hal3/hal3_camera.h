@@ -131,8 +131,8 @@ public:
     }
     bool IsStopped(){
         return 
-            m_requestThread.EStop ||
-            m_resultThread.EStop;
+            m_requestThread.stop ||
+            m_resultThread.stop;
     }
     void EStop();
     const char *GetName()

@@ -5,6 +5,7 @@
 */
 
 #include "buffer_manager.h"
+#include "debug_log.h"
 
 #include <condition_variable>
 #include <mutex>
@@ -61,6 +62,20 @@ void bufferAllocateBuffers(
     }
 }
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// Moves the UV planes to be contiguous with the y plane
+// -----------------------------------------------------------------------------------------------------------------------------
+void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
+{
+
+    static const int height = pBufferInfo->height;
+    static const int width  = pBufferInfo->width;
+    //(Total size - expected size) / 1.5 because there's padding at the end as well
+    static const int offset = (pBufferInfo->size - (width * height * 1.5))/1.5;
+
+    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), (uint8_t*)(pBufferInfo->vaddress) + (width*height) + offset, width*height/2);
+}
+
 void bufferPush(BufferGroup* bufferGroup, buffer_handle_t* buffer)
 {
     unique_lock<mutex> lock(bufferMutex);
@@ -113,10 +128,10 @@ static int allocateOneBuffer(
 
     if (ionFd <= 0) {
         ionFd = open(ion_dev_file, O_RDONLY);
-    }
-    if (ionFd <= 0) {
-        fprintf(stderr, "Ion dev file open failed. Error=%d\n", errno);
-        return -EINVAL;
+        if (ionFd <= 0) {
+            fprintf(stderr, "Ion dev file open failed. Error=%d\n", errno);
+            return -EINVAL;
+        }
     }
     memset(&allocation_data, 0, sizeof(allocation_data));
 
@@ -128,7 +143,7 @@ static int allocateOneBuffer(
         slice = ALIGN_BYTE(height, 64);
         buffer_size = (size_t)(stride * slice * 3 / 2);
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
-        buffer_size = (size_t)(width * height * 1.25);
+        buffer_size = (size_t)(width * height * 2);
     }
 
     allocation_data.len = ((size_t)(buffer_size) + 4095U) & (~4095U);
@@ -141,14 +156,20 @@ static int allocateOneBuffer(
         return ret;
     }
 
-    bufferGroup->bufferBlocks[index].vaddress  = mmap(NULL, allocation_data.len, PROT_READ  | PROT_WRITE, MAP_SHARED, allocation_data.fd, 0);
-    bufferGroup->bufferBlocks[index].fd        = allocation_data.fd;
-    bufferGroup->bufferBlocks[index].size      = allocation_data.len;
-    bufferGroup->bufferBlocks[index].width     = width;
-    bufferGroup->bufferBlocks[index].height    = height;
-    bufferGroup->bufferBlocks[index].stride    = stride;
-    bufferGroup->bufferBlocks[index].slice     = slice;
-    bufferGroup->bufferBlocks[index].format    = format;
+
+    bufferGroup->bufferBlocks[index].vaddress       = mmap(NULL,
+                                                        allocation_data.len,
+                                                        PROT_READ  | PROT_WRITE,
+                                                        MAP_SHARED,
+                                                        allocation_data.fd,
+                                                        0);
+    bufferGroup->bufferBlocks[index].fd             = allocation_data.fd;
+    bufferGroup->bufferBlocks[index].size           = allocation_data.len;
+    bufferGroup->bufferBlocks[index].width          = width;
+    bufferGroup->bufferBlocks[index].height         = height;
+    bufferGroup->bufferBlocks[index].stride         = stride;
+    bufferGroup->bufferBlocks[index].slice          = slice;
+    bufferGroup->bufferBlocks[index].format         = format;
     bufferGroup->bufferBlocks[index].allocationData = allocation_data;
 
     native_handle = native_handle_create(1, 4);
