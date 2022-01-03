@@ -10,3 +10,4 @@ rb5-camera-server*
 android/obj
 android/libs
 !deps/*
+!deps/packages/*
