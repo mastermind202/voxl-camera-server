@@ -9,3 +9,4 @@ rb5-camera-server*
 .vscode
 android/obj
 android/libs
+!deps/*

@@ -45,7 +45,6 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //ID
         -1,                         //ID2
 		true,                       //Enabled?
-
         30,                         //Framerate
         640,                		//Width
         480,                		//Height
@@ -76,7 +75,6 @@ static const PerCameraInfo IMX214Defaults =
         -1,                         //ID
         -1,                         //ID2
 		true,                       //Enabled?
-
         30,                         //Framerate
         640,                		//Width
         480,                		//Height

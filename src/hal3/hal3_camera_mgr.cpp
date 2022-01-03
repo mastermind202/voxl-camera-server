@@ -236,8 +236,8 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    int fpsRange[] = {30, 30};
-    //int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
+    //int fpsRange[] = {30, 30};
+    int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
 
     int     gainTarget        =  1000;
     int64_t exposureUSecs     =  5259763;
@@ -328,6 +328,7 @@ void PerCameraMgr::Stop()
 
     if (m_pBufferManager != NULL)
     {
+        bufferDeleteBuffers(m_pBufferManager);
         delete m_pBufferManager;
         m_pBufferManager = NULL;
     }

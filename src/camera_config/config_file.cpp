@@ -343,7 +343,7 @@ Status MakeDefaultConfigFile(int config){
 Status WriteConfigFile(int             pNumCameras,          ///< Number of cameras
                        PerCameraInfo   pPerCameraInfo[])     ///< Camera info for each camera in the config file
 {
-/*
+    /*
     Status returnStatus = S_ERROR;
     cJSON* head = cJSON_CreateObject();
 
