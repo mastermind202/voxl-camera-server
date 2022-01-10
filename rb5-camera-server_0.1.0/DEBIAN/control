@@ -1,0 +1,9 @@
+Package: rb5-camera-server
+Version: 0.1.0
+Section: base
+Priority: optional
+Architecture: arm64
+Depends:
+Conflicts:
+Maintainer: modalai.com
+Description: publishes camera frames over named pipe interface

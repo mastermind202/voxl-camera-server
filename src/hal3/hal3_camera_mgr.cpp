@@ -254,8 +254,8 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     m_requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
     m_requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,         1);
-    //m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &gainTarget,     1);
-    //m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &exposureUSecs,  1);
+    m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &gainTarget,     1);
+    m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &exposureUSecs,  1);
     m_requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode, 1);
     m_requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &(afmode),       1);
     m_requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &(antibanding),  1);
@@ -295,15 +295,12 @@ void PerCameraMgr::Start()
 void PerCameraMgr::Stop()
 {
 
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
-
     //Stop has already been called
     if(!m_requestThread.EStop){
         // Not an emergency stop, wait to recieve last frame
         // The result thread will stop when the result of the last frame is received
         m_requestThread.stop = true;
     }
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     pthread_cond_signal(&m_requestThread.cond);
     pthread_join(m_requestThread.thread, NULL);
@@ -311,20 +308,13 @@ void PerCameraMgr::Stop()
     pthread_mutex_unlock(&m_requestThread.mutex);
     pthread_mutex_destroy(&m_requestThread.mutex);
     pthread_cond_destroy(&m_requestThread.cond);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
-    pthread_cond_signal(&m_resultThread.cond);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    //pthread_cond_signal(&m_resultThread.cond);
     pthread_join(m_resultThread.thread, NULL);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
     pthread_cond_signal(&m_resultThread.cond);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
     pthread_mutex_unlock(&m_resultThread.mutex);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
     pthread_mutex_destroy(&m_resultThread.mutex);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
     pthread_cond_destroy(&m_resultThread.cond);
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (m_pBufferManager != NULL)
     {
@@ -332,18 +322,14 @@ void PerCameraMgr::Stop()
         delete m_pBufferManager;
         m_pBufferManager = NULL;
     }
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (m_pDevice != NULL)
     {
         m_pDevice->common.close(&m_pDevice->common);
         m_pDevice = NULL;
     }
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     pipe_server_close(m_outputChannel);
-
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -636,7 +622,7 @@ void* ThreadPostProcessResult(void* pData)
         }
 
         // Coming here means we have a result frame to process
-        VOXL_LOG_ALL("Procesing new frame\n");
+        VOXL_LOG_ALL("%s procesing new frame\n", pCameraMgr->GetName());
 
         CaptureResultFrameData* pCaptureResultData = (CaptureResultFrameData*)pThreadData->msgQueue.front();
 
@@ -731,8 +717,6 @@ void* ThreadPostProcessResult(void* pData)
 
         }
 
-        VOXL_LOG_ALL("%s, %d\n", __FUNCTION__, __LINE__ );
-
         if (pSendFrameData != NULL)
         {
             // Ship the frame out of the camera server
@@ -786,12 +770,12 @@ void* ThreadPostProcessResult(void* pData)
     if(pThreadData->stop){
         VOXL_LOG_INFO("------ Result thread on camera: %s recieved stop command, exiting\n", pCameraMgr->GetName());
     }else if(!pThreadData->EStop){
-        VOXL_LOG_FATAL("------ Last %s result frame: %d\n", pCameraMgr->GetName(), pThreadData->lastResultFrameNumber);
+        VOXL_LOG_INFO("------ Last %s result frame: %d\n", pCameraMgr->GetName(), pThreadData->lastResultFrameNumber);
     }else{
         VOXL_LOG_FATAL("------ voxl-camera-server WARNING: Thread: %s result thread recieved ESTOP\n", pCameraMgr->GetName());
     }
 
-    VOXL_LOG_WARNING("Leaving %s result thread\n", pCameraMgr->GetName());
+    VOXL_LOG_INFO("Leaving %s result thread\n", pCameraMgr->GetName());
 
     fflush(stdout);
 
@@ -832,10 +816,10 @@ void* ThreadIssueCaptureRequests(void* data)
         VOXL_LOG_WARNING("------ voxl-camera-server WARNING: Thread: %s request thread recieved ESTOP\n", pCameraMgr->GetName());
     }else{
         pCameraMgr->StoppedSendingRequest(frame_number);
-        VOXL_LOG_WARNING("------ Last request frame for %s: %d\n", pCameraMgr->GetName(), frame_number);
+        VOXL_LOG_INFO("------ Last request frame for %s: %d\n", pCameraMgr->GetName(), frame_number);
     }
 
-    VOXL_LOG_WARNING("Leaving %s request thread\n", pCameraMgr->GetName());
+    VOXL_LOG_INFO("Leaving %s request thread\n", pCameraMgr->GetName());
 
     fflush(stdout);
 

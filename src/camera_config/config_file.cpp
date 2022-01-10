@@ -257,10 +257,10 @@ Status ReadConfigFile(list<PerCameraInfo>* cameras)    ///< Returned camera info
 
     cameras->push_back(tracking_info);
     cameras->push_back(hires_info);
-    //cameras->push_back(sfl_info);
-    //cameras->push_back(sfr_info);
-    //cameras->push_back(srl_info);
-    //cameras->push_back(srr_info);
+    cameras->push_back(sfl_info);
+    cameras->push_back(sfr_info);
+    cameras->push_back(srl_info);
+    cameras->push_back(srr_info);
 
 
     /*

@@ -54,20 +54,12 @@ include_directories(
 
 target_link_libraries(${SERVERNAME}
 	/usr/lib/libcutils.so.0
-	/usr/lib/libutils.so.0
-	/usr/lib/liblog.so.0
 	/usr/lib/libhardware.so.0
 	/usr/lib/libcamera_metadata.so.0
-	/usr/lib/libbinder.so.0
-    dl
 	modal_pipe
 	modal_json
 	/usr/lib64/libmodal_exposure.so
 	voxl_cutils
-	mv3
-	gsl
-	llvm-qcom
-	CB
 
 )
 

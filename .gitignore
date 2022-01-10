@@ -4,10 +4,8 @@ build32
 build64
 *.ipk
 *.deb
-rb5-camera-server*
+pkg/IPK
+pkg/DEB
+pkg/data
 *.core
 .vscode
-android/obj
-android/libs
-!deps/*
-!deps/packages/*

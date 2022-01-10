@@ -1,15 +1,17 @@
 #!/bin/bash
-################################################################################
-# Copyright (c) 2020 ModalAI, Inc. All rights reserved.
-################################################################################
+#
+# Modal AI Inc. 2022
+# author: james@modalai.com
 
-PACKAGE=$(cat ./package/control | grep "Package" | cut -d' ' -f 2)
 
-sudo rm -rf build*/ 2>/dev/null
-rm -rf *.deb 2>/dev/null
-rm -rf ${PACKAGE}* 2>/dev/null
-rm -rf .bash_history 2>/dev/null
-
-echo ""
-echo "Done cleaning"
-echo ""
+sudo rm -rf build/
+sudo rm -rf build32/
+sudo rm -rf build64/
+sudo rm -rf pkg/control.tar.gz
+sudo rm -rf pkg/data/
+sudo rm -rf pkg/data.tar.gz
+sudo rm -rf pkg/DEB/
+sudo rm -rf pkg/IPK/
+sudo rm -rf *.ipk
+sudo rm -rf *.deb
+sudo rm -rf .bash_history

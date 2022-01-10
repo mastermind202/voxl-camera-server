@@ -110,11 +110,14 @@ int main(int argc, char* const argv[])
         return -1;
     }
 
+    VOXL_LOG_FATAL("------ voxl-camera-server: Starting camera server\n");
+
     for(PerCameraInfo info : cameraInfo){
 
-        if(!info.isEnabled) continue;
-
-        VOXL_LOG_WARNING("Starting Camera: %s\n", info.name);
+        if(!info.isEnabled) {
+            VOXL_LOG_ALL("\tSkipping Camera: %s, configuration disabled\n");
+            continue;
+        }
 
         try{
             PerCameraMgr *mgr = new PerCameraMgr(info);
@@ -127,10 +130,12 @@ int main(int argc, char* const argv[])
             return -1;
         }
 
+        VOXL_LOG_WARNING("\tStarted Camera: %s\n", info.name);
+
     }
     cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
 
-    VOXL_LOG_FATAL("------ voxl-camera-server: Camera server is now running\n");
+    VOXL_LOG_FATAL("\n------ voxl-camera-server: Camera server is now running\n");
 
     while (main_running)
     {
@@ -147,11 +152,10 @@ int main(int argc, char* const argv[])
 
 static void cleanManagers(){
     for(PerCameraMgr *mgr : mgrs){
-        VOXL_LOG_WARNING("\n------ voxl-camera-server INFO: Stopping %s camera\n",
-                         mgr->GetName());
-
         mgr->Stop();
         delete mgr;
+        VOXL_LOG_WARNING("\tStopped Camera: %s\n",
+                         mgr->GetName());
     }
 
     mgrs.erase(mgrs.begin(), mgrs.end());
@@ -178,8 +182,9 @@ int ParseArgs(int         argc,                 ///< Number of arguments
         {"list-resolutions", no_argument,        0, 'r'},
     };
 
-    int optionIndex      = 0;
+    int optionIndex = 0;
     int option;
+    int debugLevel  = 2;
 
     while ((option = getopt_long (argc, argv, ":c:d:hr", &LongOptions[0], &optionIndex)) != -1)
     {
@@ -202,8 +207,6 @@ int ParseArgs(int         argc,                 ///< Number of arguments
                 return 1;
 
             case 'd':
-
-            	int debugLevel;
                 if (sscanf(optarg, "%d", &debugLevel) != 1)
                 {
                     printf("ERROR: failed to parse debug level specified after -d flag\n");
@@ -217,8 +220,6 @@ int ParseArgs(int         argc,                 ///< Number of arguments
                     VOXL_LOG_FATAL("-----  Min debug level: %d\n", ((int)DebugLevel::ALL));
                     return -1;
                 }
-
-                SetDebugLevel((DebugLevel)debugLevel);
 
                 break;
 
@@ -240,6 +241,8 @@ int ParseArgs(int         argc,                 ///< Number of arguments
                 return -1;
         }
     }
+
+    SetDebugLevel((DebugLevel)debugLevel);
 
     return 0;
 }
