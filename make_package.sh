@@ -125,25 +125,25 @@ if [ -d "bash_profile" ]; then
 fi
 
 ################################################################################
-# make an IPK
+# make an IPK (Disabled for this package, not for VOXL)
 ################################################################################
 
-echo "starting building $IPK_NAME"
-
-## make a folder dedicated to IPK building and make the required version file
-mkdir $IPK_DIR
-echo "2.0" > $IPK_DIR/debian-binary
-
-## add tar archives of data and control for the IPK package
-cd $CONTROL_DIR/
-tar --create --gzip -f ../../$IPK_DIR/control.tar.gz *
-cd ../../
-cd $DATA_DIR/
-tar --create --gzip -f ../../$IPK_DIR/data.tar.gz *
-cd ../../
-
-## use ar to make the final .ipk and place it in the repository root
-ar -r $IPK_NAME $IPK_DIR/control.tar.gz $IPK_DIR/data.tar.gz $IPK_DIR/debian-binary
+#echo "starting building $IPK_NAME"
+#
+### make a folder dedicated to IPK building and make the required version file
+#mkdir $IPK_DIR
+#echo "2.0" > $IPK_DIR/debian-binary
+#
+### add tar archives of data and control for the IPK package
+#cd $CONTROL_DIR/
+#tar --create --gzip -f ../../$IPK_DIR/control.tar.gz *
+#cd ../../
+#cd $DATA_DIR/
+#tar --create --gzip -f ../../$IPK_DIR/data.tar.gz *
+#cd ../../
+#
+### use ar to make the final .ipk and place it in the repository root
+#ar -r $IPK_NAME $IPK_DIR/control.tar.gz $IPK_DIR/data.tar.gz $IPK_DIR/debian-binary
 
 
 ################################################################################
