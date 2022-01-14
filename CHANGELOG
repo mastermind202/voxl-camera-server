@@ -1,2 +1,7 @@
-0.1.0
+0.0.1
+    * Working on chipcode 14.x
+    * Outstanding issue: ov7251s operating at half requested framerate
+    * Outstanding issue: stereo cameras not syncing
+    * Outstanding issue: 6 cameras hard coded, not pulling from config file
+0.0.0
     * Initial port, working mode to print camera resolutions
