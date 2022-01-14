@@ -45,7 +45,7 @@
 #include "common_defs.h"
 #include "debug_log.h"
 #include "hal3_camera.h"
-#include "rb5_camera_server.h"
+#include "voxl_camera_server.h"
 #include <camera/CameraMetadata.h>
 #include <camera/VendorTagDescriptor.h>
 

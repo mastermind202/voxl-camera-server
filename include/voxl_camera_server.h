@@ -38,15 +38,15 @@
  * This is installed to /usr/include for use in your project
  */
 
-#ifndef RB5_CAMERA_SERVER_H
-#define RB5_CAMERA_SERVER_H
+#ifndef VOXL_CAMERA_SERVER_H
+#define VOXL_CAMERA_SERVER_H
 
 #include <modal_pipe.h>
 
 // config file exists here if you want to access it
-#define RB5_CAMERA_SERVER_CONF_FILE	"/etc/modalai/rb5-camera-server.conf"
+#define VOXL_CAMERA_SERVER_CONF_FILE	"/etc/modalai/voxl-camera-server.conf"
 
-#define PROCESS_NAME "rb5-camera-server"
+#define PROCESS_NAME "voxl-camera-server"
 
 #define MAX_ALLOWED_CAMERAS 6
 

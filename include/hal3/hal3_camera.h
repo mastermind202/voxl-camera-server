@@ -31,15 +31,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
-#ifndef RB5_HAL3_CAMERA
-#define RB5_HAL3_CAMERA
+#ifndef VOXL_HAL3_CAMERA
+#define VOXL_HAL3_CAMERA
 
 #include <camera/CameraMetadata.h>
 #include <hardware/camera3.h>
 #include <list>
 #include <string>
 #include <modal_pipe.h>
-//#include "rb5_camera_server.h"
 #include <mutex>
 #include <condition_variable>
 

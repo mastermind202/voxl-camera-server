@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 ModalAI Inc.
+ * Copyright 2022 ModalAI Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -50,7 +50,7 @@
 #include "config_file.h"
 #include "debug_log.h"
 #include "hal3_camera.h"
-#include "rb5_camera_server.h"
+#include "voxl_camera_server.h"
 
 #include "config_defaults.h"
 

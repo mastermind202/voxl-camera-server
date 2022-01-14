@@ -201,7 +201,7 @@ Status ConfigFile::GetCameraInfo(cJSON*          pJsonParent,       ///< Main Js
 // camera read from the config file is returned from this function.
 //
 // Note:
-// "ppPerCameraInfo" will point to memory allocated by this function and it is the callers responsibility to free it.
+// "cameras" will contain memory allocated by this function and it is the callers responsibility to free/pop it it.
 // -----------------------------------------------------------------------------------------------------------------------------
 Status ReadConfigFile(list<PerCameraInfo>* cameras)    ///< Returned camera info for each camera in the config file
 {

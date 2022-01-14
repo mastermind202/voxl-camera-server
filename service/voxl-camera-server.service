@@ -1,0 +1,17 @@
+#
+# Copyright (c) 2020 ModalAI, Inc.
+#
+
+[Unit]
+Description=voxl-camera-server
+SourcePath=/usr/bin/voxl-camera-server
+
+[Service]
+User=root
+Type=simple
+PIDFile=/run/voxl-camera-server.pid
+ExecStart=/bin/bash -c "/usr/bin/voxl-camera-server"
+
+[Install]
+WantedBy=multi-user.target
+

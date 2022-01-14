@@ -36,7 +36,7 @@ cmake_minimum_required(VERSION 3.3)
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC")
-set(SERVERNAME rb5-camera-server)
+set(SERVERNAME voxl-camera-server)
 
 set(CONFNAME camera-server-config-helper)
 set(CONFSOURCE "config/camera_server_config_helper.cpp")
@@ -52,14 +52,18 @@ include_directories(
     hardware_headers/
 )
 
+
+file(GLOB_RECURSE TMP_LIBS "hardware_libs/*.so*")
+
 target_link_libraries(${SERVERNAME}
-	/usr/lib/libcutils.so.0
-	/usr/lib/libhardware.so.0
-	/usr/lib/libcamera_metadata.so.0
-	modal_pipe
-	modal_json
-	/usr/lib64/libmodal_exposure.so
-	voxl_cutils
+	cutils
+	#hardware
+    #camera_metadata
+    ${TMP_LIBS}
+    modal_pipe
+    modal_exposure
+    modal_json
+    voxl_cutils
 
 )
 
