@@ -4,7 +4,7 @@ Section: base
 Priority: optional
 Architecture: arm64
 Depends: libmodal-pipe(>=2.0.5),libmodal-json,libmodal-exposure
-Provides: voxl-camera-server
+Provides: voxl-camera-server (= 1.0.0)
 Conflicts: voxl-camera-server
 Maintainer: modalai.com
 Description: publishes camera frames over named pipe interface

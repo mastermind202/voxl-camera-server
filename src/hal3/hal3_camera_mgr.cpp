@@ -138,6 +138,19 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
     char cameraName[20];
     sprintf(cameraName, "%d", m_cameraId);
 
+    if(m_pCameraModule->get_camera_info(m_cameraId, &m_pHalCameraInfo))
+    {
+        VOXL_LOG_ERROR("------voxl-camera-server ERROR: Get camera %s(%s) info failed!\n", cameraName, m_cameraConfigInfo.name);
+
+        throw -EINVAL;
+    }
+
+//    CameraMetadata meta = (camera_metadata_t *)(m_pHalCameraInfo.static_camera_characteristics);
+//
+//    int val = meta.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT).data.i32[0];
+//
+//    printf("PartialResultsCount (%s): %d\n", cameraName, val);
+
     if (m_pCameraModule->common.methods->open(&m_pCameraModule->common, cameraName, (hw_device_t**)(&m_pDevice)))
     {
         VOXL_LOG_ERROR("------voxl-camera-server ERROR: Open camera %s(%s) failed!\n", cameraName, m_cameraConfigInfo.name);
@@ -151,14 +164,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
 
         throw -EINVAL;
     }
-
-    if(m_pCameraModule->get_camera_info(m_cameraId, &m_pHalCameraInfo))
-    {
-        VOXL_LOG_ERROR("------voxl-camera-server ERROR: Get camera %s(%s) info failed!\n", cameraName, m_cameraConfigInfo.name);
-
-        throw -EINVAL;
-    }
-
 
     if (ConfigureStreams())
     {
@@ -236,15 +241,16 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    //int fpsRange[] = {30, 30};
-    int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
+    int fpsRange[] = {60, 60};
+    //int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
 
-    int     gainTarget        =  1000;
+    int     gainTarget        =  800;
     int64_t exposureUSecs     =  5259763;
     uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
     uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
     uint8_t afmode            =  ANDROID_CONTROL_AF_MODE_OFF;
     uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+    uint8_t intent            =  ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT;
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -255,8 +261,9 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
 
     m_requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,         1);
     m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &gainTarget,     1);
-    m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &exposureUSecs,  1);
+    //m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &exposureUSecs,  1);
     m_requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode, 1);
+    m_requestMetadata.update(ANDROID_CONTROL_CAPTURE_INTENT,      &intent, 1);
     m_requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &(afmode),       1);
     m_requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &(antibanding),  1);
     m_requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],    2);
@@ -350,21 +357,21 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_TIMESTAMP, &entry);
 
-        if ((0 == result) && (entry.count > 0))
+        if (!result && entry.count)
         {
             m_currentTimestamp = entry.data.i64[0];
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
 
-        if ((0 == result) && (entry.count > 0))
+        if (!result && entry.count)
         {
             m_currentGain = entry.data.i32[0];
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
 
-        if ((0 == result) && (entry.count > 0))
+        if (!result && entry.count)
         {
             m_currentExposure = entry.data.i64[0];
         }
@@ -374,6 +381,8 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
     {
 
         VOXL_LOG_ALL("Received Frame %d from camera %s\n", pHalResult->frame_number, GetName());
+
+        //printf("%lu\n", m_currentTimestamp);
 
         CaptureResultFrameData* pCaptureResultData = new CaptureResultFrameData;
 

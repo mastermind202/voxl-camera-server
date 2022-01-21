@@ -57,8 +57,6 @@ file(GLOB_RECURSE TMP_LIBS "hardware_libs/*.so*")
 
 target_link_libraries(${SERVERNAME}
 	cutils
-	#hardware
-    #camera_metadata
     ${TMP_LIBS}
     modal_pipe
     modal_exposure
