@@ -35,105 +35,14 @@
 #include <string.h>
 #include <getopt.h>
 #include <list>
-#include "camera_config.h"
-#include "camera_defaults.h"
+#include "config_file.h"
+#include "config_defaults.h"
 #include "common_defs.h"
 #include "debug_log.h"
 #include "voxl_camera_server.h"
 
 #define NUMCAMS  3
 #define NUMTYPES 5
-static const char* valid_cams[NUMTYPES] = {"none", "hires", "tof", "tracking", "stereo"};
-
-static PerCameraInfo *cams;
-
-static bool factory_mode = false;
-
-static void _print_valid_types(){
-
-    printf("Valid types are:\n");
-
-    for(int i = 0; i < NUMTYPES; i++){
-        printf("\t%s\n", valid_cams[i]);
-    }
-}
-
-static void _print_usage(void) {
-    printf("\n\
-Please don't call me, this script does not safety check valid camera combinations\n\
-Please call voxl-configure-cameras instead\n\
-\n\
-This will configure the camera server in factory mode\n\
-with specified cameras in the specified slots.\n\
-\n\
-Options are:\n\
--f                 factory reset, use defaults for the specified cameras (required)\n\
--h                 print this help message\n\n\
-\n\
-Call format: \n\
-camera-server-config-helper -f (J2) (J3) (J4)\n\
-Sample calls: \n\
-camera-server-config-helper -f hires stereo tracking\n\
-camera-server-config-helper -f none none tracking\n\
-camera-server-config-helper -f none tof none\n\
-\n\
-Please don't call me, this script does not safety check valid camera combinations\n\
-Please call voxl-configure-cameras instead\n");
-    return;
-}
-
-static bool _validate_type(char *type){
-
-    return GetCameraTypeFromString(type) != CAMTYPE_INVALID || !strcmp(type, valid_cams[0]);
-}
-
-static int _parse_opts(int argc, char* argv[])
-{
-    static struct option long_options[] =
-    {
-        {"factory",            no_argument,        0, 'f'},
-        {"help",               no_argument,        0, 'h'},
-        {0, 0, 0, 0}
-    };
-
-    while(1){
-        int option_index = 0;
-        int c = getopt_long(argc, argv, "fh", long_options, &option_index);
-
-        if(c == -1) break; // Detect the end of the options.
-
-        switch(c){
-        case 0:
-            // for long args without short equivalent that just set a flag
-            // nothing left to do so just break.
-            if (long_options[option_index].flag != 0) break;
-            break;
-            break;
-
-        case 'f':
-            factory_mode = true;
-
-            for(int i = 2; i < 5; i++){
-                if(!_validate_type(argv[i])){
-                    printf("Invalid camera type in port: J%d: %s\n",i, argv[i]);
-                    _print_valid_types();
-                    return -1;
-                }
-            }
-            return 0;
-
-        case 'h':
-            _print_usage();
-            return -1;
-
-        default:
-            _print_usage();
-            return -1;
-        }
-    }
-
-    return -1;
-}
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Main camera server configuration tool, recommend that this tool is not called directly, but through
@@ -142,24 +51,52 @@ static int _parse_opts(int argc, char* argv[])
 int main(int argc, char* argv[])
 {
 
-    Debug::SetDebugLevel(DebugLevel::ALL);
-    if(_parse_opts(argc, argv)) return -1;
+    SetDebugLevel(DebugLevel::ALL);
 
-    cams = new PerCameraInfo[NUMCAMS];
 
-    int hiresc = 0, stereoc = 0, trackc = 0;
-    for(int i = 0; i < NUMCAMS; i++){
+    std::list<PerCameraInfo> cameras;
 
-        //Get default camera data from args 2,3,and 4 in factory mode
-        cams[i] = getDefaultCameraInfo(GetCameraTypeFromString(argv[i+2]));
+    PerCameraInfo sfl_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    sfl_info.camId  = 0;
+    strcpy(sfl_info.name, "stereo_front_left");
 
-    }
+    PerCameraInfo sfr_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    sfr_info.camId  = 1;
+    strcpy(sfr_info.name, "stereo_front_right");
 
-    ConfigFile::Write(VOXL_CAMERA_SERVER_CONF_FILE,
-                      NUMCAMS,
-                      cams);
+    PerCameraInfo tracking_info
+                         = getDefaultCameraInfo(CAMTYPE_OV7251);
+    tracking_info.camId  = 2;
+    strcpy(tracking_info.name, "tracking");
 
-    if(cams != NULL) delete cams;
+    PerCameraInfo srl_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    srl_info.camId  = 4;
+    strcpy(srl_info.name, "stereo_rear_left");
+
+    PerCameraInfo srr_info
+                    = getDefaultCameraInfo(CAMTYPE_OV7251);
+    srr_info.camId  = 5;
+    strcpy(srr_info.name, "stereo_rear_right");
+
+    PerCameraInfo hires_info
+                      = getDefaultCameraInfo(CAMTYPE_IMX214);
+    hires_info.camId  = 3;
+    strcpy(hires_info.name, "hires");
+
+
+    cameras.push_back(tracking_info);
+    cameras.push_back(hires_info);
+    cameras.push_back(sfl_info);
+    cameras.push_back(sfr_info);
+    cameras.push_back(srl_info);
+    cameras.push_back(srr_info);
+
+    WriteConfigFile(cameras);
+
+    cameras.erase(cameras.begin(), cameras.end());
 
     return 0;
 

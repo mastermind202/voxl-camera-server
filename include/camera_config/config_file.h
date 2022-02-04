@@ -38,12 +38,9 @@
 #include "common_defs.h"
 
 // Read and parse the config file given in the command line argument
-Status ReadConfigFile(std::list<PerCameraInfo>* cameras);    ///< Returned camera info for each camera in the config file
+Status ReadConfigFile(std::list<PerCameraInfo>& cameras);    ///< Returned camera info for each camera in the config file
 
 // Read and parse the config file given in the command line argument
-Status WriteConfigFile(int             pNumCameras,           ///< Passed number of cameras
-                       PerCameraInfo   pPerCameraInfo[]);     ///< Passed camera info for each camera in the config file
-
-Status MakeDefaultConfigFile(int config);
+void WriteConfigFile(std::list<PerCameraInfo> cameras);     ///< Passed camera info for each camera in the config file
 
 #endif // end #define CAMERA_CONFIG_H

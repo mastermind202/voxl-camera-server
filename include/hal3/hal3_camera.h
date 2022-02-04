@@ -89,20 +89,6 @@ public:
     {
         return m_cameraConfigInfo.type;
     }
-    // Get number of frames skipped
-    static constexpr uint32_t GetNumSkippedFrames()
-    {
-        return NUM_SKIPPED_FRAMES;
-    }
-    // Set next exp/gain values
-    void SetNextExpGain(int64_t exposure, int32_t gain)
-    {
-        m_nextExposure = exposure;
-        m_nextGain     = gain;
-
-        ///<@todo check if this is the right place
-        m_expgainCondVar.notify_all();
-    }
     // Get preview buffer manager
     BufferGroup* GetBufferManager()
     {
@@ -139,16 +125,6 @@ public:
         return m_cameraConfigInfo.name;
     }
 
-    int64_t GetCurrentExposure()
-    {
-        return m_currentExposure;
-    }
-
-    int32_t GetCurrentGain()
-    {
-        return m_currentGain; 
-    }
-
     bool IsUsingAE()
     {
         return m_usingAE;
@@ -180,8 +156,6 @@ public:
         return pipe_server_get_num_clients(m_outputChannel);
     }
     uint8_t                   m_outputChannel;
-
-protected:
 
     // Camera module calls this function to pass on the capture frame result
     static void  CameraModuleCaptureResult(const camera3_callback_ops_t *cb,const camera3_capture_result *hal_result);
@@ -225,15 +199,15 @@ protected:
     Camera3Callbacks          m_cameraCallbacks;                ///< Camera callbacks
     ThreadData                m_requestThread;                  ///< Request thread private data
     ThreadData                m_resultThread;                   ///< Result Thread private data
-    int64_t                   m_currentTimestamp;               ///< Exposure target
-    int64_t                   m_currentExposure;                ///< Exposure target
-    int32_t                   m_currentGain;                    ///< Gain target
-    volatile int64_t          m_nextExposure;                   ///< Exposure target
-    volatile int32_t          m_nextGain;                       ///< Gain target
     std::mutex                m_expgainCondMutex;               ///< Mutex to be used with the condition variable
     PerCameraInfo             m_cameraConfigInfo;               ///< Per camera config information
     bool                      m_usingAE = true;                 ///< Disabled AE via control pipe
-    std::condition_variable   m_expgainCondVar;                 ///< Condition variable for wake up
+    int64_t                   m_currentTimestamp;               ///< Timestamp
+    int64_t                   m_currentExposure;                ///< Exposure
+    int32_t                   m_currentGain;                    ///< Gain
+    int64_t                   m_setExposure;                    ///< Exposure
+    int32_t                   m_setGain;                        ///< Gain
+    ModalExposureHist         m_expInterface;
 };
 
 //------------------------------------------------------------------------------------------------------------------------------

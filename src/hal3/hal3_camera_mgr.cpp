@@ -78,7 +78,8 @@ struct CaptureResultFrameData
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor
 // -----------------------------------------------------------------------------------------------------------------------------
-PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
+PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
+    m_expInterface(pCameraInfo.expGainInfo)
 {
     m_cameraCallbacks.cameraCallbacks = {&CameraModuleCaptureResult, &CameraModuleNotify};
     m_cameraCallbacks.pPrivate        = this;
@@ -96,11 +97,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
     m_resultThread.msgQueue.clear();
     m_resultThread.lastResultFrameNumber = -1;
 
-    m_currentExposure = 5259763;
-    m_currentGain     = 1000;
-    m_nextExposure    = m_currentExposure;
-    m_nextGain        = m_currentGain;
-
     //Always request raw10 frames to make sure we have a buffer for either,
     // post processing thread will figure out what the driver is giving us
     if (pCameraInfo.format == FMT_RAW10 ||
@@ -115,12 +111,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
     }
 
     m_cameraConfigInfo = pCameraInfo;
-    /*
-    if(init_exposure_interface(m_cameraId, pCameraInfo.expGainInfo)){
-        VOXL_LOG_ERROR("------voxl-camera-server ERROR: Failed to initialize exposure interface!\n");
-
-        throw -EINVAL;
-    }*/
 
     m_isMono = m_cameraConfigInfo.isMono;
 
@@ -144,12 +134,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo)
 
         throw -EINVAL;
     }
-
-//    CameraMetadata meta = (camera_metadata_t *)(m_pHalCameraInfo.static_camera_characteristics);
-//
-//    int val = meta.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT).data.i32[0];
-//
-//    printf("PartialResultsCount (%s): %d\n", cameraName, val);
 
     if (m_pCameraModule->common.methods->open(&m_pCameraModule->common, cameraName, (hw_device_t**)(&m_pDevice)))
     {
@@ -236,21 +220,21 @@ int PerCameraMgr::ConfigureStreams()
     return S_OK;
 }
 
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Construct default camera settings that will be passed to the camera module to be used for capturing the frames
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    int fpsRange[] = {60, 60};
-    //int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
+    int fpsRange[] = {m_cameraConfigInfo.fps, m_cameraConfigInfo.fps};
+    int64_t frameDuration = 1e9 / m_cameraConfigInfo.fps;
 
-    int     gainTarget        =  800;
-    int64_t exposureUSecs     =  5259763;
+    m_setExposure             =  5259763;
+    m_setGain                 =  800;
     uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
     uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
     uint8_t afmode            =  ANDROID_CONTROL_AF_MODE_OFF;
     uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
-    uint8_t intent            =  ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT;
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -259,14 +243,14 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     m_requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    m_requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,         1);
-    m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &gainTarget,     1);
-    //m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &exposureUSecs,  1);
-    m_requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode, 1);
-    m_requestMetadata.update(ANDROID_CONTROL_CAPTURE_INTENT,      &intent, 1);
-    m_requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &(afmode),       1);
-    m_requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &(antibanding),  1);
-    m_requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],    2);
+    m_requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+    m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &m_setExposure,      1);
+    m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &m_setGain,          1);
+    m_requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+    m_requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &(afmode),           1);
+    m_requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &(antibanding),      1);
+    m_requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
+    m_requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
 }
 
@@ -453,26 +437,26 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
 int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 {
     camera3_capture_request_t request;
-    /*
-    if ((frameNumber % GetNumSkippedFrames()) == 0 && (m_usingAE || m_nextExposure != -1))
+
+    m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &m_setExposure, 1);
+    m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &m_setGain, 1);
+
+    /* Exposure Debug Oscillator
     {
-        while (m_nextExposure == -1)
-        {
-            std::unique_lock<std::mutex> lock(m_expgainCondMutex);
-            m_expgainCondVar.wait(lock);
-        }
+        static int mode = 1;
+        static int64_t curexp = 5259763;
+        static int64_t curgain = 800;
+        const uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
 
-        m_currentExposure = m_nextExposure;
-        m_currentGain     = m_nextGain;
-        m_nextExposure    = -1;
-        m_nextGain        = -1;
+        if(curexp > 5250000) mode = -1;
+        if(curexp < 1000000) mode = 1;
 
-        uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
+        curexp += 50000 * mode;
+
         m_requestMetadata.update(ANDROID_CONTROL_AE_MODE, &aeMode, 1);
-        m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(m_currentExposure), 1);
-        m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(m_currentGain), 1);
+        m_requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(curexp), 1);
+        m_requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(curgain), 1);
     }*/
-    //printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
 
@@ -489,7 +473,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.frame_number        = frameNumber;
     request.settings            = m_requestMetadata.getAndLock();
     request.input_buffer        = nullptr;
-    //printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     /* Return values (from hardware/camera3.h):
      *
@@ -512,8 +495,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
      */
 
     int status = m_pDevice->ops->process_capture_request(m_pDevice, &request);
-
-    //printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (status)
     {
@@ -731,31 +712,23 @@ void* ThreadPostProcessResult(void* pData)
             // Ship the frame out of the camera server
             pipe_server_write_camera_frame(pCameraMgr->m_outputChannel, imageInfo, pSendFrameData);
             VOXL_LOG_ALL("Sent frame %d through pipe %s\n", imageInfo.frame_id, pCameraMgr->GetName());
-            /*
-            if ((pCaptureResultData->frameNumber % expGainSkipFrames) == 0)
-            // ProcessOneCaptureRequest is already checking for GetNumSkippedFrames
-            {
 
-                uint32_t    set_exposure_ns;
-                int16_t     set_gain;
+            int64_t    set_exposure_ns;
+            int32_t    set_gain;
 
-                if (get_new_exposure(
-                        pCameraMgr->getCameraID(),
-                        pSendFrameData,
-                        width,
-                        height,
-                        exposureNs,
-                        gain,
-                        &set_exposure_ns,
-                        &set_gain)){
-                    VOXL_LOG_ERROR("ERROR Getting new exposure for camera: %s\n", pCameraMgr->GetName());
-                } else {
-                    exposureNs = set_exposure_ns;
-                    gain = set_gain;
+            if (pCameraMgr->m_expInterface.update_exposure(
+                    pSendFrameData,
+                    width,
+                    height,
+                    imageInfo.exposure_ns,
+                    imageInfo.gain,
+                    &set_exposure_ns,
+                    &set_gain)){
 
-                    pCameraMgr->SetNextExpGain(set_exposure_ns, set_gain);
-                }
-            }*/
+                pCameraMgr->m_setExposure = set_exposure_ns;
+                pCameraMgr->m_setGain = set_gain;
+
+            }
         }
 
         delete pCaptureResultData;
@@ -863,11 +836,11 @@ int PerCameraMgr::SetupPipes(){
     strcpy(info.type       , "camera_image_metadata_t");
     strcpy(info.server_name, PROCESS_NAME);
     info.size_bytes = 64*1024*1024;
-    pipe_server_set_control_cb(m_outputChannel, controlPipeCallback, this);
-    pipe_server_set_available_control_commands(m_outputChannel, CONTROL_COMMANDS);
+    //pipe_server_set_control_cb(m_outputChannel, controlPipeCallback, this);
+    //pipe_server_set_available_control_commands(m_outputChannel, CONTROL_COMMANDS);
 
     strcpy(info.location, info.name);
-    pipe_server_create(m_outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
+    pipe_server_create(m_outputChannel, info, 0/*SERVER_FLAG_EN_CONTROL_PIPE*/);
 
     return S_OK;
 }
@@ -888,137 +861,4 @@ void PerCameraMgr::EStop(){
 
     m_resultThread.EStop = true;
     pthread_cond_signal(&m_resultThread.cond);
-}
-
-void controlPipeCallback(int ch, char* string, int bytes, void* context){
-
-    static constexpr uint16_t MIN_GAIN = 100;
-    static constexpr uint16_t MAX_GAIN = 1000;
-
-    static constexpr float MIN_EXP  = 0.02;
-    static constexpr float MAX_EXP  = 33;
-
-    enum AECommandVals {
-        SET_EXP_GAIN,
-        SET_EXP,
-        SET_GAIN,
-        START_AE,
-        STOP_AE,
-    };
-    static const char* CmdStrings[] = {
-        "set_exp_gain",
-        "set_exp",
-        "set_gain",
-        "start_ae",
-        "stop_ae"
-    };
-
-    PerCameraMgr* pCameraMgr  = (PerCameraMgr*) context;
-
-    /**************************
-     *
-     * SET Exposure and Gain
-     *
-     */
-    if(strncmp(string, CmdStrings[SET_EXP_GAIN], strlen(CmdStrings[SET_EXP_GAIN])) == 0){
-       
-        char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
-        float exp = -1.0;
-        int gain = -1;
-
-        if(sscanf(string, "%s %f %d", buffer, &exp, &gain) == 3){
-            bool valid = true;
-            if(exp < MIN_EXP || exp > MAX_EXP){
-                valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-            }
-            if(gain < MIN_GAIN || gain > MAX_GAIN){
-                valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-            }
-            if(valid){
-                pCameraMgr->SetUsingAE(false);
-                VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", pCameraMgr->GetName(), exp, gain);
-                pCameraMgr->SetNextExpGain(exp*1000000, gain);
-            }
-        } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n", pCameraMgr->GetName());
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
-        }
-
-    }
-    /**************************
-     *
-     * SET Exposure 
-     *
-     */ else if(strncmp(string, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
-
-        char buffer[strlen(CmdStrings[SET_EXP])+1];
-        float exp = -1.0;
-
-        if(sscanf(string, "%s %f", buffer, &exp) == 2){
-            bool valid = true;
-            if(exp < MIN_EXP || exp > MAX_EXP){
-                valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-            }
-            if(valid){
-                pCameraMgr->SetUsingAE(false);
-                VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", pCameraMgr->GetName(), exp);
-                pCameraMgr->SetNextExpGain(exp*1000000, pCameraMgr->GetCurrentGain());
-            }
-        } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", pCameraMgr->GetName());
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
-        }
-    } 
-    /**************************
-     *
-     * SET Gain
-     *
-     */ else if(strncmp(string, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
-
-        char buffer[strlen(CmdStrings[SET_GAIN])+1];
-        int gain = -1;
-
-        if(sscanf(string, "%s %d", buffer, &gain) == 2){
-            bool valid = true;
-            if(gain < MIN_GAIN || gain > MAX_GAIN){
-                valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-            }
-            if(valid){
-                pCameraMgr->SetUsingAE(false);
-                VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", pCameraMgr->GetName(), gain);
-                pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), gain);
-            }
-        } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", pCameraMgr->GetName());
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
-        }
-    } 
-
-    /**************************
-     *
-     * START Auto Exposure 
-     *
-     */ else if(strncmp(string, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
-        pCameraMgr->SetUsingAE(true);
-        //Use this to awaken the process capture result block and avoid race conditions
-        pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), pCameraMgr->GetCurrentGain());
-        VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", pCameraMgr->GetName());
-    }
-    /**************************
-     *
-     * STOP Auto Exposure 
-     *
-     */ else if(strncmp(string, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
-        if(pCameraMgr->IsUsingAE()){
-            VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", pCameraMgr->GetName());
-            pCameraMgr->SetUsingAE(false);
-        }
-    } else {
-        VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", pCameraMgr->GetName(), string);
-    }
-
 }

@@ -15,8 +15,8 @@ OPKG_CHECK_STRING='command -v opkg &> /dev/null; echo -n $?'
 PACKAGE=$(cat pkg/control/control | grep "Package" | cut -d' ' -f 2)
 
 # count package files in current directory
-NUM_IPK=$(ls -1q $PACKAGE*.ipk | wc -l)
-NUM_DEB=$(ls -1q $PACKAGE*.deb | wc -l)
+NUM_IPK=$(ls -1q $PACKAGE*.ipk 2>/dev/null | wc -l)
+NUM_DEB=$(ls -1q $PACKAGE*.deb 2>/dev/null | wc -l)
 
 if [[ $NUM_IPK -eq "0" && $NUM_DEB -eq "0" ]]; then
 	echo "ERROR: missing ipk and/or deb"
@@ -31,52 +31,52 @@ fi
 
 #check adb (default) or ssh or print help text
 if [ "$#" -lt 1 ]; then
-    #no options = default adb
-    DEPLOY_MODE="ADB"
+	#no options = default adb
+	DEPLOY_MODE="ADB"
 else
-    #Parse arg
-    case $1 in
+	#Parse arg
+	case $1 in
 
-        "adb")
-            DEPLOY_MODE="adb"
-            ;;
+		"adb")
+			DEPLOY_MODE="adb"
+			;;
 
-        "ssh")
-            DEPLOY_MODE="ssh"
-            #check command line for push ip
-            if [ "$#" -gt 1 ]; then
-                if  echo $2 | grep -xq "[0-9]*" ; then
-                    #echo "Number"
-                    SEND_IP=192.168.1.$2
-                elif  echo $2 | grep -xq "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" ; then
-                    #echo "Full IP"
-                    SEND_IP=$2
-                else
-                    echo "Invalid IP address: $2"
-                    exit 1
-                fi
-            elif ! [ -z ${VOXL_IP+x} ]; then
-                SEND_IP="${VOXL_IP}"
-            else
-                echo "Did not find a VOXL_IP env variable,"
-                echo ""
-                echo "If you would like to push over ssh automatically,"
-                echo "please export VOXL_IP in your bashrc"
-                echo ""
-                read -p "Please enter an IP to push to:" SEND_IP
-            fi
-            ;;
+		"ssh")
+			DEPLOY_MODE="ssh"
+			#check command line for push ip
+			if [ "$#" -gt 1 ]; then
+				if  echo $2 | grep -xq "[0-9]*" ; then
+					#echo "Number"
+					SEND_IP=192.168.1.$2
+				elif  echo $2 | grep -xq "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" ; then
+					#echo "Full IP"
+					SEND_IP=$2
+				else
+					echo "Invalid IP address: $2"
+					exit 1
+				fi
+			elif ! [ -z ${VOXL_IP+x} ]; then
+				SEND_IP="${VOXL_IP}"
+			else
+				echo "Did not find a VOXL_IP env variable,"
+				echo ""
+				echo "If you would like to push over ssh automatically,"
+				echo "please export VOXL_IP in your bashrc"
+				echo ""
+				read -p "Please enter an IP to push to:" SEND_IP
+			fi
+			;;
 
-        "h"|"-h"|"help"|"--help")
-            print_usage
-            exit 0
-            ;;
+		"h"|"-h"|"help"|"--help")
+			print_usage
+			exit 0
+			;;
 
-        *)
-            print_usage
-            exit 1
-            ;;
-    esac
+		*)
+			print_usage
+			exit 1
+			;;
+	esac
 fi
 
 
@@ -87,32 +87,32 @@ if [ "$DEPLOY_MODE" == "ssh" ]; then
 		echo "You do not have sshpass installed"
 		echo "Please install sshpass to use the install via ssh feature"
 		echo ""
-        exit 1
+		exit 1
 	fi
 
-    echo "searching for ssh device"
-    until ping -c1 $SEND_IP &>/dev/null; do :; done
-    echo "checking VOXL for dpkg/opkg"
+	echo "searching for ssh device"
+	until ping -c1 $SEND_IP &>/dev/null; do :; done
+	echo "checking VOXL for dpkg/opkg"
 
-    if sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "$DPKG_CHECK_STRING" 2>/dev/null | grep -q 0 ; then
-        echo "dpkg detected";
-        FILE=$(ls -1q $PACKAGE*.deb)
-        sshpass -p oelinux123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $FILE root@$SEND_IP:/data/$FILE &>/dev/null
-        sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "dpkg -i --force-downgrade --force-depends /data/$FILE" 2>/dev/null
+	if sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "$DPKG_CHECK_STRING" 2>/dev/null | grep -q 0 ; then
+		echo "dpkg detected";
+		FILE=$(ls -1q $PACKAGE*.deb)
+		sshpass -p oelinux123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $FILE root@$SEND_IP:/data/$FILE &>/dev/null
+		sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "dpkg -i --force-downgrade --force-depends /data/$FILE" 2>/dev/null
 
-    elif sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "$OPKG_CHECK_STRING" 2>/dev/null | grep -q 0 ; then
-        echo "opkg detected";
-        FILE=$(ls -1q $PACKAGE*.ipk)
-        sshpass -p oelinux123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $FILE root@$SEND_IP:/data/$FILE &>/dev/null
-        sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "opkg install --force-reinstall --force-downgrade --force-depends /data/$FILE" 2>/dev/null
+	elif sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "$OPKG_CHECK_STRING" 2>/dev/null | grep -q 0 ; then
+		echo "opkg detected";
+		FILE=$(ls -1q $PACKAGE*.ipk)
+		sshpass -p oelinux123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $FILE root@$SEND_IP:/data/$FILE &>/dev/null
+		sshpass -p oelinux123 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SEND_IP "opkg install --force-reinstall --force-downgrade --force-depends --force-overwrite /data/$FILE" 2>/dev/null
 
-    else
-        echo "ERROR neither dpkg nor opkg found on VOXL"
-        exit 1
-    fi
+	else
+		echo "ERROR neither dpkg nor opkg found on VOXL"
+		exit 1
+	fi
 
 else
-    if ! command -v adb &> /dev/null ;then
+	if ! command -v adb &> /dev/null ;then
 		echo ""
 		echo "You do not have adb installed"
 		echo "Please install adb to use the install via adb feature"
@@ -126,15 +126,15 @@ else
 
 	if adb shell "$DPKG_CHECK_STRING" | grep -q 0 ; then
 		echo "dpkg detected";
-        FILE=$(ls -1q $PACKAGE*.deb)
-        adb push $FILE /data/$FILE
-        adb shell "dpkg -i --force-downgrade --force-depends /data/$FILE"
+		FILE=$(ls -1q $PACKAGE*.deb)
+		adb push $FILE /data/$FILE
+		adb shell "dpkg -i --force-downgrade --force-depends /data/$FILE"
 
 	elif adb shell "$OPKG_CHECK_STRING" | grep -q 0 ; then
 		echo "opkg detected";
-        FILE=$(ls -1q $PACKAGE*.ipk)
-        adb push $FILE /data/$FILE
-        adb shell "opkg install --force-reinstall --force-downgrade --force-depends /data/$FILE"
+		FILE=$(ls -1q $PACKAGE*.ipk)
+		adb push $FILE /data/$FILE
+		adb shell "opkg install --force-reinstall --force-downgrade --force-depends --force-overwrite /data/$FILE"
 
 	else
 		echo "ERROR neither dpkg nor opkg found on VOXL"

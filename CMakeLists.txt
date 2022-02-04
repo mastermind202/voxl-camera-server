@@ -31,10 +31,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #*****************************************************************************/
 
+project(865-camera-server)
+
 cmake_minimum_required(VERSION 3.3)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64")
+set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64 -Wno-misleading-indentation")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC")
 set(SERVERNAME voxl-camera-server)
 
@@ -65,9 +67,21 @@ target_link_libraries(${SERVERNAME}
 
 )
 
+add_executable(${CONFNAME}
+    ${CONFSOURCE}
+    src/camera_config/config_file.cpp
+    src/camera_config/config_defaults.cpp
+    src/common/debug_log.cpp
+    src/common/common.cpp
+)
+
+target_link_libraries(${CONFNAME}
+    modal_json
+)
+
 install(
-	TARGETS ${SERVERNAME}
-	LIBRARY			DESTINATION /usr/lib
-	RUNTIME			DESTINATION /usr/bin
-	PUBLIC_HEADER	DESTINATION /usr/include
+    TARGETS ${SERVERNAME} ${CONFNAME}
+    LIBRARY         DESTINATION /usr/lib
+    RUNTIME         DESTINATION /usr/bin
+    PUBLIC_HEADER   DESTINATION /usr/include
 )

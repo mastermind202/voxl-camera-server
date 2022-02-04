@@ -59,6 +59,12 @@ void   PrintHelpMessage();
 int    ParseArgs(int         argc,
                  char* const argv[]);
 
+
+int framerate;
+int useAE;
+int setEXP;
+int setIntent;
+
 static list<PerCameraMgr*> mgrs;
 static void cleanManagers();
 
@@ -95,17 +101,16 @@ int main(int argc, char* const argv[])
     main_running = 1;
 
     if(int retval = ParseArgs(argc, argv)){
-    	if(retval > 0) {
+    	if(retval > 0) { //No error, but not supposed to run (i.e. just print options)
     		return 0;
     	}
         PrintHelpMessage();
     	return -1;
     }
 
-
     list<PerCameraInfo> cameraInfo;
 
-    if(ReadConfigFile(&cameraInfo)){
+    if(ReadConfigFile(cameraInfo)){
         VOXL_LOG_FATAL("ERROR: Failed to read config file\n");
         return -1;
     }
@@ -176,36 +181,19 @@ int ParseArgs(int         argc,                 ///< Number of arguments
 
     static struct option LongOptions[] =
     {
-    	{"configure",        required_argument,  0, 'c'},
         {"debug-level",      required_argument,  0, 'd'},
         {"help",             no_argument,        0, 'h'},
-        {"list-resolutions", no_argument,        0, 'r'},
+        {"list",             no_argument,        0, 'l'},
     };
 
     int optionIndex = 0;
     int option;
     int debugLevel  = 2;
 
-    while ((option = getopt_long (argc, argv, ":c:d:hr", &LongOptions[0], &optionIndex)) != -1)
+    while ((option = getopt_long (argc, argv, ":d:hl", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
-
-            case 'c':
-
-            	int config;
-                if (sscanf(optarg, "%d", &config) != 1)
-                {
-                    printf("ERROR: failed to parse config number specified after -c flag\n");
-                    return -1;
-                }
-
-                if(MakeDefaultConfigFile(config)){
-                	return -1;
-                }
-
-                return 1;
-
             case 'd':
                 if (sscanf(optarg, "%d", &debugLevel) != 1)
                 {
@@ -227,10 +215,10 @@ int ParseArgs(int         argc,                 ///< Number of arguments
             	PrintHelpMessage();
                 return 1;
 
-            case 'r':
+            case 'l':
             	// -1 Tells the module to print all cameras
             	HAL3_print_camera_resolutions(-1);
-            	return 1;
+                return 1;
 
             case ':':
             	printf("ERROR: Missing argument for %s\n", argv[optopt]);

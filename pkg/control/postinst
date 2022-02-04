@@ -6,8 +6,12 @@
 
 systemctl daemon-reload
 
+if [ ! -f /etc/modalai/voxl-camera-server.conf ]; then
+
+    camera-server-config-helper
+
+fi
+
 echo ""
 echo "Done installing voxl-camera-server"
-echo ""
-echo "Please run voxl-configure-cameras"
 echo ""

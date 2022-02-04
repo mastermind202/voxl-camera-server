@@ -1,10 +1,8 @@
-Package: 865-camera-server
+Package: voxl-camera-server
 Version: 0.0.1
 Section: base
 Priority: optional
 Architecture: arm64
-Depends: libmodal-pipe(>=2.0.5),libmodal-json,libmodal-exposure
-Provides: voxl-camera-server (= 1.0.0)
-Conflicts: voxl-camera-server
+Depends: libmodal-pipe(>=2.0.5),libmodal-json,libmodal-exposure(>=0.0.4)
 Maintainer: modalai.com
 Description: publishes camera frames over named pipe interface

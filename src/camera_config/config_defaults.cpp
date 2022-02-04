@@ -41,7 +41,7 @@ static const PerCameraInfo OV7251Defaults =
     {
         "",                         //Name
         CAMTYPE_OV7251,             //Type
-		false,                      //Is mono?
+		true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
 		true,                       //Enabled?
@@ -53,7 +53,7 @@ static const PerCameraInfo OV7251Defaults =
         {                       	//ModalAI AE Algorithm Parameters
             0,                  	//Gain Min
             1000,               	//Gain Max
-            20,                 	//Exposure Min
+            1000,                 	//Exposure Min
             33000,              	//Exposure Max
             58.0,               	//Desired MSV
             32000.0,            	//k_p_ns
@@ -62,7 +62,7 @@ static const PerCameraInfo OV7251Defaults =
             3,                  	//p Good Threshold
             1,                  	//Exposure Period
             2,                  	//Gain Period
-            true,               	//Display Debug
+            false,               	//Display Debug
             8000,               	//Exposure offset
         }
     };
@@ -71,7 +71,7 @@ static const PerCameraInfo IMX214Defaults =
     {
         "",                         //Name
         CAMTYPE_IMX214,             //Type
-		false,                      //Is mono?
+		true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
 		true,                       //Enabled?
@@ -83,7 +83,7 @@ static const PerCameraInfo IMX214Defaults =
         {                       	//ModalAI AE Algorithm Parameters
             0,                  	//Gain Min
             1000,               	//Gain Max
-            20,                 	//Exposure Min
+            1000,                 	//Exposure Min
             33000,              	//Exposure Max
             58.0,               	//Desired MSV
             32000.0,            	//k_p_ns
@@ -92,7 +92,7 @@ static const PerCameraInfo IMX214Defaults =
             3,                  	//p Good Threshold
             1,                  	//Exposure Period
             2,                  	//Gain Period
-            true,               	//Display Debug
+            false,               	//Display Debug
             8000,               	//Exposure offset
         }
     };
