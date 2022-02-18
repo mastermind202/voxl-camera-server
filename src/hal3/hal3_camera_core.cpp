@@ -57,6 +57,8 @@ camera_module_t* HAL3_get_camera_module()
         VOXL_LOG_ERROR("ERROR: Camera module not opened, %d attempts remaining\n",
                         NUM_MODULE_OPEN_ATTEMPTS-i+1);
 
+        sleep(1);
+
     }
 
 	if(cameraModule == NULL){
