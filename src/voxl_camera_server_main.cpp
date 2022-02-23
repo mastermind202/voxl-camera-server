@@ -55,8 +55,8 @@
 #include "config_defaults.h"
 
 // Function prototypes
-void   PrintHelpMessage();
-int    ParseArgs(int         argc,
+static void   PrintHelpMessage();
+static int    ParseArgs(int         argc,
                  char* const argv[]);
 
 
@@ -120,7 +120,7 @@ int main(int argc, char* const argv[])
     for(PerCameraInfo info : cameraInfo){
 
         if(!info.isEnabled) {
-            VOXL_LOG_ALL("\tSkipping Camera: %s, configuration disabled\n");
+            VOXL_LOG_VERBOSE("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
             continue;
         }
 
@@ -160,7 +160,7 @@ static void cleanManagers(){
         mgr->Stop();
         delete mgr;
         VOXL_LOG_WARNING("\tStopped Camera: %s\n",
-                         mgr->GetName());
+                         mgr->name);
     }
 
     mgrs.erase(mgrs.begin(), mgrs.end());
@@ -168,14 +168,8 @@ static void cleanManagers(){
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Parses the command line arguments to the main function
-//
-// retvals:
-// 		-1 : error
-// 		 0 : ready to run camera server
-// 		 1 : no error, but completed a subtask and do not need to run camera server
-//
 // -----------------------------------------------------------------------------------------------------------------------------
-int ParseArgs(int         argc,                 ///< Number of arguments
+static int ParseArgs(int         argc,                 ///< Number of arguments
               char* const argv[])               ///< Argument list
 {
 
@@ -183,14 +177,13 @@ int ParseArgs(int         argc,                 ///< Number of arguments
     {
         {"debug-level",      required_argument,  0, 'd'},
         {"help",             no_argument,        0, 'h'},
-        {"list",             no_argument,        0, 'l'},
     };
 
     int optionIndex = 0;
     int option;
     int debugLevel  = 2;
 
-    while ((option = getopt_long (argc, argv, ":d:hl", &LongOptions[0], &optionIndex)) != -1)
+    while ((option = getopt_long (argc, argv, ":d:h", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
@@ -201,24 +194,18 @@ int ParseArgs(int         argc,                 ///< Number of arguments
                     return -1;
                 }
 
-                if (debugLevel >= DebugLevel::MAX_DEBUG_LEVELS || debugLevel < DebugLevel::ALL)
+                if (debugLevel >= DebugLevel::MAX_DEBUG_LEVELS || debugLevel < DebugLevel::VERBOSE)
                 {
                     VOXL_LOG_FATAL("ERROR: Invalid debug level specified: %d\n", debugLevel);
                     VOXL_LOG_FATAL("-----  Max debug level: %d\n", ((int)DebugLevel::MAX_DEBUG_LEVELS - 1));
-                    VOXL_LOG_FATAL("-----  Min debug level: %d\n", ((int)DebugLevel::ALL));
+                    VOXL_LOG_FATAL("-----  Min debug level: %d\n", ((int)DebugLevel::VERBOSE));
                     return -1;
                 }
 
                 break;
 
             case 'h':
-            	PrintHelpMessage();
-                return 1;
-
-            case 'l':
-            	// -1 Tells the module to print all cameras
-            	HAL3_print_camera_resolutions(-1);
-                return 1;
+                return -1;
 
             case ':':
             	printf("ERROR: Missing argument for %s\n", argv[optopt]);
@@ -238,17 +225,15 @@ int ParseArgs(int         argc,                 ///< Number of arguments
 // -----------------------------------------------------------------------------------------------------------------------------
 // Print the help message
 // -----------------------------------------------------------------------------------------------------------------------------
-void PrintHelpMessage()
+static void PrintHelpMessage()
 {
     printf("\n\nCommand line arguments are as follows:\n");
     printf("\n-d, --debug-level       : debug level (Default 2)");
-    printf("\n                      0 : Print all logs");
-    printf("\n                      1 : Print info logs");
-    printf("\n                      2 : Print warning logs");
-    printf("\n                      3 : Print fatal logs");
-    printf("\n                        : (will disable non-fatal debug prints)");
+    printf("\n                      0 : Print verbose logs");
+    printf("\n                      1 : Print >= info logs");
+    printf("\n                      2 : Print >= warning logs");
+    printf("\n                      3 : Print only fatal logs");
     printf("\n-h, --help              : Print this help message");
-    printf("\n-r, --list-resolutions  : List the available cameras and their resolutions");
     printf("\n\n");
 }
 

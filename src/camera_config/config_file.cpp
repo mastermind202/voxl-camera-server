@@ -68,6 +68,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 //#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
 //#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
 #define JsonCameraIdString     "camera_id"                ///< Camera id
+#define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
 
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
@@ -120,16 +121,26 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         if(json_fetch_int(cur, JsonCameraIdString, &(info.camId))){
             VOXL_LOG_ERROR("Error Reading config file: camera id not specified for: %s\n", info.name);
             goto ERROR_EXIT;
-        }
-
-        if(contains(cameraIds, info.camId)){
+        }else if(contains(cameraIds, info.camId)){
             VOXL_LOG_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
+        } else {
+            cameraIds.push_back(info.camId);
+        }
+
+        if(!cJSON_HasObjectItem(cur, JsonCameraId2String) || json_fetch_int(cur, JsonCameraId2String, &(info.camId2))){
+            //VOXL_LOG_ALL("No secondary id found for camera: %s, assuming mono\n", info.name);
+            info.camId2 = -1;
+        } else if(contains(cameraIds, info.camId2)){
+            VOXL_LOG_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
+            goto ERROR_EXIT;
+        } else {
+            //VOXL_LOG_ALL("Secondary id found for camera: %s, assuming stereo\n", info.name);
+            cameraIds.push_back(info.camId2);
         }
 
         json_fetch_bool_with_default(cur, JsonEnabledString, (int *)&(info.isEnabled), true);
 
-        cameraIds.push_back(info.camId);
         cameraNames.push_back(info.name);
         cameras.push_back(info);
 
@@ -168,6 +179,8 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         cJSON_AddStringToObject(node, JsonTypeString, GetTypeString(info.type));
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);
+
+        if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
         cJSON_AddItemToArray(camArray, node);
 

@@ -38,7 +38,7 @@
 // Different debug levels
 enum DebugLevel
 {
-	ALL = 0,            ///< Log everything
+	VERBOSE = 0,        ///< Log everything
 	INFO,               ///< Enable info only logs
 	WARNING,            ///< Enable warning only logs
 	ERROR,              ///< Enable non fatal error logs
@@ -55,7 +55,7 @@ void DebugPrint(DebugLevel level,			///< Debug level
 			    const char * format, ...);	///< Print args
 
 
-#define VOXL_LOG_ALL(x...) 	    DebugPrint(DebugLevel::ALL,     x)
+#define VOXL_LOG_VERBOSE(x...)  DebugPrint(DebugLevel::VERBOSE, x)
 #define VOXL_LOG_INFO(x...)     DebugPrint(DebugLevel::INFO,    x)
 #define VOXL_LOG_WARNING(x...)  DebugPrint(DebugLevel::WARNING, x)
 #define VOXL_LOG_ERROR(x...)    DebugPrint(DebugLevel::ERROR,   x)

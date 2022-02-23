@@ -51,35 +51,27 @@
 int main(int argc, char* argv[])
 {
 
-    SetDebugLevel(DebugLevel::ALL);
+    SetDebugLevel(DebugLevel::VERBOSE);
 
 
     std::list<PerCameraInfo> cameras;
 
-    PerCameraInfo sfl_info
+    PerCameraInfo sf_info
                     = getDefaultCameraInfo(CAMTYPE_OV7251);
-    sfl_info.camId  = 0;
-    strcpy(sfl_info.name, "stereo_front_left");
-
-    PerCameraInfo sfr_info
-                    = getDefaultCameraInfo(CAMTYPE_OV7251);
-    sfr_info.camId  = 1;
-    strcpy(sfr_info.name, "stereo_front_right");
+    sf_info.camId  = 0;
+    sf_info.camId2 = 1;
+    strcpy(sf_info.name, "stereo_front");
 
     PerCameraInfo tracking_info
                          = getDefaultCameraInfo(CAMTYPE_OV7251);
     tracking_info.camId  = 2;
     strcpy(tracking_info.name, "tracking");
 
-    PerCameraInfo srl_info
+    PerCameraInfo sr_info
                     = getDefaultCameraInfo(CAMTYPE_OV7251);
-    srl_info.camId  = 4;
-    strcpy(srl_info.name, "stereo_rear_left");
-
-    PerCameraInfo srr_info
-                    = getDefaultCameraInfo(CAMTYPE_OV7251);
-    srr_info.camId  = 5;
-    strcpy(srr_info.name, "stereo_rear_right");
+    sr_info.camId  = 4;
+    sr_info.camId2 = 5;
+    strcpy(sr_info.name, "stereo_rear");
 
     PerCameraInfo hires_info
                       = getDefaultCameraInfo(CAMTYPE_IMX214);
@@ -89,10 +81,8 @@ int main(int argc, char* argv[])
 
     cameras.push_back(tracking_info);
     cameras.push_back(hires_info);
-    cameras.push_back(sfl_info);
-    cameras.push_back(sfr_info);
-    cameras.push_back(srl_info);
-    cameras.push_back(srr_info);
+    cameras.push_back(sf_info);
+    cameras.push_back(sr_info);
 
     WriteConfigFile(cameras);
 
