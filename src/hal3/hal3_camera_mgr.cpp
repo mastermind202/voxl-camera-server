@@ -222,7 +222,7 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
 
     setExposure             =  5259763;
     setGain                 =  800;
-    uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
+    uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
     uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
     uint8_t afmode            =  ANDROID_CONTROL_AF_MODE_OFF;
     uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
