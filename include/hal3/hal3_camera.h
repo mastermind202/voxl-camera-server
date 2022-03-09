@@ -127,9 +127,6 @@ public:
     int64_t                    setExposure;                    ///< Exposure
     int32_t                    setGain;                        ///< Gain
     ModalExposureHist          expInterface;
-    volatile bool              stopped = false;                ///< Indication for the thread to terminate
-    volatile bool              EStopped = false;               ///< Emergency Stop, terminate without any cleanup
-    volatile int               lastResultFrameNumber = -1;     ///< Last frame the capture result thread should wait for before terminating
 
     std::list<buffer_handle_t*>  resultMsgQueue;
 
@@ -152,12 +149,15 @@ private:
         MODE_STEREO_SLAVE
     };
 
-    pthread_mutex_t            stereoMutex;        ///< Mutex for stereo comms
-    pthread_cond_t             stereoCond;         ///< Condition variable for wake up
-    PerCameraMgr*              otherMgr;           ///< Pointer to the partner manager in a stereo pair
-    PCM_MODE                   partnerMode;        ///< Mode for mono/stereo
-    uint8_t*                   childFrame = NULL;  ///< Pointer to the child frame, guarded with stereoMutex
-    camera_image_metadata_t*   childInfo  = NULL;  ///< Pointer to the child frame info
+    pthread_mutex_t            stereoMutex;                 ///< Mutex for stereo comms
+    pthread_cond_t             stereoCond;                  ///< Condition variable for wake up
+    PerCameraMgr*              otherMgr;                    ///< Pointer to the partner manager in a stereo pair
+    PCM_MODE                   partnerMode;                 ///< Mode for mono/stereo
+    uint8_t*                   childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
+    camera_image_metadata_t*   childInfo  = NULL;           ///< Pointer to the child frame info
+    bool                       stopped = false;             ///< Indication for the thread to terminate
+    bool                       EStopped = false;            ///< Emergency Stop, terminate without any cleanup
+    int                        lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

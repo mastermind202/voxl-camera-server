@@ -1,3 +1,8 @@
+0.0.3
+    * Working stereo sync and config file
+    * Outstanding issue: config helper still needs to support all the configurations instead of only default
+    * Outstanding issue: ov7251s seem to be getting postprocessed, need real raw data
+    * Outstanding issue: server argument parser bugs out with wrong args
 0.0.2
     * Working AE, stereo sync, config file
     * Outstanding issue: config help needs to support all the configurations instead of only default

@@ -55,7 +55,7 @@ static const PerCameraInfo OV7251Defaults =
             1000,               	//Gain Max
             1000,                 	//Exposure Min
             33000,              	//Exposure Max
-            58.0,               	//Desired MSV
+            68.0,               	//Desired MSV
             32000.0,            	//k_p_ns
             20.0,               	//k_i_ns
             250.0,              	//Max i

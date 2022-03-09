@@ -1,8 +1,11 @@
-Package: voxl-camera-server
-Version: 0.0.2
+Package: qrb5165-camera-server
+Version: 0.0.3
 Section: base
 Priority: optional
 Architecture: arm64
 Depends: libmodal-pipe(>=2.0.5),libmodal-json,libmodal-exposure(>=0.0.4)
-Maintainer: modalai.com
+Conflicts: voxl-camera-server
+Replaces: voxl-camera-server
+Provides: voxl-camera-server
+Maintainer: alex.gardner@modalai.com
 Description: publishes camera frames over named pipe interface

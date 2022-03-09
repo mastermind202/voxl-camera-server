@@ -53,6 +53,10 @@
 
 #define NUM_PREVIEW_BUFFERS 16
 
+#define abs(x,y) ((x) > (y) ? (x) : (y))
+
+#define MAX_STEREO_DISCREPENCY_NS 8000000
+
 using namespace android;
 
 // Main thread functions for request and result processing
@@ -257,6 +261,8 @@ void PerCameraMgr::Start()
 
             throw -EINVAL;
         }
+    } else {
+        outputChannel = otherMgr->outputChannel;
     }
 
     pthread_condattr_t condAttr;
@@ -278,6 +284,15 @@ void PerCameraMgr::Start()
     pthread_create(&resultThread,  &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadIssueCaptureRequests();}, this);
     pthread_create(&requestThread, &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadPostProcessResult();},  this);
     pthread_attr_destroy(&attr);
+
+
+    char buf[16];
+    sprintf(buf, "cam%d-request", cameraId);
+
+    pthread_setname_np(requestThread, buf);
+
+    sprintf(buf, "cam%d-result", cameraId);
+    pthread_setname_np(resultThread, buf);
 
     if(partnerMode == MODE_STEREO_MASTER){
         otherMgr->Start();
@@ -324,9 +339,8 @@ void PerCameraMgr::Stop()
         pDevice = NULL;
     }
 
-    pipe_server_close(outputChannel);
-
     if(partnerMode == MODE_STEREO_MASTER){
+        pipe_server_close(outputChannel);
         otherMgr->Stop();
     }
 
@@ -399,7 +413,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult)
 {
-    printf("recieved notify for: %d\n", pHalResult->frame_number);
+    //printf("recieved notify for: %d\n", pHalResult->frame_number);
     Camera3Callbacks* pCamera3Callbacks = (Camera3Callbacks*)cb;
     PerCameraMgr* pPerCameraMgr = (PerCameraMgr*)pCamera3Callbacks->pPrivate;
 
@@ -445,8 +459,8 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
     requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
 
-    /* Exposure Debug Oscillator
-    {
+    // Exposure Debug Oscillator
+    /*{
         static int mode = 1;
         static int64_t curexp = 5259763;
         static int64_t curgain = 800;
@@ -520,7 +534,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         }
 
         EStopCameraServer();
-        EStop();
         return -EINVAL;
 
     }
@@ -585,8 +598,9 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
 // -----------------------------------------------------------------------------------------------------------------------------
 void* PerCameraMgr::ThreadPostProcessResult()
 {
-
-    VOXL_LOG_VERBOSE("Entered result thread for: %s\n", name);
+    char buf[16];
+    pthread_getname_np(pthread_self(), buf, 16);
+    VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
 
     // Set thread priority
     pid_t tid = syscall(SYS_gettid);
@@ -737,12 +751,13 @@ void* PerCameraMgr::ThreadPostProcessResult()
                     break;
             }
 
+            NEED_CHILD:
             pthread_mutex_lock(&stereoMutex);
             if(childFrame == NULL){
 
                 struct timespec ts;
                 clock_gettime(CLOCK_MONOTONIC, &ts);
-                ts.tv_nsec += 30000;
+                ts.tv_nsec += MAX_STEREO_DISCREPENCY_NS;
 
                 pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
             }
@@ -763,6 +778,24 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 VOXL_LOG_INFO("Child frame not received\n");
                 bufferPush(pBufferManager, handle);
                 continue;
+            }
+
+            //Much newer child, discard master but keep the child
+            if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
+                VOXL_LOG_ERROR("Recieved much newer child than master (%lu), discarding child and trying again\n", childInfo->timestamp_ns - imageInfo.timestamp_ns);
+                bufferPush(pBufferManager, handle);
+                pthread_mutex_unlock(&stereoMutex);
+                continue;
+            }
+
+            //Much newer master, discard the child and get a new one
+            if(imageInfo.timestamp_ns - childInfo->timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
+                VOXL_LOG_ERROR("Recieved much newer master than child (%lu), discarding master and trying again\n", imageInfo.timestamp_ns - childInfo->timestamp_ns);
+                childFrame = NULL;
+                childInfo  = NULL;
+                pthread_mutex_unlock(&stereoMutex);
+                pthread_cond_signal(&(otherMgr->stereoCond));
+                goto NEED_CHILD;
             }
 
             // Assume the earlier timestamp is correct
@@ -824,12 +857,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
     }
 
-    if(stopped){
-        VOXL_LOG_INFO("------ Result thread on camera: %s recieved stop command, exiting\n", name);
-    }else if(!EStopped){
-        VOXL_LOG_INFO("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
-    }else{
+    if(EStopped){
         VOXL_LOG_FATAL("------ voxl-camera-server WARNING: Thread: %s result thread recieved ESTOP\n", name);
+    }else if(stopped){
+        VOXL_LOG_INFO("------ Result thread on camera: %s recieved stop command, exiting\n", name);
+    }else{
+        VOXL_LOG_INFO("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
     }
 
     VOXL_LOG_INFO("Leaving %s result thread\n", name);
@@ -844,7 +877,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
 void* PerCameraMgr::ThreadIssueCaptureRequests()
 {
 
-    VOXL_LOG_VERBOSE("Entered request thread for: %s\n", name);
+    char buf[16];
+    pthread_getname_np(pthread_self(), buf, 16);
+    VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
 
     // Set thread priority
     pid_t tid = syscall(SYS_gettid);
@@ -857,12 +892,12 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
-        //pthread_mutex_lock(&pThreadData->mutex);
-        //if(pCameraMgr->getNumClients() == 0){
-        //    pthread_cond_wait(&pThreadData->cond, &pThreadData->mutex);
-        //    if(pThreadData->stop || pThreadData->EStop) break;
-        //}
-        //pthread_mutex_unlock(&pThreadData->mutex);
+        // pthread_mutex_lock(&requestMutex);
+        // if(!getNumClients()){
+            // pthread_cond_wait(&requestCond, &requestMutex);
+            // if(stopped || EStopped) break;
+        // }
+        // pthread_mutex_unlock(&requestMutex);
         ProcessOneCaptureRequest(++frame_number);
     }
 
@@ -884,6 +919,13 @@ int PerCameraMgr::SetupPipes(){
 
     outputChannel = pipe_server_get_next_available_channel();
 
+    //Set up the connect callback to be the addClient function (wrapped in a lambda because it's a member function)
+    pipe_server_set_connect_cb(
+            outputChannel,                                         //Channel
+            [](int ch, int client_id, char* name, void* context)   //Callback
+                    {((PerCameraMgr*)context)->addClient();},
+            this);                                                 //Context
+
     pipe_info_t info;
     strcpy(info.name       , name);
     strcpy(info.type       , "camera_image_metadata_t");
@@ -897,6 +939,7 @@ int PerCameraMgr::SetupPipes(){
 }
 
 void PerCameraMgr::addClient(){
+
     pthread_cond_signal(&requestCond);
 
     if(partnerMode == MODE_STEREO_MASTER){

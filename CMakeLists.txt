@@ -43,6 +43,8 @@ set(SERVERNAME voxl-camera-server)
 set(CONFNAME camera-server-config-helper)
 set(CONFSOURCE "config/camera_server_config_helper.cpp")
 
+set(LISTNAME voxl-list-cameras)
+
 file(GLOB_RECURSE all_src_files "src/*.c*")
 add_executable(${SERVERNAME} ${all_src_files})
 
@@ -64,7 +66,7 @@ target_link_libraries(${SERVERNAME}
     modal_exposure
     modal_json
     voxl_cutils
-
+    SegFault
 )
 
 add_executable(${CONFNAME}
@@ -79,8 +81,20 @@ target_link_libraries(${CONFNAME}
     modal_json
 )
 
+add_executable(${LISTNAME}
+    list-cameras/voxl-list-cameras.cpp
+    src/hal3/hal3_camera_core.cpp
+    src/common/debug_log.cpp
+)
+
+target_link_libraries(${LISTNAME}
+    cutils
+    ${TMP_LIBS}
+
+)
+
 install(
-    TARGETS ${SERVERNAME} ${CONFNAME}
+    TARGETS ${SERVERNAME} ${CONFNAME} ${LISTNAME}
     LIBRARY         DESTINATION /usr/lib
     RUNTIME         DESTINATION /usr/bin
     PUBLIC_HEADER   DESTINATION /usr/include
