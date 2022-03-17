@@ -112,6 +112,7 @@ struct PerCameraInfo
     int  width;              ///< Width of the frame
     int  height;             ///< Height of the frame
     int  format;             ///< Frame format
+    bool flip;               ///< Flip?
 
     modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
 };
