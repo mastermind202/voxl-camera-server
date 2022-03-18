@@ -196,7 +196,7 @@ int PerCameraMgr::ConfigureStreams()
     stream->format      = halFmt;
     stream->data_space  = HAL_DATASPACE_UNKNOWN;
     stream->usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    stream->rotation    = 0;
+    stream->rotation    = 2;
     stream->max_buffers = NUM_PREVIEW_BUFFERS;
     stream->priv        = 0;
 

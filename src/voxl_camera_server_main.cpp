@@ -79,6 +79,14 @@ int main(int argc, char* const argv[])
     // gracefully handle an existing instance of the process and associated PID file
     ////////////////////////////////////////////////////////////////////////////////
 
+    if(int retval = ParseArgs(argc, argv)){
+        if(retval > 0) { //No error, but not supposed to run (i.e. just print options)
+            return 0;
+        }
+        PrintHelpMessage();
+        return -1;
+    }
+
     // make sure another instance isn't running
     // if return value is -3 then a background process is running with
     // higher privaledges and we couldn't kill it, in which case we should
@@ -99,14 +107,6 @@ int main(int argc, char* const argv[])
     make_pid_file(PROCESS_NAME);
 
     main_running = 1;
-
-    if(int retval = ParseArgs(argc, argv)){
-    	if(retval > 0) { //No error, but not supposed to run (i.e. just print options)
-    		return 0;
-    	}
-        PrintHelpMessage();
-    	return -1;
-    }
 
     list<PerCameraInfo> cameraInfo;
 
@@ -177,13 +177,14 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
     {
         {"debug-level",      required_argument,  0, 'd'},
         {"help",             no_argument,        0, 'h'},
+        {"list",             no_argument,        0, 'l'},
     };
 
     int optionIndex = 0;
     int option;
     int debugLevel  = 2;
 
-    while ((option = getopt_long (argc, argv, ":d:h", &LongOptions[0], &optionIndex)) != -1)
+    while ((option = getopt_long (argc, argv, ":d:hl", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
@@ -203,6 +204,10 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 }
 
                 break;
+
+            case 'l':
+                HAL3_print_camera_resolutions(-1);
+                exit(0);
 
             case 'h':
                 return -1;
