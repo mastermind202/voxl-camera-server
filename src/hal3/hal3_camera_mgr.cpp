@@ -197,7 +197,7 @@ int PerCameraMgr::ConfigureStreams()
     stream->format      = halFmt;
     stream->data_space  = HAL_DATASPACE_UNKNOWN;
     stream->usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    stream->rotation    = 2;
+    stream->rotation    = 0;
     stream->max_buffers = NUM_PREVIEW_BUFFERS;
     stream->priv        = 0;
 
@@ -316,6 +316,11 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&requestMutex);
     pthread_cond_destroy(&requestCond);
 
+
+    if(partnerMode != MODE_MONO){
+        pthread_cond_signal(&stereoCond);
+    }
+
     pthread_cond_signal(&resultCond);
     pthread_join(resultThread, NULL);
     pthread_cond_signal(&resultCond);
@@ -337,7 +342,6 @@ void PerCameraMgr::Stop()
     }
 
     if(partnerMode == MODE_STEREO_MASTER){
-        pipe_server_close(outputChannel);
         otherMgr->Stop();
     }
 
@@ -456,13 +460,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
     requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
 
-    //int64_t exposure = 5000000;
-    //int32_t gain = 800;
-
-    //requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &exposure, 1);
-    //requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &gain, 1);
-
-
     // Exposure Debug Oscillator
     /*{
         static int mode = 1;
@@ -551,7 +548,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 // -----------------------------------------------------------------------------------------------------------------------------
 // Convert 10-bit RAW to 8-bit RAW
 // -----------------------------------------------------------------------------------------------------------------------------
-static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels, uint32_t strideBytes)
+static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
 {
     // This link has the description of the RAW10 format:
     // https://gitlab.com/SaberMod/pa-android-frameworks-base/commit/d1988a98ed69db8c33b77b5c085ab91d22ef3bbc
@@ -571,14 +568,13 @@ static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heigh
 
 static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels, uint32_t strideBytes)
 {
-    uint8_t* buffer = (uint8_t*)malloc(heightPixels * strideBytes * 2);
+    uint8_t buffer[heightPixels * strideBytes * 2];
     bool ret = false;
     memcpy(buffer, pImg, heightPixels * strideBytes);
 
     ConvertTo8bitRaw(buffer,
                      widthPixels,
-                     heightPixels,
-                     strideBytes);
+                     heightPixels);
     //check the row that is 4/5ths of the way down the image, if we just converted a
     //raw8 image to raw8, it will be empty
     uint8_t* row = &(pImg[((heightPixels * 4 / 5) + 2) * widthPixels]);
@@ -588,7 +584,6 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
             break;
         }
     }
-    free(buffer);
     return ret;
 }
 
@@ -648,17 +643,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
-        if(EStopped) {
+        if(EStopped || stopped) {
             pthread_mutex_unlock(&resultMutex);
             break;
         }
 
         buffer_handle_t *handle = resultMsgQueue.front();
-
-        if(stopped){
-            bufferPush(pBufferManager, handle);
-            continue;
-        }
 
         // Coming here means we have a result frame to process
         VOXL_LOG_VERBOSE("%s procesing new frame\n", name);
@@ -696,24 +686,21 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
                 VOXL_LOG_INFO("Received raw10 frame, checking to see if is actually raw8\n");
 
-                if((is10bit = Check10bit(pSrcPixel, pBufferInfo->width, pBufferInfo->height, pBufferInfo->stride))){
+                if((is10bit = Check10bit(pSrcPixel, width, height, pBufferInfo->stride))){
                     VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
                 } else {
                     VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
                 }
 
             }
-            imageInfo.size_bytes = width * height;
+
             if(is10bit){
                 ConvertTo8bitRaw(pSrcPixel,
-                                 pBufferInfo->width,
-                                 pBufferInfo->height,
-                                 pBufferInfo->stride);
+                                 width,
+                                 height);
             }
 
-            if(cameraConfigInfo.flip){
-                reverse(pSrcPixel, imageInfo.size_bytes);
-            }
+
 
         }
         else
@@ -798,15 +785,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
             }
 
-            if(EStopped) {
+            if(EStopped || stopped) {
                 pthread_mutex_unlock(&stereoMutex);
                 break;
-            }
-
-            if(stopped){
-                pthread_mutex_unlock(&stereoMutex);
-                bufferPush(pBufferManager, handle);
-                continue;
             }
 
             if(childFrame == NULL){
@@ -837,6 +818,11 @@ void* PerCameraMgr::ThreadPostProcessResult()
             // Assume the earlier timestamp is correct
             if(imageInfo.timestamp_ns > childInfo->timestamp_ns){
                 imageInfo.timestamp_ns = childInfo->timestamp_ns;
+            }
+
+            if(cameraConfigInfo.flip){
+                reverse(pSrcPixel, imageInfo.size_bytes/2);
+                reverse(childFrame, imageInfo.size_bytes/2);
             }
 
             // Ship the frame out of the camera server
