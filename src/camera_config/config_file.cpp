@@ -60,6 +60,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonTypeString         "type"                     ///< Camera type
 #define JsonNameString         "name"                     ///< Camera name
 #define JsonFPSString          "fps"                      ///< Camera fps
+#define JsonFlipString         "flip"                     ///< Camera flip?
 //#define JsonWidthString        "width"                    ///< Frame width
 //#define JsonHeightString       "height"                   ///< Frame height
 //#define JsonFpsString          "frame_rate"               ///< Fps
@@ -139,7 +140,11 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
             cameraIds.push_back(info.camId2);
         }
 
-        json_fetch_bool_with_default(cur, JsonEnabledString, (int *)&(info.isEnabled), true);
+        int tmp;
+        json_fetch_bool_with_default(cur, JsonEnabledString, &tmp, true);
+        info.isEnabled = tmp;
+        json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
+        info.flip = tmp;
 
         cameraNames.push_back(info.name);
         cameras.push_back(info);
@@ -176,6 +181,7 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         cJSON_AddStringToObject(node, JsonNameString, info.name);
         cJSON_AddBoolToObject  (node, JsonEnabledString, info.isEnabled);
+        cJSON_AddBoolToObject  (node, JsonFlipString, info.flip);
 
         cJSON_AddStringToObject(node, JsonTypeString, GetTypeString(info.type));
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);

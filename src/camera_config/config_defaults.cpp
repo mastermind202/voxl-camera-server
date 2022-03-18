@@ -41,90 +41,90 @@ static const PerCameraInfo OV7251Defaults =
     {
         "",                         //Name
         CAMTYPE_OV7251,             //Type
-		true,                       //Is mono?
+        true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
-		true,                       //Enabled?
+        true,                       //Enabled?
         30,                         //Framerate
-        640,                		//Width
-        480,                		//Height
-        FMT_RAW8,   				//Format
-
-        {                       	//ModalAI AE Algorithm Parameters
-            0,                  	//Gain Min
-            1000,               	//Gain Max
-            1000,                 	//Exposure Min
-            33000,              	//Exposure Max
-            68.0,               	//Desired MSV
-            32000.0,            	//k_p_ns
-            20.0,               	//k_i_ns
-            250.0,              	//Max i
-            3,                  	//p Good Threshold
-            1,                  	//Exposure Period
-            2,                  	//Gain Period
-            false,               	//Display Debug
-            8000,               	//Exposure offset
+        640,                        //Width
+        480,                        //Height
+        FMT_RAW8,                   //Format
+        false,                      //Flip
+        {                           //ModalAI AE Algorithm Parameters
+            100,                    //Gain Min
+            1000,                   //Gain Max
+            1000,                   //Exposure Min
+            33000,                  //Exposure Max
+            54.0,                   //Desired MSV
+            8000.0,                //k_p_ns
+            5.0,                   //k_i_ns
+            250.0,                  //Max i
+            3,                      //p Good Threshold
+            1,                      //Exposure Period
+            2,                      //Gain Period
+            false,                  //Display Debug
+            8000,                   //Exposure offset
         }
     };
 
-static const PerCameraInfo IMX214Defaults = 
+static const PerCameraInfo IMX214Defaults =
     {
         "",                         //Name
         CAMTYPE_IMX214,             //Type
-		true,                       //Is mono?
+        true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
-		true,                       //Enabled?
+        true,                       //Enabled?
         30,                         //Framerate
-        640,                		//Width
-        480,                		//Height
-        FMT_NV21,   				//Format
-
-        {                       	//ModalAI AE Algorithm Parameters
-            0,                  	//Gain Min
-            1000,               	//Gain Max
-            1000,                 	//Exposure Min
-            33000,              	//Exposure Max
-            58.0,               	//Desired MSV
-            32000.0,            	//k_p_ns
-            20.0,               	//k_i_ns
-            250.0,              	//Max i
-            3,                  	//p Good Threshold
-            1,                  	//Exposure Period
-            2,                  	//Gain Period
-            false,               	//Display Debug
-            8000,               	//Exposure offset
+        640,                        //Width
+        480,                        //Height
+        FMT_NV21,                   //Format
+        false,                      //Flip
+        {                           //ModalAI AE Algorithm Parameters
+            0,                      //Gain Min
+            1000,                   //Gain Max
+            1000,                   //Exposure Min
+            33000,                  //Exposure Max
+            54.0,                   //Desired MSV
+            8000.0,                //k_p_ns
+            5.0,                   //k_i_ns
+            250.0,                  //Max i
+            3,                      //p Good Threshold
+            1,                      //Exposure Period
+            2,                      //Gain Period
+            false,                  //Display Debug
+            8000,                   //Exposure offset
         }
     };
 
-static const PerCameraInfo emptyDefaults = 
+static const PerCameraInfo emptyDefaults =
     {
         "",                         //Name
         CAMTYPE_INVALID,            //Type
-		false,                      //Is mono?
+        false,                      //Is mono?
         -1,                         //ID
         -1,                         //ID2
-		false,                      //Enabled?
+        false,                      //Enabled?
 
         -1,                         //Framerate
-        -1,                 		//Width
-        -1,                 		//Height
-        FMT_INVALID,				//Format
-
-        {                       	//ModalAI AE Algorithm Parameters
-            0,                  	//Gain Min
-            0,                  	//Gain Max
-            0,                  	//Exposure Min
-            0,                  	//Exposure Max
-            0,                  	//Desired MSV
-            0,                  	//k_p_ns
-            0,                  	//k_i_ns
-            0,                  	//Max i
-            0,                  	//p Good Threshold
-            0,                  	//Exposure Period
-            0,                  	//Gain Period
-            0,                  	//Display Debug
-            0,                  	//Exposure offset
+        -1,                         //Width
+        -1,                         //Height
+        FMT_INVALID,                //Format
+        false,                      //Flip
+        {                           //ModalAI AE Algorithm Parameters
+            0,                      //Gain Min
+            0,                      //Gain Max
+            0,                      //Exposure Min
+            0,                      //Exposure Max
+            0,                      //Desired MSV
+            0,                      //k_p_ns
+            0,                      //k_i_ns
+            0,                      //Max i
+            0,                      //p Good Threshold
+            0,                      //Exposure Period
+            0,                      //Gain Period
+            0,                      //Display Debug
+            0,                      //Exposure offset
         }
     };
 

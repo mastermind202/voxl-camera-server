@@ -48,6 +48,7 @@
 #include "voxl_camera_server.h"
 #include <camera/CameraMetadata.h>
 #include <camera/VendorTagDescriptor.h>
+#include <algorithm>
 
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
@@ -306,12 +307,7 @@ void PerCameraMgr::Start()
 void PerCameraMgr::Stop()
 {
 
-    //Stop has already been called
-    if(!EStopped){
-        // Not an emergency stop, wait to recieve last frame
-        // The result thread will stop when the result of the last frame is received
-        stopped = true;
-    }
+    stopped = true;
 
     pthread_cond_signal(&requestCond);
     pthread_join(requestThread, NULL);
@@ -320,6 +316,12 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&requestMutex);
     pthread_cond_destroy(&requestCond);
 
+
+    if(partnerMode != MODE_MONO){
+        pthread_cond_signal(&stereoCond);
+    }
+
+    pthread_cond_signal(&resultCond);
     pthread_join(resultThread, NULL);
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
@@ -340,7 +342,6 @@ void PerCameraMgr::Stop()
     }
 
     if(partnerMode == MODE_STEREO_MASTER){
-        pipe_server_close(outputChannel);
         otherMgr->Stop();
     }
 
@@ -427,7 +428,7 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
 {
 
     PerCameraMgr* pPerCameraMgr = (PerCameraMgr*)((Camera3Callbacks*)cb)->pPrivate;
-    //if(pPerCameraMgr->stopped) return;
+    if(pPerCameraMgr->stopped) return;
 
     if (msg->type == CAMERA3_MSG_ERROR)
     {
@@ -547,7 +548,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 // -----------------------------------------------------------------------------------------------------------------------------
 // Convert 10-bit RAW to 8-bit RAW
 // -----------------------------------------------------------------------------------------------------------------------------
-static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels, uint32_t strideBytes)
+static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
 {
     // This link has the description of the RAW10 format:
     // https://gitlab.com/SaberMod/pa-android-frameworks-base/commit/d1988a98ed69db8c33b77b5c085ab91d22ef3bbc
@@ -567,14 +568,13 @@ static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heigh
 
 static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels, uint32_t strideBytes)
 {
-    uint8_t* buffer = (uint8_t*)malloc(heightPixels * strideBytes * 2);
+    uint8_t buffer[heightPixels * strideBytes * 2];
     bool ret = false;
     memcpy(buffer, pImg, heightPixels * strideBytes);
 
     ConvertTo8bitRaw(buffer,
                      widthPixels,
-                     heightPixels,
-                     strideBytes);
+                     heightPixels);
     //check the row that is 4/5ths of the way down the image, if we just converted a
     //raw8 image to raw8, it will be empty
     uint8_t* row = &(pImg[((heightPixels * 4 / 5) + 2) * widthPixels]);
@@ -584,8 +584,21 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
             break;
         }
     }
-    free(buffer);
     return ret;
+}
+
+static void reverse(uint8_t *mem, int size){
+
+    uint8_t buffer;
+
+    for(int i = 0; i < size/2; i++){
+
+        buffer = mem[i];
+        mem[i] = mem[size - i];
+        mem[size - i] = buffer;
+
+    }
+
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -620,7 +633,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
     // The condition of the while loop is such that this thread will not terminate till it receives the last expected image
     // frame from the camera module or detects the ESTOP flag
-    while (!EStopped && lastResultFrameNumber != currentFrameNumber)
+    while (!EStopped && !stopped && lastResultFrameNumber != currentFrameNumber)
     {
         pthread_mutex_lock(&resultMutex);
 
@@ -630,17 +643,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
-        if(EStopped) {
+        if(EStopped || stopped) {
             pthread_mutex_unlock(&resultMutex);
             break;
         }
 
         buffer_handle_t *handle = resultMsgQueue.front();
-
-        if(stopped){
-            bufferPush(pBufferManager, handle);
-            continue;
-        }
 
         // Coming here means we have a result frame to process
         VOXL_LOG_VERBOSE("%s procesing new frame\n", name);
@@ -650,8 +658,14 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
         BufferBlock* pBufferInfo  = bufferGetBufferInfo(pBufferManager, handle);
 
-        imageInfo.exposure_ns = currentExposure;
-        imageInfo.gain        = currentGain;
+        //imageInfo.exposure_ns = currentExposure;
+        //imageInfo.gain        = currentGain;
+
+        //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
+        imageInfo.exposure_ns = setExposure;
+        imageInfo.gain        = setGain;
+
+
 
         uint8_t* pSrcPixel     = (uint8_t*)pBufferInfo->vaddress;
         imageInfo.width        = (uint32_t)width;
@@ -672,7 +686,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
                 VOXL_LOG_INFO("Received raw10 frame, checking to see if is actually raw8\n");
 
-                if((is10bit = Check10bit(pSrcPixel, pBufferInfo->width, pBufferInfo->height, pBufferInfo->stride))){
+                if((is10bit = Check10bit(pSrcPixel, width, height, pBufferInfo->stride))){
                     VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
                 } else {
                     VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
@@ -682,10 +696,11 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             if(is10bit){
                 ConvertTo8bitRaw(pSrcPixel,
-                                 pBufferInfo->width,
-                                 pBufferInfo->height,
-                                 pBufferInfo->stride);
+                                 width,
+                                 height);
             }
+
+
 
         }
         else
@@ -705,6 +720,14 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 bufferMakeYUVContiguous(pBufferInfo);
                 ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
                 imageInfo.size_bytes = (pBufferInfo->width * pBufferInfo->height * 1.5);
+            }
+
+            if(cameraConfigInfo.flip){
+                int ylen = (imageInfo.size_bytes * 2 / 3);
+                int uvlen = (imageInfo.size_bytes / 6);
+                reverse(pSrcPixel, ylen);
+                reverse(pSrcPixel+ylen, uvlen);
+                reverse(pSrcPixel+ylen+uvlen, uvlen);
             }
 
         }
@@ -762,15 +785,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
             }
 
-            if(EStopped) {
+            if(EStopped || stopped) {
                 pthread_mutex_unlock(&stereoMutex);
                 break;
-            }
-
-            if(stopped){
-                pthread_mutex_unlock(&stereoMutex);
-                bufferPush(pBufferManager, handle);
-                continue;
             }
 
             if(childFrame == NULL){
@@ -782,7 +799,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             //Much newer child, discard master but keep the child
             if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-                VOXL_LOG_ERROR("Recieved much newer child than master (%lu), discarding child and trying again\n", childInfo->timestamp_ns - imageInfo.timestamp_ns);
+                VOXL_LOG_INFO("INFO: Camera %s recieved much newer child than master (%lu), discarding master and trying again\n", name, childInfo->timestamp_ns - imageInfo.timestamp_ns);
                 bufferPush(pBufferManager, handle);
                 pthread_mutex_unlock(&stereoMutex);
                 continue;
@@ -790,7 +807,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             //Much newer master, discard the child and get a new one
             if(imageInfo.timestamp_ns - childInfo->timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-                VOXL_LOG_ERROR("Recieved much newer master than child (%lu), discarding master and trying again\n", imageInfo.timestamp_ns - childInfo->timestamp_ns);
+                VOXL_LOG_INFO("INFO: Camera %s recieved much newer master than child (%lu), discarding child and trying again\n", name, imageInfo.timestamp_ns - childInfo->timestamp_ns);
                 childFrame = NULL;
                 childInfo  = NULL;
                 pthread_mutex_unlock(&stereoMutex);
@@ -801,6 +818,11 @@ void* PerCameraMgr::ThreadPostProcessResult()
             // Assume the earlier timestamp is correct
             if(imageInfo.timestamp_ns > childInfo->timestamp_ns){
                 imageInfo.timestamp_ns = childInfo->timestamp_ns;
+            }
+
+            if(cameraConfigInfo.flip){
+                reverse(pSrcPixel, imageInfo.size_bytes/2);
+                reverse(childFrame, imageInfo.size_bytes/2);
             }
 
             // Ship the frame out of the camera server

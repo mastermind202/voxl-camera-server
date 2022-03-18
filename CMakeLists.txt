@@ -81,20 +81,20 @@ target_link_libraries(${CONFNAME}
     modal_json
 )
 
-#add_executable(${LISTNAME}
-#    list-cameras/voxl-list-cameras.cpp
-#    src/hal3/hal3_camera_core.cpp
-#    src/common/debug_log.cpp
-#)
-#
-#target_link_libraries(${LISTNAME}
-#    cutils
-#    ${TMP_LIBS}
-#
-#)
+add_executable(${LISTNAME}
+    list-cameras/voxl-list-cameras.cpp
+    src/hal3/hal3_camera_core.cpp
+    src/common/debug_log.cpp
+)
+
+target_link_libraries(${LISTNAME}
+    cutils
+    ${TMP_LIBS}
+
+)
 
 install(
-    TARGETS ${SERVERNAME} ${CONFNAME} #${LISTNAME}
+    TARGETS ${SERVERNAME} ${CONFNAME} ${LISTNAME}
     LIBRARY         DESTINATION /usr/lib
     RUNTIME         DESTINATION /usr/bin
     PUBLIC_HEADER   DESTINATION /usr/include
