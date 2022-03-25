@@ -56,17 +56,12 @@ include_directories(
     hardware_headers/
 )
 
-
-file(GLOB_RECURSE TMP_LIBS "hardware_libs/*.so*")
-
 target_link_libraries(${SERVERNAME}
 	cutils
-    ${TMP_LIBS}
     modal_pipe
     modal_exposure
     modal_json
     voxl_cutils
-    SegFault
 )
 
 add_executable(${CONFNAME}
@@ -89,8 +84,6 @@ add_executable(${LISTNAME}
 
 target_link_libraries(${LISTNAME}
     cutils
-    ${TMP_LIBS}
-
 )
 
 install(

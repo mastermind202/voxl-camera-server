@@ -17,9 +17,10 @@ libvoxl-cutils"
 DEPS_APQ8096=( "${DEPS[@]}" )
 DEPS_QRB5165=( "${DEPS[@]}" )
 
+
 ## this list is just for tab-completion
 ## it's not an exhaustive list of platforms available.
-AVAILABLE_PLATFORMS="qrb5165"
+AVAILABLE_PLATFORMS="qrb5165 apq8096"
 
 
 print_usage(){
@@ -56,11 +57,7 @@ PLATFORM=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 SECTION=$(echo "$2" | tr '[:upper:]' '[:lower:]')
 
 # use ipk mode for apq8096
-if ! [ "$PLATFORM" -eq "qrb5165" ]; then
-
-    echo "This package is only meant for qrb5165"
-    exit
-
+if [ "$PLATFORM" == "apq8096" ]; then
     MODE="IPK"
 fi
 
