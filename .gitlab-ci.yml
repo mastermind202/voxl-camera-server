@@ -1,13 +1,18 @@
 
 before_script:
-    - git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
+    - git clone -q --depth 1 https://gitlab.com/voxl-public/voxl-sdk/ci-tools
 
 include:
-  - project: 'voxl-public/utilities/ci-tools'
-    file: '/pipeline-configs/cross-865.yml'
+  - project: 'voxl-public/voxl-sdk/ci-tools'
+    file: '/pipeline-configs/qrb5165-emulator.yml'
 
+variables:
+    GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
-    - nightly_cross_865_dev
-    - build_cross_865_dev
-    - deploy_cross_865_dev
+    - build_qrb5165_emulator_dev
+    - nightly_qrb5165_emulator_dev
+    - deploy_qrb5165_emulator_dev
+    - build_qrb5165_emulator_stable
+    - nightly_qrb5165_emulator_stable
+    - deploy_qrb5165_emulator_stable
