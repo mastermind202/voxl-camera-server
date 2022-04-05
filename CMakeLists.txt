@@ -46,6 +46,7 @@ set(CONFSOURCE "config/camera_server_config_helper.cpp")
 set(LISTNAME voxl-list-cameras)
 
 file(GLOB_RECURSE all_src_files "src/*.c*")
+file(GLOB_RECURSE HARDWARE_LIBS "hardware_libs/*.so*")
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
@@ -62,6 +63,7 @@ target_link_libraries(${SERVERNAME}
     modal_exposure
     modal_json
     voxl_cutils
+    ${HARDWARE_LIBS}
 )
 
 add_executable(${CONFNAME}
@@ -73,6 +75,7 @@ add_executable(${CONFNAME}
 )
 
 target_link_libraries(${CONFNAME}
+    ${HARDWARE_LIBS}
     modal_json
 )
 
@@ -83,6 +86,7 @@ add_executable(${LISTNAME}
 )
 
 target_link_libraries(${LISTNAME}
+    ${HARDWARE_LIBS}
     cutils
 )
 

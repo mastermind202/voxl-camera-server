@@ -53,9 +53,9 @@ static const PerCameraInfo OV7251Defaults =
         {                           //ModalAI AE Algorithm Parameters
             100,                    //Gain Min
             1000,                   //Gain Max
-            1000,                   //Exposure Min
+            20,                   //Exposure Min
             33000,                  //Exposure Max
-            54.0,                   //Desired MSV
+            64.0,                   //Desired MSV
             8000.0,                //k_p_ns
             5.0,                   //k_i_ns
             250.0,                  //Max i
@@ -81,9 +81,9 @@ static const PerCameraInfo IMX214Defaults =
         FMT_NV21,                   //Format
         false,                      //Flip
         {                           //ModalAI AE Algorithm Parameters
-            0,                      //Gain Min
+            100,                    //Gain Min
             1000,                   //Gain Max
-            1000,                   //Exposure Min
+            20,                   //Exposure Min
             33000,                  //Exposure Max
             54.0,                   //Desired MSV
             8000.0,                //k_p_ns

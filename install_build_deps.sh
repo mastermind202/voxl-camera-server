@@ -20,7 +20,7 @@ DEPS_QRB5165=( "${DEPS[@]}" )
 
 ## this list is just for tab-completion
 ## it's not an exhaustive list of platforms available.
-AVAILABLE_PLATFORMS="qrb5165 apq8096"
+AVAILABLE_PLATFORMS="qrb5165"
 
 
 print_usage(){
