@@ -4,15 +4,10 @@ before_script:
 
 include:
   - project: 'voxl-public/voxl-sdk/ci-tools'
-    file: '/pipeline-configs/qrb5165-emulator.yml'
+    file: '/pipeline-configs/cross-qrb5165.yml'
+  - project: 'voxl-public/voxl-sdk/ci-tools'
+    file: '/pipeline-configs/common.yml'
 
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
 
-stages:
-    - build_qrb5165_emulator_dev
-    - nightly_qrb5165_emulator_dev
-    - deploy_qrb5165_emulator_dev
-    - build_qrb5165_emulator_stable
-    - nightly_qrb5165_emulator_stable
-    - deploy_qrb5165_emulator_stable
