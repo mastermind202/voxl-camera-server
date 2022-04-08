@@ -2,20 +2,20 @@
 
 ## Build Instructions
 
-1. Requires the rb5-flight-emulator (found [here](https://developer.modalai.com/asset)) to run docker ARM image
-    * (PC) cd [Path To]/voxl-camera-server
-    * (PC) rb5-flight-docker
+1. Requires the voxl-cross>=v1.9 docker image (found [here](https://developer.modalai.com/asset))
+    * (PC) cd [Path To]/qrb5165-camera-server
+    * (PC) voxl-docker -i voxl-cross
 2. Build project binary:
-    * (RB5-FLIGHT-EMULATOR) ./install_build_deps.sh
-    * (RB5-FLIGHT-EMULATOR) ./clean.sh
-    * (RB5-FLIGHT-EMULATOR) ./build.sh
-    * (RB5-FLIGHT-EMULATOR) ./make_package.sh
+    * (voxl-cross) ./install_build_deps.sh qrb5165 [repo]
+    * (voxl-cross) ./clean.sh
+    * (voxl-cross) ./build.sh
+    * (voxl-cross) ./make_package.sh
 
 ## Installing and running on VOXL
 
-* (PC) ./install_on_voxl.sh
-* (RB5) rb5-configure-cameras
-* (RB5) systemctl start rb5-camera-server
+* (PC) ./deploy_to_voxl.sh
+* (RB5) voxl-configure-cameras
+* (RB5) systemctl start voxl-camera-server
 
 ### Testing
 
@@ -29,7 +29,7 @@ And then pulling up the drone's IP address on a mobile or desktop device connect
 
 #### ModalAI Auto-Exposure
 
-ModalAI Cameras use our internal auto-exposure algorithm using histograms. The code for the auto-exposure algorithm can be found [here](https://gitlab.com/voxl-public/modal-pipe-architecture/voxl-mpa-exposure)
+ModalAI Cameras use our internal auto-exposure algorithm using histograms. The code for the auto-exposure algorithm can be found [here](https://gitlab.com/voxl-public/voxl-sdk/core-libs/libmodal-exposure)
 
 Questions
 =========
