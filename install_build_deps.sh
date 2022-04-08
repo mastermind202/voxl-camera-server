@@ -12,7 +12,8 @@ DEPS="
 libmodal-pipe
 libmodal-json
 libmodal-exposure
-libvoxl-cutils"
+libvoxl-cutils
+qrb5165-proprietary"
 
 DEPS_APQ8096=( "${DEPS[@]}" )
 DEPS_QRB5165=( "${DEPS[@]}" )

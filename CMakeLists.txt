@@ -36,7 +36,7 @@ project(865-camera-server)
 cmake_minimum_required(VERSION 3.3)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64 -Wno-misleading-indentation")
+set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64  -L/usr/lib -Wno-misleading-indentation")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC")
 set(SERVERNAME voxl-camera-server)
 
@@ -46,7 +46,6 @@ set(CONFSOURCE "config/camera_server_config_helper.cpp")
 set(LISTNAME voxl-list-cameras)
 
 file(GLOB_RECURSE all_src_files "src/*.c*")
-file(GLOB_RECURSE HARDWARE_LIBS "hardware_libs/*.so*")
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
@@ -54,7 +53,6 @@ include_directories(
 	include/hal3/
 	include/camera_config/
 	include/common/
-    hardware_headers/
 )
 
 target_link_libraries(${SERVERNAME}
@@ -63,7 +61,11 @@ target_link_libraries(${SERVERNAME}
     modal_exposure
     modal_json
     voxl_cutils
-    ${HARDWARE_LIBS}
+    camera_metadata
+    hardware
+    log
+    binder
+    utils
 )
 
 add_executable(${CONFNAME}
@@ -75,7 +77,6 @@ add_executable(${CONFNAME}
 )
 
 target_link_libraries(${CONFNAME}
-    ${HARDWARE_LIBS}
     modal_json
 )
 
@@ -86,8 +87,12 @@ add_executable(${LISTNAME}
 )
 
 target_link_libraries(${LISTNAME}
-    ${HARDWARE_LIBS}
     cutils
+    camera_metadata
+    hardware
+    log
+    binder
+    utils
 )
 
 install(
