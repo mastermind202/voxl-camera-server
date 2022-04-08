@@ -1,3 +1,7 @@
+0.0.5
+    * Purge old proprietary from repo
+0.0.4
+    * CI Updates
 0.0.3
     * Working stereo sync and config file
     * Outstanding issue: config helper still needs to support all the configurations instead of only default
