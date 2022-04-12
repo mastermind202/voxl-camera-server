@@ -37,7 +37,7 @@ static int allocateOneBuffer(
 void bufferDeleteBuffers(BufferGroup* bufferGroup)
 {
 
-    // printf("Deleting buffers: %lu of %d currently in use\n", (bufferGroup->totalBuffers)-(bufferGroup->freeBuffers.size()), bufferGroup->totalBuffers);
+    VOXL_LOG_VERBOSE("Deleting buffers: %lu of %d currently in use\n", (bufferGroup->totalBuffers)-(bufferGroup->freeBuffers.size()), bufferGroup->totalBuffers);
     for (unsigned int i = 0; i < bufferGroup->totalBuffers; i++) {
         if (bufferGroup->buffers[i] != NULL) {
             munmap(bufferGroup->bufferBlocks[i].vaddress, bufferGroup->bufferBlocks[i].size);
