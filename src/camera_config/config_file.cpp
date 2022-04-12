@@ -64,10 +64,10 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 //#define JsonWidthString        "width"                    ///< Frame width
 //#define JsonHeightString       "height"                   ///< Frame height
 //#define JsonFpsString          "frame_rate"               ///< Fps
-//#define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
-//#define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
-//#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
-//#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
+#define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
+#define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
+#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
+#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
 #define JsonCameraIdString     "camera_id"                ///< Camera id
 #define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
@@ -146,6 +146,12 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
         info.flip = tmp;
 
+        json_fetch_float_with_default (cur, JsonAEDesiredMSVString ,   &info.expGainInfo.desired_msv, 58.0);
+        json_fetch_float_with_default (cur, JsonAEKPString ,           &info.expGainInfo.k_p_ns,      32000);
+        json_fetch_float_with_default (cur, JsonAEKIString ,           &info.expGainInfo.k_i_ns,      20);
+        json_fetch_float_with_default (cur, JsonAEMaxIString ,         &info.expGainInfo.max_i,       250);
+
+
         cameraNames.push_back(info.name);
         cameras.push_back(info);
 
@@ -187,6 +193,11 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
+
+        cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.expGainInfo.desired_msv);
+        cJSON_AddNumberToObject (node, JsonAEKPString ,          info.expGainInfo.k_p_ns);
+        cJSON_AddNumberToObject (node, JsonAEKIString ,          info.expGainInfo.k_i_ns);
+        cJSON_AddNumberToObject (node, JsonAEMaxIString ,        info.expGainInfo.max_i);
 
         cJSON_AddItemToArray(camArray, node);
 
