@@ -53,11 +53,11 @@ static const PerCameraInfo OV7251Defaults =
         {                           //ModalAI AE Algorithm Parameters
             100,                    //Gain Min
             1000,                   //Gain Max
-            20,                   //Exposure Min
+            20,                     //Exposure Min
             33000,                  //Exposure Max
             64.0,                   //Desired MSV
-            8000.0,                //k_p_ns
-            5.0,                   //k_i_ns
+            8000.0,                 //k_p_ns
+            5.0,                    //k_i_ns
             250.0,                  //Max i
             3,                      //p Good Threshold
             1,                      //Exposure Period
@@ -83,11 +83,11 @@ static const PerCameraInfo IMX214Defaults =
         {                           //ModalAI AE Algorithm Parameters
             100,                    //Gain Min
             1000,                   //Gain Max
-            20,                   //Exposure Min
+            20,                     //Exposure Min
             33000,                  //Exposure Max
             54.0,                   //Desired MSV
-            8000.0,                //k_p_ns
-            5.0,                   //k_i_ns
+            8000.0,                 //k_p_ns
+            5.0,                    //k_i_ns
             250.0,                  //Max i
             3,                      //p Good Threshold
             1,                      //Exposure Period
@@ -105,7 +105,6 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //ID
         -1,                         //ID2
         false,                      //Enabled?
-
         -1,                         //Framerate
         -1,                         //Width
         -1,                         //Height

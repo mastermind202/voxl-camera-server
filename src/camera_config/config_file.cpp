@@ -64,10 +64,10 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 //#define JsonWidthString        "width"                    ///< Frame width
 //#define JsonHeightString       "height"                   ///< Frame height
 //#define JsonFpsString          "frame_rate"               ///< Fps
-//#define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
-//#define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
-//#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
-//#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
+#define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
+#define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
+#define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
+#define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
 #define JsonCameraIdString     "camera_id"                ///< Camera id
 #define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
@@ -108,7 +108,6 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 
         PerCameraInfo info = getDefaultCameraInfo(type);
 
-
         if(json_fetch_string(cur, JsonNameString, info.name, 63)){
             VOXL_LOG_ERROR("Error Reading config file: camera name not specified\n", info.name);
             goto ERROR_EXIT;
@@ -130,13 +129,13 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         }
 
         if(!cJSON_HasObjectItem(cur, JsonCameraId2String) || json_fetch_int(cur, JsonCameraId2String, &(info.camId2))){
-            //VOXL_LOG_ALL("No secondary id found for camera: %s, assuming mono\n", info.name);
+            VOXL_LOG_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
             info.camId2 = -1;
         } else if(contains(cameraIds, info.camId2)){
             VOXL_LOG_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
         } else {
-            //VOXL_LOG_ALL("Secondary id found for camera: %s, assuming stereo\n", info.name);
+            VOXL_LOG_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", info.name);
             cameraIds.push_back(info.camId2);
         }
 
@@ -145,6 +144,11 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         info.isEnabled = tmp;
         json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
         info.flip = tmp;
+
+        json_fetch_float_with_default (cur, JsonAEDesiredMSVString ,   &info.expGainInfo.desired_msv, info.expGainInfo.desired_msv);
+        json_fetch_float_with_default (cur, JsonAEKPString ,           &info.expGainInfo.k_p_ns,      info.expGainInfo.k_p_ns);
+        json_fetch_float_with_default (cur, JsonAEKIString ,           &info.expGainInfo.k_i_ns,      info.expGainInfo.k_i_ns);
+        json_fetch_float_with_default (cur, JsonAEMaxIString ,         &info.expGainInfo.max_i,       info.expGainInfo.max_i);
 
         cameraNames.push_back(info.name);
         cameras.push_back(info);
@@ -187,6 +191,11 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
+
+        cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.expGainInfo.desired_msv);
+        cJSON_AddNumberToObject (node, JsonAEKPString ,          info.expGainInfo.k_p_ns);
+        cJSON_AddNumberToObject (node, JsonAEKIString ,          info.expGainInfo.k_i_ns);
+        cJSON_AddNumberToObject (node, JsonAEMaxIString ,        info.expGainInfo.max_i);
 
         cJSON_AddItemToArray(camArray, node);
 

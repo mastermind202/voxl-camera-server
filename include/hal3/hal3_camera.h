@@ -120,7 +120,7 @@ public:
     std::mutex                 expgainCondMutex;               ///< Mutex to be used with the condition variable
     PerCameraInfo              cameraConfigInfo;               ///< Per camera config information
     bool                       usingAE = true;                 ///< Disabled AE via control pipe
-    int64_t                    currentFrameNumber;             ///< Frame Number
+    int64_t                    currentFrameNumber = 0;         ///< Frame Number
     int64_t                    currentTimestamp;               ///< Timestamp
     int64_t                    currentExposure;                ///< Exposure
     int32_t                    currentGain;                    ///< Gain

@@ -227,10 +227,13 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
 
     setExposure             =  5259763;
     setGain                 =  800;
-    uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
-    uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
-    uint8_t afmode            =  ANDROID_CONTROL_AF_MODE_OFF;
-    uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+    //This covers the 5 below modes, we want them all off
+    uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
+    //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
+    //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
+    //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+    //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+    //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -239,12 +242,15 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,      1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,          1);
-    requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
-    requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &(afmode),           1);
-    requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &(antibanding),      1);
+    //This covers the 5 below modes, we want them all off
+    requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
+    //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+    //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+    //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+    //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+    //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
+    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
@@ -282,10 +288,9 @@ void PerCameraMgr::Start()
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-    pthread_create(&resultThread,  &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadIssueCaptureRequests();}, this);
-    pthread_create(&requestThread, &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadPostProcessResult();},  this);
+    pthread_create(&requestThread, &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadIssueCaptureRequests();}, this);
+    pthread_create(&resultThread,  &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadPostProcessResult();},  this);
     pthread_attr_destroy(&attr);
-
 
     char buf[16];
     sprintf(buf, "cam%d-request", cameraId);
@@ -309,6 +314,10 @@ void PerCameraMgr::Stop()
 
     stopped = true;
 
+    if(partnerMode == MODE_STEREO_MASTER){
+        otherMgr->stopped = true;
+    }
+
     pthread_cond_signal(&requestCond);
     pthread_join(requestThread, NULL);
     pthread_cond_signal(&requestCond);
@@ -316,17 +325,16 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&requestMutex);
     pthread_cond_destroy(&requestCond);
 
-
-    if(partnerMode != MODE_MONO){
-        pthread_cond_signal(&stereoCond);
-    }
-
     pthread_cond_signal(&resultCond);
     pthread_join(resultThread, NULL);
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
     pthread_mutex_destroy(&resultMutex);
     pthread_cond_destroy(&resultCond);
+
+    if(partnerMode == MODE_STEREO_MASTER){
+        otherMgr->Stop();
+    }
 
     if (pBufferManager != NULL)
     {
@@ -339,10 +347,6 @@ void PerCameraMgr::Stop()
     {
         pDevice->common.close(&pDevice->common);
         pDevice = NULL;
-    }
-
-    if(partnerMode == MODE_STEREO_MASTER){
-        otherMgr->Stop();
     }
 
     pthread_mutex_destroy(&stereoMutex);
@@ -598,7 +602,6 @@ static void reverse(uint8_t *mem, int size){
         mem[size - i] = buffer;
 
     }
-
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -633,7 +636,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
     // The condition of the while loop is such that this thread will not terminate till it receives the last expected image
     // frame from the camera module or detects the ESTOP flag
-    while (!EStopped && !stopped && lastResultFrameNumber != currentFrameNumber)
+    while (!EStopped && lastResultFrameNumber != currentFrameNumber)
     {
         pthread_mutex_lock(&resultMutex);
 
@@ -643,9 +646,14 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
-        if(EStopped || stopped) {
+        if(EStopped) {
             pthread_mutex_unlock(&resultMutex);
             break;
+        }
+
+        if (resultMsgQueue.empty()) {
+            pthread_mutex_unlock(&resultMutex);
+            continue;
         }
 
         buffer_handle_t *handle = resultMsgQueue.front();
@@ -656,6 +664,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
         resultMsgQueue.pop_front();
         pthread_mutex_unlock(&resultMutex);
 
+        if(stopped) {
+            bufferPush(pBufferManager, handle);
+            pthread_cond_signal(&stereoCond);
+            continue;
+        }
+
         BufferBlock* pBufferInfo  = bufferGetBufferInfo(pBufferManager, handle);
 
         //imageInfo.exposure_ns = currentExposure;
@@ -664,8 +678,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
         //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
         imageInfo.exposure_ns = setExposure;
         imageInfo.gain        = setGain;
-
-
 
         uint8_t* pSrcPixel     = (uint8_t*)pBufferInfo->vaddress;
         imageInfo.width        = (uint32_t)width;
@@ -677,7 +689,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         {
 
             // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-            if(imageInfo.frame_id == 0){
+            if(imageInfo.frame_id == 1){
 
                 //Only need to set this info once, put in the condition to save a few cycles
                 imageInfo.format     = IMAGE_FORMAT_RAW8;
@@ -699,15 +711,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                                  width,
                                  height);
             }
-
-
-
         }
         else
         {
-            imageInfo.format     = IMAGE_FORMAT_NV12;
-            imageInfo.size_bytes = pBufferInfo->size;
-
             // For ov7251 camera there is no color so we just send the Y channel data as RAW8
             if (cameraType == CAMTYPE_OV7251)
             {
@@ -717,19 +723,22 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             // We always send YUV contiguous data out of the camera server
             else {
+                imageInfo.format     = IMAGE_FORMAT_NV12;
                 bufferMakeYUVContiguous(pBufferInfo);
                 ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
                 imageInfo.size_bytes = (pBufferInfo->width * pBufferInfo->height * 1.5);
             }
 
             if(cameraConfigInfo.flip){
-                int ylen = (imageInfo.size_bytes * 2 / 3);
-                int uvlen = (imageInfo.size_bytes / 6);
-                reverse(pSrcPixel, ylen);
-                reverse(pSrcPixel+ylen, uvlen);
-                reverse(pSrcPixel+ylen+uvlen, uvlen);
+                if(imageInfo.frame_id == 0){
+                    VOXL_LOG_ERROR("Flipping not currently supported for YUV images, writing as-is\n");
+                }
+                //int ylen = (imageInfo.size_bytes * 2 / 3);
+                //int uvlen = (imageInfo.size_bytes / 6);
+                //reverse(pSrcPixel, ylen);
+                //reverse(pSrcPixel+ylen, uvlen);
+                //reverse(pSrcPixel+ylen+uvlen, uvlen);
             }
-
         }
 
         if(partnerMode == MODE_MONO){
@@ -785,9 +794,10 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
             }
 
-            if(EStopped || stopped) {
-                pthread_mutex_unlock(&stereoMutex);
-                break;
+            if(EStopped | stopped) {
+                pthread_cond_signal(&(otherMgr->stereoCond));
+                bufferPush(pBufferManager, handle);
+                continue;
             }
 
             if(childFrame == NULL){
@@ -846,9 +856,8 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 setGain     = new_gain;
 
                 //Pass back the new AE values to the other camera
-                childInfo->exposure_ns = new_exposure_ns;
-                childInfo->gain = new_gain;
-
+                otherMgr->setExposure = new_exposure_ns;
+                otherMgr->setGain = new_gain;
             }
 
             //Clear the pointers and signal the child thread for cleanup
@@ -866,12 +875,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
             pthread_mutex_unlock(&(otherMgr->stereoMutex));
-
-            if(EStopped) break;
-
-            // The master post-process thread will give us new AE values through here
-            setExposure = imageInfo.exposure_ns;
-            setGain     = imageInfo.gain;
         }
 
 
@@ -908,18 +911,16 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     int which = PRIO_PROCESS;
     int nice  = -10;
 
-    int frame_number = -1;
+    int frame_number = 0;
 
     setpriority(which, tid, nice);
 
     while (!stopped && !EStopped)
     {
-        // pthread_mutex_lock(&requestMutex);
-        // if(!getNumClients()){
-            // pthread_cond_wait(&requestCond, &requestMutex);
-            // if(stopped || EStopped) break;
-        // }
-        // pthread_mutex_unlock(&requestMutex);
+        if(!getNumClients()){
+            pthread_cond_wait(&requestCond, &requestMutex);
+            if(stopped || EStopped) break;
+        }
         ProcessOneCaptureRequest(++frame_number);
     }
 
