@@ -1,3 +1,7 @@
+0.1.0
+    * Fix cameras not cleanly exiting
+    * Add AE fields to the config file
+    * Cameras won't run unless a client is looking for them to now
 0.0.5
     * Purge old proprietary from repo
 0.0.4
