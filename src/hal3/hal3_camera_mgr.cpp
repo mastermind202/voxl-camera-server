@@ -314,6 +314,10 @@ void PerCameraMgr::Stop()
 
     stopped = true;
 
+    if(partnerMode == MODE_STEREO_MASTER){
+        otherMgr->stopped = true;
+    }
+
     pthread_cond_signal(&requestCond);
     pthread_join(requestThread, NULL);
     pthread_cond_signal(&requestCond);
@@ -328,6 +332,10 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&resultMutex);
     pthread_cond_destroy(&resultCond);
 
+    if(partnerMode == MODE_STEREO_MASTER){
+        otherMgr->Stop();
+    }
+
     if (pBufferManager != NULL)
     {
         bufferDeleteBuffers(pBufferManager);
@@ -339,10 +347,6 @@ void PerCameraMgr::Stop()
     {
         pDevice->common.close(&pDevice->common);
         pDevice = NULL;
-    }
-
-    if(partnerMode == MODE_STEREO_MASTER){
-        otherMgr->Stop();
     }
 
     pthread_mutex_destroy(&stereoMutex);
@@ -662,6 +666,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
         if(stopped) {
             bufferPush(pBufferManager, handle);
+            pthread_cond_signal(&stereoCond);
             continue;
         }
 
