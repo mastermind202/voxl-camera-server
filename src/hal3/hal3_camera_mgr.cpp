@@ -292,7 +292,6 @@ void PerCameraMgr::Start()
     pthread_create(&resultThread,  &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadPostProcessResult();},  this);
     pthread_attr_destroy(&attr);
 
-
     char buf[16];
     sprintf(buf, "cam%d-request", cameraId);
 
@@ -322,11 +321,7 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&requestMutex);
     pthread_cond_destroy(&requestCond);
 
-
-    if(partnerMode != MODE_MONO){
-        pthread_cond_signal(&stereoCond);
-    }
-
+    pthread_cond_signal(&resultCond);
     pthread_join(resultThread, NULL);
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
@@ -603,7 +598,6 @@ static void reverse(uint8_t *mem, int size){
         mem[size - i] = buffer;
 
     }
-
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -653,6 +647,11 @@ void* PerCameraMgr::ThreadPostProcessResult()
             break;
         }
 
+        if (resultMsgQueue.empty()) {
+            pthread_mutex_unlock(&resultMutex);
+            continue;
+        }
+
         buffer_handle_t *handle = resultMsgQueue.front();
 
         // Coming here means we have a result frame to process
@@ -685,7 +684,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         {
 
             // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-            if(imageInfo.frame_id == 0){
+            if(imageInfo.frame_id == 1){
 
                 //Only need to set this info once, put in the condition to save a few cycles
                 imageInfo.format     = IMAGE_FORMAT_RAW8;
@@ -710,9 +709,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
         }
         else
         {
-            imageInfo.format     = IMAGE_FORMAT_NV12;
-            imageInfo.size_bytes = pBufferInfo->size;
-
             // For ov7251 camera there is no color so we just send the Y channel data as RAW8
             if (cameraType == CAMTYPE_OV7251)
             {
@@ -722,17 +718,21 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             // We always send YUV contiguous data out of the camera server
             else {
+                imageInfo.format     = IMAGE_FORMAT_NV12;
                 bufferMakeYUVContiguous(pBufferInfo);
                 ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
                 imageInfo.size_bytes = (pBufferInfo->width * pBufferInfo->height * 1.5);
             }
 
             if(cameraConfigInfo.flip){
-                int ylen = (imageInfo.size_bytes * 2 / 3);
-                int uvlen = (imageInfo.size_bytes / 6);
-                reverse(pSrcPixel, ylen);
-                reverse(pSrcPixel+ylen, uvlen);
-                reverse(pSrcPixel+ylen+uvlen, uvlen);
+                if(imageInfo.frame_id == 0){
+                    VOXL_LOG_ERROR("Flipping not currently supported for YUV images, writing as-is\n");
+                }
+                //int ylen = (imageInfo.size_bytes * 2 / 3);
+                //int uvlen = (imageInfo.size_bytes / 6);
+                //reverse(pSrcPixel, ylen);
+                //reverse(pSrcPixel+ylen, uvlen);
+                //reverse(pSrcPixel+ylen+uvlen, uvlen);
             }
         }
 
@@ -851,9 +851,8 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 setGain     = new_gain;
 
                 //Pass back the new AE values to the other camera
-                childInfo->exposure_ns = new_exposure_ns;
-                childInfo->gain = new_gain;
-
+                otherMgr->setExposure = new_exposure_ns;
+                otherMgr->setGain = new_gain;
             }
 
             //Clear the pointers and signal the child thread for cleanup
@@ -871,10 +870,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
             pthread_mutex_unlock(&(otherMgr->stereoMutex));
-
-            // The master post-process thread will give us new AE values through here
-            setExposure = imageInfo.exposure_ns;
-            setGain     = imageInfo.gain;
         }
 
 
@@ -911,18 +906,16 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     int which = PRIO_PROCESS;
     int nice  = -10;
 
-    int frame_number = -1;
+    int frame_number = 0;
 
     setpriority(which, tid, nice);
 
     while (!stopped && !EStopped)
     {
-        // pthread_mutex_lock(&requestMutex);
-        // if(!getNumClients()){
-            // pthread_cond_wait(&requestCond, &requestMutex);
-            // if(stopped || EStopped) break;
-        // }
-        // pthread_mutex_unlock(&requestMutex);
+        if(!getNumClients()){
+            pthread_cond_wait(&requestCond, &requestMutex);
+            if(stopped || EStopped) break;
+        }
         ProcessOneCaptureRequest(++frame_number);
     }
 
