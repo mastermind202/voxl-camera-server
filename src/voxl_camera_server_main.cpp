@@ -170,7 +170,7 @@ static void cleanManagers(){
 // Parses the command line arguments to the main function
 // -----------------------------------------------------------------------------------------------------------------------------
 static int ParseArgs(int         argc,                 ///< Number of arguments
-              char* const argv[])               ///< Argument list
+                     char* const argv[])               ///< Argument list
 {
 
     static struct option LongOptions[] =

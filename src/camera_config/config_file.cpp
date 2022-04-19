@@ -63,7 +63,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonFlipString         "flip"                     ///< Camera flip?
 //#define JsonWidthString        "width"                    ///< Frame width
 //#define JsonHeightString       "height"                   ///< Frame height
-//#define JsonFpsString          "frame_rate"               ///< Fps
+#define JsonFpsString          "frame_rate"               ///< Fps
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
 #define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
 #define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
@@ -139,6 +139,8 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
             cameraIds.push_back(info.camId2);
         }
 
+        json_fetch_int_with_default (cur, JsonFpsString ,   &info.fps, info.fps);
+
         int tmp;
         json_fetch_bool_with_default(cur, JsonEnabledString, &tmp, true);
         info.isEnabled = tmp;
@@ -183,11 +185,11 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         cJSON* node = cJSON_CreateObject();
 
-        cJSON_AddStringToObject(node, JsonNameString, info.name);
-        cJSON_AddBoolToObject  (node, JsonEnabledString, info.isEnabled);
-        cJSON_AddBoolToObject  (node, JsonFlipString, info.flip);
-
-        cJSON_AddStringToObject(node, JsonTypeString, GetTypeString(info.type));
+        cJSON_AddStringToObject(node, JsonNameString,     info.name);
+        cJSON_AddBoolToObject  (node, JsonEnabledString,  info.isEnabled);
+        cJSON_AddBoolToObject  (node, JsonFlipString,     info.flip);
+        cJSON_AddNumberToObject(node, JsonFpsString,      info.fps);
+        cJSON_AddStringToObject(node, JsonTypeString,     GetTypeString(info.type));
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
