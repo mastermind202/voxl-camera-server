@@ -42,16 +42,16 @@
 camera_module_t* HAL3_get_camera_module()
 {
 
-	static camera_module_t* cameraModule = NULL;
+    static camera_module_t* cameraModule = NULL;
 
-	if(cameraModule != NULL){
-		return cameraModule;
-	}
+    if(cameraModule != NULL){
+        return cameraModule;
+    }
 
-	int i;
+    int i;
     for (i = 0;
-    	 i <= NUM_MODULE_OPEN_ATTEMPTS && hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&cameraModule);
-    	 i++)
+         i <= NUM_MODULE_OPEN_ATTEMPTS && hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&cameraModule);
+         i++)
     {
 
         VOXL_LOG_ERROR("ERROR: Camera module not opened, %d attempts remaining\n",
@@ -59,10 +59,10 @@ camera_module_t* HAL3_get_camera_module()
         sleep(1);
     }
 
-	if(cameraModule == NULL){
+    if(cameraModule == NULL){
         VOXL_LOG_FATAL("ERROR: Camera module not opened after %d attempts", NUM_MODULE_OPEN_ATTEMPTS);
-		return NULL;
-	}
+        return NULL;
+    }
 
     VOXL_LOG_INFO("SUCCESS: Camera module opened on attempt %d\n", i);
 
@@ -79,7 +79,7 @@ camera_module_t* HAL3_get_camera_module()
 bool HAL3_is_config_supported(int camId, int width, int height, int format)
 {
 
-	camera_info halCameraInfo;
+    camera_info halCameraInfo;
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
     if(cameraModule == NULL){
@@ -88,7 +88,7 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
         return false;
     }
 
-	cameraModule->get_camera_info(camId, &halCameraInfo);
+    cameraModule->get_camera_info(camId, &halCameraInfo);
 
 
     camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
@@ -102,11 +102,11 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
         for (size_t i = 0; i < entry.count; i+=4)
         {
             if ((entry.data.i32[i]   == format) &&
-            	(entry.data.i32[i+1] == width ) &&
+                (entry.data.i32[i+1] == width ) &&
                 (entry.data.i32[i+2] == height) &&
-            	(entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
+                (entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
             {
-            	return true;
+                return true;
             }
         }
     }
@@ -116,24 +116,26 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
 
 void HAL3_print_camera_resolutions(int camId){
 
-	camera_module_t* cameraModule = HAL3_get_camera_module();
+    camera_module_t* cameraModule = HAL3_get_camera_module();
 
-	if(cameraModule == NULL){
-		printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
-		return;
-	}
+    if(cameraModule == NULL){
+        printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
+        return;
+    }
 
-	if(camId == -1){
-	    int numCameras = cameraModule->get_number_of_cameras();
+    if(camId == -1){
+        int numCameras = cameraModule->get_number_of_cameras();
 
-	    printf("Number of cameras: %d\n\n", numCameras);
+        printf("Note: This list comes from the HAL module and may not be indicative\n");
+        printf("\tof configurations that have full pipelines\n\n");
+        printf("Number of cameras: %d\n\n", numCameras);
 
-		for(int i = 0; i < numCameras; i++){
+        for(int i = 0; i < numCameras; i++){
             HAL3_print_camera_resolutions(i);
-	    }
-	} else {
-		camera_info cameraInfo;
-		cameraModule->get_camera_info(camId, &cameraInfo);
+        }
+    } else {
+        camera_info cameraInfo;
+        cameraModule->get_camera_info(camId, &cameraInfo);
 
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)cameraInfo.static_camera_characteristics;
         camera_metadata_ro_entry entry;
@@ -146,19 +148,12 @@ void HAL3_print_camera_resolutions(int camId){
         {
             if (entry.data.i32[j + 3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT)
             {
-            	if(camId == 3){
-                	if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888){
-                    	printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
-                	}
-
-            	} else {
-                	if(entry.data.i32[j] == HAL_PIXEL_FORMAT_RAW10){
-                    	printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
-                	}
+                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888){
+                    printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
                 }
             }
         }
 
-	}
+    }
 
 }
