@@ -1,0 +1,33 @@
+
+_voxl-configure-cameras(){
+
+    local OPTS="disable help"
+    local LATE_OPTS="disable"
+
+    case $(voxl-platform) in
+
+        M0054 | M0052)
+            OPTS+=" sentinel"
+            ;;
+
+        VOXL)
+            OPTS+=" m500_flight_deck seeker_voxlcam rotate_tracking rotate_stereo"
+            LATE_OPTS+=" rotate_tracking rotate_stereo"
+            ;;
+
+        *)
+            exit -1;
+            ;;
+    esac
+
+    COMPREPLY=()
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=( $(compgen -W '${OPTS}' -- ${COMP_WORDS[COMP_CWORD]}) )
+        return 0
+    fi
+
+    COMPREPLY=( $(compgen -W '${LATE_OPTS}' -- ${COMP_WORDS[COMP_CWORD]}) )
+    return 0
+}
+
+complete -F _voxl-configure-cameras voxl-configure-cameras
