@@ -167,7 +167,9 @@ const PerCameraInfo getDefaultCameraInfo(CameraType t) {
     #ifdef APQ8096
         case CAMTYPE_OV7251_PAIR:{
             PerCameraInfo temp = OV7251Defaults;
-            temp.height *= 2;
+            temp.width *= 2;
+            temp.format = FMT_NV21;
+            temp.type = CAMTYPE_OV7251_PAIR;
             return temp;
         }
 

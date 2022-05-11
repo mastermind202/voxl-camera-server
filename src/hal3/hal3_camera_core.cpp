@@ -36,6 +36,17 @@
 #include "debug_log.h"
 #include "hal3_camera.h"
 
+// Callback to indicate device status change
+static void CameraDeviceStatusChange(const struct camera_module_callbacks* callbacks, int camera_id, int new_status)
+{
+    VOXL_LOG_INFO("Camera %d device status change: %d\n", camera_id, new_status);
+}
+// Callback to indicate torch mode status change
+static void TorchModeStatusChange(const struct camera_module_callbacks* callbacks, const char* camera_id, int new_status)
+{
+}
+static const camera_module_callbacks_t moduleCallbacks = {CameraDeviceStatusChange, TorchModeStatusChange};
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Get the camera module (and initialize it if it hasn't been)
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -78,6 +89,28 @@ camera_module_t* HAL3_get_camera_module()
             return NULL;
         }
     }
+
+    int numCameras = cameraModule->get_number_of_cameras();
+
+    VOXL_LOG_INFO("----------- Number of cameras: %d\n\n", numCameras);
+
+    for (int i = 0 ; i < numCameras; i++)
+    {
+        camera_info halCameraInfo;
+        // This gives the camera's fixed characteristics that can be extracted from the camera_metadata
+        // "info.static_camera_characteristics"
+        cameraModule->get_camera_info(i, &halCameraInfo);
+
+        camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
+        camera_metadata_ro_entry entry;
+
+        // Get the list of all stream resolutions supported and then go through each one of them looking for a match
+        find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
+
+    }
+
+    cameraModule->set_callbacks(&moduleCallbacks);
+
     return cameraModule;
 
 }
@@ -112,6 +145,7 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
                 (entry.data.i32[i+2] == height) &&
                 (entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
             {
+                VOXL_LOG_INFO("Successfully found configuration match for camera %d: %dx%d\n", camId, width, height);
                 return true;
             }
         }
@@ -121,7 +155,6 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
 }
 
 void HAL3_print_camera_resolutions(int camId){
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
@@ -129,7 +162,6 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
         printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
         return;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if(camId == -1){
         int numCameras = cameraModule->get_number_of_cameras();
@@ -142,19 +174,15 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
             HAL3_print_camera_resolutions(i);
         }
     } else {
-printf("%s, %d: %d\n", __FUNCTION__, __LINE__, camId );
 
         camera_info cameraInfo;
         cameraModule->get_camera_info(camId, &cameraInfo);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)cameraInfo.static_camera_characteristics;
         camera_metadata_ro_entry entry;
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         // Get the list of all stream resolutions supported and then go through each one of them looking for a match
         find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         printf("Available resolutions for camera: %d:\n", camId);
         for (size_t j = 0; j < entry.count; j+=4)

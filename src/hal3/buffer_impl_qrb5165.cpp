@@ -28,7 +28,7 @@ static std::condition_variable bufferConditionVar;
 #define ALIGN_BYTE(x, a) ((x % a == 0) ? x : x - (x % a) + a)
 
 int allocateOneBuffer(
-        BufferGroup*       bufferGroup,
+        BufferGroup&       bufferGroup,
         unsigned int       index,
         unsigned int       width,
         unsigned int       height,
@@ -74,16 +74,16 @@ int allocateOneBuffer(
     }
 
 
-    bufferGroup->bufferBlocks[index].vaddress       = mmap(NULL,
+    bufferGroup.bufferBlocks[index].vaddress       = mmap(NULL,
                                                         allocation_data.len,
                                                         PROT_READ  | PROT_WRITE,
                                                         MAP_SHARED,
                                                         allocation_data.fd,
                                                         0);
-    bufferGroup->bufferBlocks[index].size           = allocation_data.len;
-    bufferGroup->bufferBlocks[index].width          = width;
-    bufferGroup->bufferBlocks[index].height         = height;
-    bufferGroup->bufferBlocks[index].stride         = stride;
+    bufferGroup.bufferBlocks[index].size           = allocation_data.len;
+    bufferGroup.bufferBlocks[index].width          = width;
+    bufferGroup.bufferBlocks[index].height         = height;
+    bufferGroup.bufferBlocks[index].stride         = stride;
 
     native_handle = native_handle_create(1, 4);
     (native_handle)->data[0] = allocation_data.fd;
@@ -99,15 +99,15 @@ int allocateOneBuffer(
 }
 
 void deleteOneBuffer(
-       BufferGroup*       bufferGroup,
+       BufferGroup&       bufferGroup,
        unsigned int       index)
 {
-    if (bufferGroup->buffers[index] != NULL) {
-        munmap(bufferGroup->bufferBlocks[index].vaddress, bufferGroup->bufferBlocks[index].size);
-        native_handle_close((native_handle_t *)bufferGroup->buffers[index]);
-        native_handle_delete((native_handle_t *)bufferGroup->buffers[index]);
+    if (bufferGroup.buffers[index] != NULL) {
+        munmap(bufferGroup.bufferBlocks[index].vaddress, bufferGroup.bufferBlocks[index].size);
+        native_handle_close((native_handle_t *)bufferGroup.buffers[index]);
+        native_handle_delete((native_handle_t *)bufferGroup.buffers[index]);
 
-        bufferGroup->buffers[index] = NULL;
+        bufferGroup.buffers[index] = NULL;
     }
 }
 

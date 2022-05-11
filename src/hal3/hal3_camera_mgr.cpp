@@ -100,29 +100,24 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     cameraId = cameraConfigInfo.camId;
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if(currentDebugLevel == DebugLevel::VERBOSE)
-        HAL3_print_camera_resolutions(-1);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+        HAL3_print_camera_resolutions(cameraId);
 
     char cameraName[20];
     sprintf(cameraName, "%d", cameraId);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
     // we just exit. The stream configuration is checked into the static metadata associated with every camera.
     if (!HAL3_is_config_supported(cameraId, width, height, halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported config!\n", cameraId);
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported config: %dx%d\n", cameraId, width, height);
 
         throw -EINVAL;
     }
-    
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+
 
     if (pCameraModule->common.methods->open(&pCameraModule->common, cameraName, (hw_device_t**)(&pDevice)))
     {
@@ -130,7 +125,6 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         throw -EINVAL;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (pDevice->ops->initialize(pDevice, (camera3_callback_ops*)&cameraCallbacks))
     {
@@ -138,7 +132,6 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         throw -EINVAL;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (ConfigureStreams())
     {
@@ -146,12 +139,9 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         throw -EINVAL;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
-    pBufferManager = new BufferGroup;
-
-    if (bufferAllocateBuffers(pBufferManager,
-                              stream->max_buffers,
+    if (bufferAllocateBuffers(bufferGroup,
+                              NUM_PREVIEW_BUFFERS,
                               stream->width,
                               stream->height,
                               stream->format,
@@ -160,7 +150,6 @@ printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         throw -EINVAL;
     }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
 
     // This is the default metadata i.e. camera settings per request. The camera module passes us the best set of baseline
@@ -206,12 +195,26 @@ int PerCameraMgr::ConfigureStreams()
     stream->format      = halFmt;
     stream->data_space  = HAL_DATASPACE_UNKNOWN;
     stream->usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+    #ifdef APQ8096
+    stream->rotation    = CAMERA3_STREAM_ROTATION_0;
+    #elif QRB5165
     stream->rotation    = 2;
+    #else
+    #error "No Platform defined"
+    #endif
     stream->max_buffers = NUM_PREVIEW_BUFFERS;
     stream->priv        = 0;
 
     streamConfig.num_streams = 1;
+
+    #ifdef APQ8096
+    streamConfig.operation_mode = QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE;
+    #elif QRB5165
     streamConfig.operation_mode = CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE;
+    #else
+    #error "No Platform defined"
+    #endif
+
     streamConfig.streams = &stream;
 
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
@@ -239,7 +242,8 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    if (cameraConfigInfo.type == CAMTYPE_OV7251) {
+    if (cameraConfigInfo.type == CAMTYPE_OV7251 ||
+        cameraConfigInfo.type == CAMTYPE_OV7251_PAIR) {
 
         //This covers the 5 below modes, we want them all off
         uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
@@ -380,12 +384,7 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-    if (pBufferManager != NULL)
-    {
-        bufferDeleteBuffers(pBufferManager);
-        delete pBufferManager;
-        pBufferManager = NULL;
-    }
+    bufferDeleteBuffers(bufferGroup);
 
     if (pDevice != NULL)
     {
@@ -499,101 +498,6 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Send one capture request to the camera module
-// -----------------------------------------------------------------------------------------------------------------------------
-int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
-{
-    camera3_capture_request_t request;
-
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
-
-    // Exposure Debug Oscillator
-    /*{
-        static int mode = 1;
-        static int64_t curexp = 5259763;
-        static int64_t curgain = 800;
-        const uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
-
-        if(curexp > 5250000) mode = -1;
-        if(curexp < 1000000) mode = 1;
-
-        curexp += 50000 * mode;
-
-        requestMetadata.update(ANDROID_CONTROL_AE_MODE, &aeMode, 1);
-        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(curexp), 1);
-        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(curgain), 1);
-    }*/
-
-    std::vector<camera3_stream_buffer_t> streamBufferList;
-
-    camera3_stream_buffer_t streamBuffer;
-    streamBuffer.buffer        = (const native_handle_t**)bufferPop(pBufferManager);
-    streamBuffer.stream        = stream;
-    streamBuffer.status        = 0;
-    streamBuffer.acquire_fence = -1;
-    streamBuffer.release_fence = -1;
-    streamBufferList.push_back(streamBuffer);
-
-    request.num_output_buffers  = 1;
-    request.output_buffers      = streamBufferList.data();
-    request.frame_number        = frameNumber;
-    request.settings            = requestMetadata.getAndLock();
-    request.input_buffer        = nullptr;
-
-    /* Return values (from hardware/camera3.h):
-     *
-     *  0:      On a successful start to processing the capture request
-     *
-     * -EINVAL: If the input is malformed (the settings are NULL when not
-     *          allowed, invalid physical camera settings,
-     *          there are 0 output buffers, etc) and capture processing
-     *          cannot start. Failures during request processing should be
-     *          handled by calling camera3_callback_ops_t.notify(). In case of
-     *          this error, the framework will retain responsibility for the
-     *          stream buffers' fences and the buffer handles; the HAL should
-     *          not close the fences or return these buffers with
-     *          process_capture_result.
-     *
-     * -ENODEV: If the camera device has encountered a serious error. After this
-     *          error is returned, only the close() method can be successfully
-     *          called by the framework.
-     *
-     */
-
-    int status = pDevice->ops->process_capture_request(pDevice, &request);
-
-    if (status)
-    {
-
-        //Another thread has already detected the fatal error, return since it has already been handled
-        if(stopped) return 0;
-
-        VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved Fatal error from camera: %s\n", name);
-        switch (status){
-            case -EINVAL :
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -EINVAL\n", frameNumber);
-                break;
-            case -ENODEV:
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -ENODEV\n", frameNumber);
-                break;
-            default:
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: %d\n", frameNumber, status);
-                break;
-        }
-
-        EStopCameraServer();
-        return -EINVAL;
-
-    }
-    requestMetadata.unlock(request.settings);
-
-    VOXL_LOG_VERBOSE("Processed request for frame %d for camera %s\n", frameNumber, name);
-
-    return S_OK;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
 // Convert 10-bit RAW to 8-bit RAW
 // -----------------------------------------------------------------------------------------------------------------------------
 static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
@@ -616,8 +520,12 @@ static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heigh
 
 static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
 {
+    if (pImg == NULL) {
+        VOXL_LOG_ERROR("%s was given NULL pointer for image\n", __FUNCTION__);
+        throw -EINVAL;
+    }
+
     uint8_t buffer[heightPixels * widthPixels * 2];
-    bool ret = false;
     memcpy(buffer, pImg, heightPixels * widthPixels);
 
     ConvertTo8bitRaw(buffer,
@@ -625,14 +533,13 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
                      heightPixels);
     //check the row that is 4/5ths of the way down the image, if we just converted a
     //raw8 image to raw8, it will be empty
-    uint8_t* row = &(pImg[((heightPixels * 4 / 5) + 2) * widthPixels]);
+    uint8_t* row = &(buffer[((heightPixels * 4 / 5) + 5) * widthPixels]);
     for(unsigned int i = 0; i < widthPixels; i++){
         if(row[i] != 0){
-            ret = true;
-            break;
+            return true;
         }
     }
-    return ret;
+    return false;
 }
 
 static void reverse(uint8_t *mem, int size){
@@ -709,12 +616,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
         pthread_mutex_unlock(&resultMutex);
 
         if(stopped) {
-            bufferPush(pBufferManager, handle);
+            bufferPush(bufferGroup, handle);
             pthread_cond_signal(&stereoCond);
             continue;
         }
 
-        BufferBlock* pBufferInfo  = bufferGetBufferInfo(pBufferManager, handle);
+        BufferBlock* pBufferInfo  = bufferGetBufferInfo(&bufferGroup, handle);
 
         //imageInfo.exposure_ns = currentExposure;
         //imageInfo.gain        = currentGain;
@@ -762,9 +669,26 @@ void* PerCameraMgr::ThreadPostProcessResult()
             if (cameraType == CAMTYPE_OV7251)
             {
                 imageInfo.format     = IMAGE_FORMAT_RAW8;
-                imageInfo.size_bytes = (pBufferInfo->width * pBufferInfo->height);
+                imageInfo.size_bytes = width * height;
             }
+            #ifdef APQ8096
+            //APQ only, stereo frames can come in as a pair, need to deinterlace them
+            else if (cameraType == CAMTYPE_OV7251_PAIR)
+            {
+                static uint8_t *stereoBuffer = (uint8_t*)malloc(width/2 * height);
 
+                imageInfo.format     = IMAGE_FORMAT_STEREO_RAW8;
+                imageInfo.size_bytes = width * height;
+                imageInfo.width      = width / 2;
+
+                for(int i = 0; i < height; i++){
+                    memcpy(&(pSrcPixel[i * width / 2]), &(pSrcPixel[i * width]), width / 2);
+                    memcpy(&(stereoBuffer[i * width / 2]), &(pSrcPixel[(i * width) + (width/2)]), width / 2);
+                }
+                memcpy(&(pSrcPixel[width/2*height]), stereoBuffer, width/2*height);
+
+            }
+            #endif
             // We always send YUV contiguous data out of the camera server
             else {
                 imageInfo.format     = IMAGE_FORMAT_NV12;
@@ -840,21 +764,21 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             if(EStopped | stopped) {
                 pthread_cond_signal(&(otherMgr->stereoCond));
-                bufferPush(pBufferManager, handle);
+                bufferPush(bufferGroup, handle);
                 continue;
             }
 
             if(childFrame == NULL){
                 pthread_mutex_unlock(&stereoMutex);
                 VOXL_LOG_INFO("Child frame not received\n");
-                bufferPush(pBufferManager, handle);
+                bufferPush(bufferGroup, handle);
                 continue;
             }
 
             //Much newer child, discard master but keep the child
             if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
                 VOXL_LOG_INFO("INFO: Camera %s recieved much newer child than master (%lu), discarding master and trying again\n", name, childInfo->timestamp_ns - imageInfo.timestamp_ns);
-                bufferPush(pBufferManager, handle);
+                bufferPush(bufferGroup, handle);
                 pthread_mutex_unlock(&stereoMutex);
                 continue;
             }
@@ -922,7 +846,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         }
 
 
-        bufferPush(pBufferManager, handle); // This queues up the buffer for recycling
+        bufferPush(bufferGroup, handle); // This queues up the buffer for recycling
 
     }
 
@@ -937,6 +861,101 @@ void* PerCameraMgr::ThreadPostProcessResult()
     VOXL_LOG_INFO("Leaving %s result thread\n", name);
 
     return NULL;
+}
+
+
+// -----------------------------------------------------------------------------------------------------------------------------
+// Send one capture request to the camera module
+// -----------------------------------------------------------------------------------------------------------------------------
+int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
+{
+    camera3_capture_request_t request;
+
+    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
+    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
+
+    // Exposure Debug Oscillator
+    /*{
+        static int mode = 1;
+        static int64_t curexp = 5259763;
+        static int64_t curgain = 800;
+        const uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
+
+        if(curexp > 5250000) mode = -1;
+        if(curexp < 1000000) mode = 1;
+
+        curexp += 50000 * mode;
+
+        requestMetadata.update(ANDROID_CONTROL_AE_MODE, &aeMode, 1);
+        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(curexp), 1);
+        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(curgain), 1);
+    }*/
+
+    std::vector<camera3_stream_buffer_t> streamBufferList;
+
+    camera3_stream_buffer_t streamBuffer;
+    streamBuffer.buffer        = (const native_handle_t**)bufferPop(bufferGroup);
+    streamBuffer.stream        = stream;
+    streamBuffer.status        = 0;
+    streamBuffer.acquire_fence = -1;
+    streamBuffer.release_fence = -1;
+
+    streamBufferList.push_back(streamBuffer);
+
+    request.num_output_buffers  = 1;
+    request.output_buffers      = streamBufferList.data();
+    request.frame_number        = frameNumber;
+    request.settings            = requestMetadata.getAndLock();
+    request.input_buffer        = nullptr;
+
+    /* Return values (from hardware/camera3.h):
+     *
+     *  0:      On a successful start to processing the capture request
+     *
+     * -EINVAL: If the input is malformed (the settings are NULL when not
+     *          allowed, invalid physical camera settings,
+     *          there are 0 output buffers, etc) and capture processing
+     *          cannot start. Failures during request processing should be
+     *          handled by calling camera3_callback_ops_t.notify(). In case of
+     *          this error, the framework will retain responsibility for the
+     *          stream buffers' fences and the buffer handles; the HAL should
+     *          not close the fences or return these buffers with
+     *          process_capture_result.
+     *
+     * -ENODEV: If the camera device has encountered a serious error. After this
+     *          error is returned, only the close() method can be successfully
+     *          called by the framework.
+     *
+     */
+
+    if (int status = pDevice->ops->process_capture_request(pDevice, &request))
+    {
+
+        //Another thread has already detected the fatal error, return since it has already been handled
+        if(stopped) return 0;
+
+        VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved Fatal error from camera: %s\n", name);
+        switch (status){
+            case -EINVAL :
+                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -EINVAL\n", frameNumber);
+                break;
+            case -ENODEV:
+                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -ENODEV\n", frameNumber);
+                break;
+            default:
+                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: %d\n", frameNumber, status);
+                break;
+        }
+
+        EStopCameraServer();
+        return -EINVAL;
+
+    }
+    requestMetadata.unlock(request.settings);
+
+    VOXL_LOG_VERBOSE("Processed request for frame %d for camera %s\n", frameNumber, name);
+
+    return S_OK;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -1006,6 +1025,8 @@ int PerCameraMgr::SetupPipes(){
 }
 
 void PerCameraMgr::addClient(){
+
+    VOXL_LOG_VERBOSE("Client connected to camera %s\n", name);
 
     pthread_cond_signal(&requestCond);
 

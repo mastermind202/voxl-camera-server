@@ -105,7 +105,7 @@ public:
     char                       name[64];
     camera3_device_t*          pDevice;                        ///< HAL3 device
     android::CameraMetadata    requestMetadata;                ///< Per request metadata
-    BufferGroup*               pBufferManager;                 ///< Buffer manager per stream
+    BufferGroup                bufferGroup;                    ///< Buffer manager per stream
     camera3_stream_t*          stream;                         ///< Stream to be used for the camera request
     camera_module_t*           pCameraModule;                  ///< Camera module
     int32_t                    halFmt;                         ///< HAL format to use for preview

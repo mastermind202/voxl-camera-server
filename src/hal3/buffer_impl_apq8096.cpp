@@ -47,7 +47,7 @@ static int SetupGrallocInterface()
 // Call the Gralloc interface to do the actual memory allocation for one single buffer
 // -----------------------------------------------------------------------------------------------------------------------------
 int allocateOneBuffer(
-        BufferGroup*       bufferGroup,
+        BufferGroup&       bufferGroup,
         unsigned int       index,
         unsigned int       width,
         unsigned int       height,
@@ -59,8 +59,8 @@ int allocateOneBuffer(
     //Fail if it's not already open and we fail to open
     if(grallocDevice == NULL && SetupGrallocInterface()) return -1;
 
-    bufferGroup->bufferBlocks[index].width  = width;
-    bufferGroup->bufferBlocks[index].height = height;
+    bufferGroup.bufferBlocks[index].width  = width;
+    bufferGroup.bufferBlocks[index].height = height;
 
     // Call gralloc to make the memory allocation
     grallocDevice->alloc(grallocDevice,
@@ -69,7 +69,7 @@ int allocateOneBuffer(
                             format,
                             consumerFlags,
                             pBuffer,
-                            (int*)&bufferGroup->bufferBlocks[index].stride);
+                            (int*)&bufferGroup.bufferBlocks[index].stride);
 
     // Get the CPU virtual address of the buffer memory allocation
     if (format == HAL_PIXEL_FORMAT_RAW10)
@@ -81,10 +81,10 @@ int allocateOneBuffer(
                              0,
                              width,
                              height,
-                             &bufferGroup->bufferBlocks[index].vaddress);
+                             &bufferGroup.bufferBlocks[index].vaddress);
 
-        bufferGroup->bufferBlocks[index].size =
-                bufferGroup->bufferBlocks[index].stride * height;
+        bufferGroup.bufferBlocks[index].size =
+                bufferGroup.bufferBlocks[index].stride * height;
 
     } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888)
     {
@@ -98,10 +98,10 @@ int allocateOneBuffer(
                                    height,
                                    &ycbcr);
 
-        bufferGroup->bufferBlocks[index].vaddress  = ycbcr.y;
+        bufferGroup.bufferBlocks[index].vaddress  = ycbcr.y;
 
-        bufferGroup->bufferBlocks[index].size =
-                bufferGroup->bufferBlocks[index].stride * height * 1.5; // 1.5 because it is 12 bits / pixel
+        bufferGroup.bufferBlocks[index].size =
+                bufferGroup.bufferBlocks[index].stride * height * 1.5; // 1.5 because it is 12 bits / pixel
 
     } else if (format == HAL_PIXEL_FORMAT_BLOB)
     {
@@ -113,12 +113,12 @@ int allocateOneBuffer(
                              0,
                              width,
                              height,
-                             &bufferGroup->bufferBlocks[index].vaddress);
+                             &bufferGroup.bufferBlocks[index].vaddress);
 
-        bufferGroup->bufferBlocks[index].size =
-                bufferGroup->bufferBlocks[index].stride * height;
-        bufferGroup->bufferBlocks[index].width          = width;
-        bufferGroup->bufferBlocks[index].height         = height;
+        bufferGroup.bufferBlocks[index].size =
+                bufferGroup.bufferBlocks[index].stride * height;
+        bufferGroup.bufferBlocks[index].width          = width;
+        bufferGroup.bufferBlocks[index].height         = height;
     } else
     {
         VOXL_LOG_FATAL("voxl-camera-server ERROR: Unknown pixel format!\n");
@@ -129,14 +129,14 @@ int allocateOneBuffer(
 }
 
 void deleteOneBuffer(
-       BufferGroup*       bufferGroup,
+       BufferGroup&       bufferGroup,
        unsigned int       index)
 {
-    if (grallocDevice != NULL && bufferGroup->buffers[index] != NULL)
+    if (grallocDevice != NULL && bufferGroup.buffers[index] != NULL)
     {
-        grallocModule->unlock(grallocModule, bufferGroup->buffers[index]);
-        grallocDevice->free(grallocDevice, bufferGroup->buffers[index]);
-        bufferGroup->buffers[index] = NULL;
+        grallocModule->unlock(grallocModule, bufferGroup.buffers[index]);
+        grallocDevice->free(grallocDevice, bufferGroup.buffers[index]);
+        bufferGroup.buffers[index] = NULL;
     }
 }
 
