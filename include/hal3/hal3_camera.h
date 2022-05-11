@@ -103,7 +103,6 @@ public:
     int32_t                    width;                          ///< Width
     int32_t                    height;                         ///< Height
     char                       name[64];
-    camera_info                pHalCameraInfo;                 ///< Camera info
     camera3_device_t*          pDevice;                        ///< HAL3 device
     android::CameraMetadata    requestMetadata;                ///< Per request metadata
     BufferGroup*               pBufferManager;                 ///< Buffer manager per stream
@@ -119,7 +118,7 @@ public:
     pthread_cond_t             resultCond;                     ///< Condition variable for wake up
     std::mutex                 expgainCondMutex;               ///< Mutex to be used with the condition variable
     PerCameraInfo              cameraConfigInfo;               ///< Per camera config information
-    bool                       usingAE = true;                 ///< Disabled AE via control pipe
+    bool                       usingAE;                        ///< Internal Auto Exposure (False for ISP or Disabled)
     int64_t                    currentFrameNumber = 0;         ///< Frame Number
     int64_t                    currentTimestamp;               ///< Timestamp
     int64_t                    currentExposure;                ///< Exposure

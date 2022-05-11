@@ -8,20 +8,23 @@
 # list all your dependencies here. Note for packages that have AMD64 equivalents
 # in the ubuntu repositories you should specify the arm64 architecture to make
 # sure the correct one is installed in voxl-cross.
-DEPS="
+DEPS_QRB5165=( "
 libmodal-pipe
 libmodal-json
 libmodal-exposure
 libvoxl-cutils
-qrb5165-proprietary"
+qrb5165-proprietary" )
 
-DEPS_APQ8096=( "${DEPS[@]}" )
-DEPS_QRB5165=( "${DEPS[@]}" )
+DEPS_APQ8096=( "
+libmodal-pipe
+libmodal-json
+libmodal-exposure
+libvoxl-cutils" )
 
 
 ## this list is just for tab-completion
 ## it's not an exhaustive list of platforms available.
-AVAILABLE_PLATFORMS="qrb5165"
+AVAILABLE_PLATFORMS="qrb5165 apq8096"
 
 
 print_usage(){
@@ -84,28 +87,28 @@ else
     echo "using $PLATFORM $SECTION repo"
     OPKG_CONF="/etc/opkg/opkg.conf"
     # delete any existing repository entries
-    sudo sed -i '/voxl-packages.modalai.com/d' ${OPKG_CONF}
+    sed -i '/voxl-packages.modalai.com/d' ${OPKG_CONF}
 
     # add arm64 architecture if necessary
     if ! grep -q "arch arm64" "${OPKG_CONF}"; then
         echo "adding arm64 to opkg conf"
-        sudo echo "arch arm64 7" >> ${OPKG_CONF}
+        echo "arch arm64 7" >> ${OPKG_CONF}
     fi
 
     # write in the new entry
     LINE="src/gz ${SECTION} http://voxl-packages.modalai.com/dists/$PLATFORM/${SECTION}/binary-arm64/"
-    sudo echo "$LINE" >> ${OPKG_CONF}
-    sudo echo "" >> ${OPKG_CONF}
+    echo "$LINE" >> ${OPKG_CONF}
+    echo "" >> ${OPKG_CONF}
 
     ## make sure we have the latest package index
-    sudo opkg update
+    opkg update
 
     echo "installing: $DEPS_APQ8096"
 
     # install/update each dependency
     for i in ${DEPS_APQ8096}; do
         # this will also update if already installed!
-        sudo opkg install --nodeps $i
+        opkg install --nodeps $i
     done
 
 fi

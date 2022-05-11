@@ -85,8 +85,12 @@ const char* GetImageFmtString(int fmt);
 enum CameraType
 {
     CAMTYPE_INVALID = -1,   ///< Invalid
-    CAMTYPE_OV7251,         ///< Tracking camera
-    CAMTYPE_IMX214,         ///< HiRes    camera
+    CAMTYPE_OV7251,
+    CAMTYPE_IMX214,
+#ifdef APQ8096
+    CAMTYPE_OV7251_PAIR,
+    CAMTYPE_TOF,
+#endif
     CAMTYPE_MAX_TYPES       ///< Max types
 };
 // Get the string associated with the type

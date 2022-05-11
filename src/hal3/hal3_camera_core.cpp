@@ -48,6 +48,8 @@ camera_module_t* HAL3_get_camera_module()
         return cameraModule;
     }
 
+    VOXL_LOG_INFO("Attempting to open the hal module\n");
+
     int i;
     for (i = 0;
          i <= NUM_MODULE_OPEN_ATTEMPTS && hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&cameraModule);
@@ -70,8 +72,12 @@ camera_module_t* HAL3_get_camera_module()
     if (cameraModule->init != NULL)
     {
         cameraModule->init();
+        if (cameraModule->init == NULL)
+        {
+            VOXL_LOG_FATAL("ERROR: Camera module failed to init\n");
+            return NULL;
+        }
     }
-
     return cameraModule;
 
 }
@@ -115,6 +121,7 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
 }
 
 void HAL3_print_camera_resolutions(int camId){
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
@@ -122,6 +129,7 @@ void HAL3_print_camera_resolutions(int camId){
         printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
         return;
     }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if(camId == -1){
         int numCameras = cameraModule->get_number_of_cameras();
@@ -134,21 +142,27 @@ void HAL3_print_camera_resolutions(int camId){
             HAL3_print_camera_resolutions(i);
         }
     } else {
+printf("%s, %d: %d\n", __FUNCTION__, __LINE__, camId );
+
         camera_info cameraInfo;
         cameraModule->get_camera_info(camId, &cameraInfo);
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)cameraInfo.static_camera_characteristics;
         camera_metadata_ro_entry entry;
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         // Get the list of all stream resolutions supported and then go through each one of them looking for a match
         find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
         printf("Available resolutions for camera: %d:\n", camId);
         for (size_t j = 0; j < entry.count; j+=4)
         {
             if (entry.data.i32[j + 3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT)
             {
-                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888){
+                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888
+                || entry.data.i32[j] == HAL_PIXEL_FORMAT_BLOB){
                     printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
                 }
             }

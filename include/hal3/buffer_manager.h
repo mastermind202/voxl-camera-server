@@ -1,23 +1,16 @@
-/*
-* Copyright (c) 2020 Qualcomm Innovation Center, Inc.  All Rights Reserved.
-*
-* SPDX-License-Identifier: BSD-3-Clause-Clear
-*/
+/*******************************************************************************************************************************
+ *
+ * Copyright (c) 2022 ModalAI, Inc.
+ *
+ ******************************************************************************************************************************/
 
 #ifndef CAMXHAL3BUFFER_H
 #define CAMXHAL3BUFFER_H
 
-#include <stdio.h>
-#include <stdint.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <deque>
-#include <linux/ion.h>
-#include <linux/msm_ion.h>
 #include "hardware/camera3.h"
 
-#define  BUFFER_QUEUE_MAX_SIZE  256
+#define  BUFFER_QUEUE_MAX_SIZE  32
 
 #define ALIGN_BYTE(x, a) ((x % a == 0) ? x : x - (x % a) + a)
 
@@ -27,10 +20,6 @@ typedef struct _BufferBlock {
     unsigned int      width;
     unsigned int      height;
     unsigned int      stride;
-    unsigned int      slice;
-    unsigned int      fd;
-    unsigned int      format;
-    struct ion_allocation_data allocationData;
 } BufferBlock;
 
 typedef struct _BufferGroup {
@@ -40,7 +29,7 @@ typedef struct _BufferGroup {
     BufferBlock         bufferBlocks[BUFFER_QUEUE_MAX_SIZE];
 } BufferGroup;
 
-void bufferAllocateBuffers(
+int bufferAllocateBuffers(
     BufferGroup *bufferGroup,
     unsigned int totalBuffers,
     unsigned int width,

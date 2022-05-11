@@ -41,14 +41,15 @@
 #include <modal_pipe.h>
 #include <vector>
 #include <string>
+#include <camera/CameraMetadata.h>
+#include <camera/VendorTagDescriptor.h>
+#include <algorithm>
+
 #include "buffer_manager.h"
 #include "common_defs.h"
 #include "debug_log.h"
 #include "hal3_camera.h"
 #include "voxl_camera_server.h"
-#include <camera/CameraMetadata.h>
-#include <camera/VendorTagDescriptor.h>
-#include <algorithm>
 
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
@@ -99,21 +100,29 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     cameraId = cameraConfigInfo.camId;
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
-    if(GetDebugLevel() == DebugLevel::VERBOSE)
-        HAL3_print_camera_resolutions(cameraId);
+    if(currentDebugLevel == DebugLevel::VERBOSE)
+        HAL3_print_camera_resolutions(-1);
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     char cameraName[20];
     sprintf(cameraName, "%d", cameraId);
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
-    if(pCameraModule->get_camera_info(cameraId, &pHalCameraInfo))
+    // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
+    // we just exit. The stream configuration is checked into the static metadata associated with every camera.
+    if (!HAL3_is_config_supported(cameraId, width, height, halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Get camera %s(%s) info failed!\n", cameraName, name);
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported config!\n", cameraId);
 
         throw -EINVAL;
     }
+    
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (pCameraModule->common.methods->open(&pCameraModule->common, cameraName, (hw_device_t**)(&pDevice)))
     {
@@ -121,6 +130,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (pDevice->ops->initialize(pDevice, (camera3_callback_ops*)&cameraCallbacks))
     {
@@ -128,6 +138,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if (ConfigureStreams())
     {
@@ -135,15 +146,22 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     pBufferManager = new BufferGroup;
 
-    bufferAllocateBuffers(pBufferManager,
-                          stream->max_buffers,
-                          stream->width,
-                          stream->height,
-                          stream->format,
-                          stream->usage);
+    if (bufferAllocateBuffers(pBufferManager,
+                              stream->max_buffers,
+                              stream->width,
+                              stream->height,
+                              stream->format,
+                              stream->usage)) {
+        VOXL_LOG_ERROR("ERROR: Failed to allocate buffers for camera: %s(%s)\n", cameraName, name);
+
+        throw -EINVAL;
+    }
+printf("%s, %d\n", __FUNCTION__, __LINE__ );
+
 
     // This is the default metadata i.e. camera settings per request. The camera module passes us the best set of baseline
     // settings. We can modify any setting, for any frame or for every frame, as we see fit.
@@ -179,15 +197,6 @@ PerCameraMgr::~PerCameraMgr() {
 int PerCameraMgr::ConfigureStreams()
 {
 
-    // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
-    // we just exit. The stream configuration is checked into the static metadata associated with every camera.
-    if (!HAL3_is_config_supported(cameraId, width, height, halFmt))
-    {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported config!\n", cameraId);
-
-        return -EINVAL;
-    }
-
     camera3_stream_configuration_t streamConfig = { 0 };
 
     stream              = new camera3_stream_t();
@@ -222,18 +231,6 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    int fpsRange[] = {cameraConfigInfo.fps, cameraConfigInfo.fps};
-    int64_t frameDuration = 1e9 / cameraConfigInfo.fps;
-
-    setExposure             =  5259763;
-    setGain                 =  800;
-    //This covers the 5 below modes, we want them all off
-    uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
-    //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
-    //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
-    //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
-    //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
-    //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -242,15 +239,62 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    //This covers the 5 below modes, we want them all off
-    requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
-    //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
-    //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
-    //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
-    //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
-    //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
+    if (cameraConfigInfo.type == CAMTYPE_OV7251) {
+
+        //This covers the 5 below modes, we want them all off
+        uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
+        //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
+        //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
+        //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+        //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+        //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+
+        //This covers the 5 below modes, we want them all off
+        requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
+        //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+        //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+        //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+        //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+        //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+
+        setExposure             =  5259763;
+        setGain                 =  800;
+        usingAE                 =  true;
+
+        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
+        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
+
+    } else if (cameraConfigInfo.type == CAMTYPE_IMX214){
+
+        //Want these on for hires
+        uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
+        uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
+        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_AUTO;
+
+        // This is the flag for running our AE, want off since we're using ISP's
+        usingAE                   =  false;
+
+        //Don't have any autofocus so turn these off
+        uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+        uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+
+        requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+        requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+        requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+        requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+        requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+
+    } else { //Make sure to add the desired parameters for any new cameras
+
+        VOXL_LOG_FATAL("WARNING: Camera %s's type has not been added to %s possible resulting in unknown behavior\n",
+            name,
+            __FUNCTION__);
+
+    }
+
+    int fpsRange[] = {cameraConfigInfo.fps, cameraConfigInfo.fps};
+    int64_t frameDuration = 1e9 / cameraConfigInfo.fps;
+
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
@@ -570,11 +614,11 @@ static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heigh
     }
 }
 
-static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels, uint32_t strideBytes)
+static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
 {
-    uint8_t buffer[heightPixels * strideBytes * 2];
+    uint8_t buffer[heightPixels * widthPixels * 2];
     bool ret = false;
-    memcpy(buffer, pImg, heightPixels * strideBytes);
+    memcpy(buffer, pImg, heightPixels * widthPixels);
 
     ConvertTo8bitRaw(buffer,
                      widthPixels,
@@ -685,7 +729,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         imageInfo.timestamp_ns = currentTimestamp;
         imageInfo.frame_id     = currentFrameNumber;
 
-        if (pBufferInfo->format == HAL_PIXEL_FORMAT_RAW10)
+        if (halFmt == HAL_PIXEL_FORMAT_RAW10)
         {
 
             // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
@@ -698,7 +742,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
                 VOXL_LOG_INFO("Received raw10 frame, checking to see if is actually raw8\n");
 
-                if((is10bit = Check10bit(pSrcPixel, width, height, pBufferInfo->stride))){
+                if((is10bit = Check10bit(pSrcPixel, width, height))){
                     VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
                 } else {
                     VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");

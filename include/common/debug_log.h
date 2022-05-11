@@ -46,9 +46,7 @@ enum DebugLevel
 	MAX_DEBUG_LEVELS
 };
 
-void SetDebugLevel(DebugLevel level);
-
-DebugLevel GetDebugLevel();
+extern DebugLevel currentDebugLevel;
 
 // Core function to print the debug log message
 void DebugPrint(DebugLevel level,			///< Debug level

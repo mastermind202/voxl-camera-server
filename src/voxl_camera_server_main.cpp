@@ -182,13 +182,13 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
 
     int optionIndex = 0;
     int option;
-    int debugLevel  = 2;
 
     while ((option = getopt_long (argc, argv, ":d:hl", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
             case 'd':
+                int debugLevel;
                 if (sscanf(optarg, "%d", &debugLevel) != 1)
                 {
                     printf("ERROR: failed to parse debug level specified after -d flag\n");
@@ -203,6 +203,7 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                     return -1;
                 }
 
+                currentDebugLevel = (DebugLevel)debugLevel;
                 break;
 
             case 'l':
@@ -221,8 +222,6 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 return -1;
         }
     }
-
-    SetDebugLevel((DebugLevel)debugLevel);
 
     return 0;
 }

@@ -35,16 +35,7 @@
 #include <cstdarg>
 #include <stdio.h>
 
-static DebugLevel currentDebugLevel = DebugLevel::ERROR;
-
-void SetDebugLevel(DebugLevel level)
-{
-	currentDebugLevel = level;
-}
-
-DebugLevel GetDebugLevel(){
-	return currentDebugLevel;
-}
+DebugLevel currentDebugLevel = DebugLevel::ERROR;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function to print the debug messages conditionally depending on the debug level

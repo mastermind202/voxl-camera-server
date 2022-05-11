@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Copyright 2021 ModalAI Inc.
+# Copyright 2022 ModalAI Inc.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -16,8 +16,8 @@
 #    may be used to endorse or promote products derived from this software
 #    without specific prior written permission.
 #
-# 4. The Software is used solely in conjunction with devices provided by
-#    ModalAI Inc.
+# 4. The Software is licensed to be used solely in conjunction with devices
+#    provided by ModalAI Inc.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,193 +32,22 @@
 # POSSIBILITY OF SUCH DAMAGE.
 ################################################################################
 
-set -e
-
-# options set by arguments
-CAM_CONFIG_ID="-1"
-ENABLE_CAMERA_SERVER=1
-
-. /home/root/.profile.d/modal_bash_formatting.sh
-
-print_configurations () {
-	echo -e ""
-	echo -e "0  None"
-	echo -e "1  Tracking + Stereo"
-	echo -e "2  Tracking Only"
-	echo -e "3  Hires + Stereo + Tracking"
-	echo -e "4  Hires + Tracking"
-	echo -e "${SET_STRIKETHROUGH}5  TOF + Tracking${RESET_ALL}"
-	echo -e "${SET_STRIKETHROUGH}6  Hires + TOF + Tracking${RESET_ALL}"
-	echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo + Tracking${RESET_ALL}"
-	echo -e "8  Hires Only"
-	echo -e "${SET_STRIKETHROUGH}9  TOF Only${RESET_ALL}"
-	echo -e "10 Stereo only"
-	echo -e "11 Tracking + Hires + Dual Stereo Pairs"
-}
-
-print_usage () {
-    echo ""
-    echo "For more flexibility, use the general use case:"
-    echo "voxl-configure-cameras <configuration-id>"
-    echo ""
-    echo "arguments are as follows:"
-    echo ""
-    echo "sentinel          - default for sentinel drone, no config ID needed"
-    echo "disable           - disables voxl-camera-server"
-    echo "help              - show this help text"
-    echo ""
-    echo "If no configuration-id or arguments are given, the user will be"
-    echo "prompted with questions to help complete configuration"
-    echo ""
-    echo "available camera configurations are as follows:"
-    print_configurations
-    echo ""
-    exit 0
-}
-
-parse_opts(){
-
-    while [[ $# -gt 0 ]]; do
-
-        ## convert argument to lower case for robustness
-        arg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-
-        ## parse arguments
-        case ${arg} in
-            "h"|"-h"|"help"|"--help")
-                print_usage
-                exit 0
-                ;;
-            "disable")
-                if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
-                    CAM_CONFIG_ID=0
-                fi
-                ENABLE_CAMERA_SERVER=0
-                ;;
-            "sentinel")
-                CAM_CONFIG_ID=11 # 6-cam
-                ENABLE_CAMERA_SERVER=1
-                ;;
-            *)
-                ## all other arguments are either config id numbers or invalid
-                if [[ "$arg" =~ ^[0-9]+$ ]]; then
-                    CAM_CONFIG_ID=$arg
-                else
-                    echo "invalid option $arg"
-                    print_usage
-                    exit -1
-                fi
-        esac
-        shift
-    done
-}
-
 ################################################################################
-## actual start of execution
+# author: james@modalai.com
 ################################################################################
 
-parse_opts $@
+case $(voxl-chip) in
 
-if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
-    echo "ERROR: missing camera config ID"
-    print_usage
-    exit -1
-fi
+    QRB5165)
+        qrb5165-configure-cameras $@
+        ;;
 
-################################################################################
-## now actually configure everything based on the variables set above
-################################################################################
-echo "Camera Configuration: $CAM_CONFIG_ID"
+    APQ8096)
+        apq8096-configure-cameras $@
+        ;;
 
-CAM_LIST=()
-case $CAM_CONFIG_ID in
-	0) # none
-		ENABLE_CAMERA_SERVER=0;
-		;;
-	1) #Tracking + Stereo
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	2) # Tracking Only
-        CAM_LIST+=("tracking:ov7251:0")
-		;;
-	3) # Hires + Stereo + Tracking
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("hires:imx214:3")
-        CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	4) # Hires + Tracking
-        CAM_LIST+=("tracking:ov7251:0")
-        CAM_LIST+=("hires:imx214:1")
-		;;
-	5) # TOF + Tracking
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=1
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=0
-	 	;;
-	6) # Hires + TOF + Tracking
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
-	# 	HIRES_CAM_ID=0
-	# 	TRACKING_CAM_ID=2
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=1
-	 	;;
-	7) # TOF + Stereo + Tracking
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=0
-	# 	STEREO_CAM_ID=1
-	# 	TOF_CAM_ID=2
-	 	;;
-	8) # Hires only
-        CAM_LIST+=("hires:imx214:0")
-		;;
-	 9) # TOF only
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=-1
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=0
-	 	;;
-	10) # Stereo only
-        CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	11) # 6-cam
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("hires:imx214:3")
-        CAM_LIST+=("stereo_front:ov7251:0:1")
-        CAM_LIST+=("stereo_rear:ov7251:5:4")
-		;;
-	*)
-		echo "invalid option"
-		echo "Please provide a camera configuration-id"
-        echo ""
-        echo "available camera configurations are as follows:"
-        print_configurations
-		exit -1
-		;;
+    *)
+        echo "ERROR: Unknown Chipset"
+        exit -1;
+        ;;
 esac
-
-camera-server-config-helper ${CAM_LIST[@]}
-
-## Enable or disable voxl-camera-server
-if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
-	echo "stopping and disabling voxl-camera-server"
-	systemctl disable voxl-camera-server
-	systemctl stop voxl-camera-server
-else
-	echo "enabling and starting voxl-camera-server"
-	systemctl enable voxl-camera-server
-	systemctl start voxl-camera-server
-fi
-
-echo "Done Configuring Cameras"
-
-
-exit 0

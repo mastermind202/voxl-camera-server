@@ -31,47 +31,66 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #*****************************************************************************/
 
-project(865-camera-server)
+project(QRB5165-camera-server)
 
 cmake_minimum_required(VERSION 3.3)
 
+option(PLATFORM "platform APQ8096 or QRB5165" QRB5165)
+
+if(PLATFORM MATCHES APQ8096)
+    message(STATUS "Building for platform APQ8096")
+    add_definitions(-DAPQ8096 )
+else()
+    message(STATUS "Building for platform QRB5165")
+    add_definitions(-DQRB5165 -L/usr/lib64)
+endif()
+
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib64  -L/usr/lib -Wno-misleading-indentation")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC")
+set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib -Wl,--unresolved-symbols=ignore-in-shared-libs ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
 set(SERVERNAME voxl-camera-server)
 
 set(CONFNAME camera-server-config-helper)
 set(CONFSOURCE "config/camera_server_config_helper.cpp")
 
-set(LISTNAME voxl-list-cameras)
-
 file(GLOB_RECURSE all_src_files "src/*.c*")
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
+    proprietary/include/
 	include/
 	include/hal3/
-	include/camera_config/
+	include/config/
 	include/common/
 )
 
-target_link_libraries(${SERVERNAME}
-	cutils
-    modal_pipe
-    modal_exposure
-    modal_json
-    voxl_cutils
-    camera_metadata
-    hardware
-    log
-    binder
-    utils
-)
+if(PLATFORM MATCHES APQ8096)
+
+    FILE( GLOB_RECURSE TMP_LIBS "proprietary/lib/*.so*" )
+
+    target_link_libraries(${SERVERNAME}
+        ${TMP_LIBS}
+        modal_pipe
+        modal_exposure
+        modal_json
+        voxl_cutils
+    )
+else()
+    target_link_libraries(${SERVERNAME}
+        modal_pipe
+        modal_exposure
+        modal_json
+        voxl_cutils
+        camera_metadata
+        hardware
+    )
+endif()
+
 
 add_executable(${CONFNAME}
     ${CONFSOURCE}
-    src/camera_config/config_file.cpp
-    src/camera_config/config_defaults.cpp
+    src/config/config_file.cpp
+    src/config/config_defaults.cpp
     src/common/debug_log.cpp
     src/common/common.cpp
 )
@@ -80,23 +99,8 @@ target_link_libraries(${CONFNAME}
     modal_json
 )
 
-add_executable(${LISTNAME}
-    list-cameras/voxl-list-cameras.cpp
-    src/hal3/hal3_camera_core.cpp
-    src/common/debug_log.cpp
-)
-
-target_link_libraries(${LISTNAME}
-    cutils
-    camera_metadata
-    hardware
-    log
-    binder
-    utils
-)
-
 install(
-    TARGETS ${SERVERNAME} ${CONFNAME} ${LISTNAME}
+    TARGETS ${SERVERNAME} ${CONFNAME}
     LIBRARY         DESTINATION /usr/lib
     RUNTIME         DESTINATION /usr/bin
     PUBLIC_HEADER   DESTINATION /usr/include

@@ -97,6 +97,36 @@ static const PerCameraInfo IMX214Defaults =
         }
     };
 
+static const PerCameraInfo TOFDefaults =
+    {
+        "",                         //Name
+        CAMTYPE_TOF,                //Type
+        true,                       //Is mono?
+        -1,                         //ID
+        -1,                         //ID2
+        false,                      //Enabled?
+        -1,                         //Framerate
+        -1,                         //Width
+        -1,                         //Height
+        FMT_INVALID,                //Format
+        false,                      //Flip
+        {                           //ModalAI AE Algorithm Parameters
+            0,                      //Gain Min
+            0,                      //Gain Max
+            0,                      //Exposure Min
+            0,                      //Exposure Max
+            0,                      //Desired MSV
+            0,                      //k_p_ns
+            0,                      //k_i_ns
+            0,                      //Max i
+            0,                      //p Good Threshold
+            0,                      //Exposure Period
+            0,                      //Gain Period
+            0,                      //Display Debug
+            0,                      //Exposure offset
+        }
+    };
+
 static const PerCameraInfo emptyDefaults =
     {
         "",                         //Name
@@ -133,6 +163,18 @@ const PerCameraInfo getDefaultCameraInfo(CameraType t) {
             return OV7251Defaults;
         case CAMTYPE_IMX214:
             return IMX214Defaults;
+
+    #ifdef APQ8096
+        case CAMTYPE_OV7251_PAIR:{
+            PerCameraInfo temp = OV7251Defaults;
+            temp.height *= 2;
+            return temp;
+        }
+
+        case CAMTYPE_TOF:
+            return TOFDefaults;
+    #endif
+
         default:
             return emptyDefaults;
     }

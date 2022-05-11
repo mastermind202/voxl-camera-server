@@ -187,17 +187,25 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         cJSON_AddStringToObject(node, JsonNameString,     info.name);
         cJSON_AddBoolToObject  (node, JsonEnabledString,  info.isEnabled);
-        cJSON_AddBoolToObject  (node, JsonFlipString,     info.flip);
         cJSON_AddNumberToObject(node, JsonFpsString,      info.fps);
         cJSON_AddStringToObject(node, JsonTypeString,     GetTypeString(info.type));
         cJSON_AddNumberToObject(node, JsonCameraIdString, info.camId);
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.expGainInfo.desired_msv);
-        cJSON_AddNumberToObject (node, JsonAEKPString ,          info.expGainInfo.k_p_ns);
-        cJSON_AddNumberToObject (node, JsonAEKIString ,          info.expGainInfo.k_i_ns);
-        cJSON_AddNumberToObject (node, JsonAEMaxIString ,        info.expGainInfo.max_i);
+        if (
+            info.type != CAMTYPE_IMX214
+            #ifdef APQ8096
+            && info.type != CAMTYPE_TOF
+            #endif
+            ) {
+
+            cJSON_AddBoolToObject   (node, JsonFlipString,           info.flip);
+            cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.expGainInfo.desired_msv);
+            cJSON_AddNumberToObject (node, JsonAEKPString ,          info.expGainInfo.k_p_ns);
+            cJSON_AddNumberToObject (node, JsonAEKIString ,          info.expGainInfo.k_i_ns);
+            cJSON_AddNumberToObject (node, JsonAEMaxIString ,        info.expGainInfo.max_i);
+        }
 
         cJSON_AddItemToArray(camArray, node);
 
