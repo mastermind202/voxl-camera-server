@@ -97,6 +97,7 @@ static const PerCameraInfo IMX214Defaults =
         }
     };
 
+#ifdef APQ8096
 static const PerCameraInfo TOFDefaults =
     {
         "",                         //Name
@@ -126,6 +127,7 @@ static const PerCameraInfo TOFDefaults =
             0,                      //Exposure offset
         }
     };
+#endif
 
 static const PerCameraInfo emptyDefaults =
     {

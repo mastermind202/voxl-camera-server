@@ -242,8 +242,11 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    if (cameraConfigInfo.type == CAMTYPE_OV7251 ||
-        cameraConfigInfo.type == CAMTYPE_OV7251_PAIR) {
+    if (cameraConfigInfo.type == CAMTYPE_OV7251
+        #ifdef APQ8096
+        || cameraConfigInfo.type == CAMTYPE_OV7251_PAIR
+        #endif
+        ) {
 
         //This covers the 5 below modes, we want them all off
         uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
@@ -647,12 +650,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 imageInfo.size_bytes = width * height;
                 imageInfo.stride     = width;
 
-                VOXL_LOG_INFO("Received raw10 frame, checking to see if is actually raw8\n");
+                VOXL_LOG_VERBOSE("Received raw10 frame, checking to see if is actually raw8\n");
 
                 if((is10bit = Check10bit(pSrcPixel, width, height))){
-                    VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
+                    VOXL_LOG_VERBOSE("Frame was actually 10 bit, proceeding with conversions\n");
                 } else {
-                    VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
+                    VOXL_LOG_VERBOSE("Frame was actually 8 bit, sending as is\n");
                 }
 
             }

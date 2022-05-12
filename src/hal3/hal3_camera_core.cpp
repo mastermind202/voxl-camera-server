@@ -59,7 +59,7 @@ camera_module_t* HAL3_get_camera_module()
         return cameraModule;
     }
 
-    VOXL_LOG_INFO("Attempting to open the hal module\n");
+    VOXL_LOG_VERBOSE("Attempting to open the hal module\n");
 
     int i;
     for (i = 0;
@@ -145,7 +145,7 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
                 (entry.data.i32[i+2] == height) &&
                 (entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
             {
-                VOXL_LOG_INFO("Successfully found configuration match for camera %d: %dx%d\n", camId, width, height);
+                VOXL_LOG_VERBOSE("Successfully found configuration match for camera %d: %dx%d\n", camId, width, height);
                 return true;
             }
         }

@@ -42,13 +42,18 @@ if(PLATFORM MATCHES APQ8096)
     add_definitions(-DAPQ8096 )
 else()
     message(STATUS "Building for platform QRB5165")
-    add_definitions(-DQRB5165 -L/usr/lib64)
+    add_definitions(-DQRB5165 )
 endif()
 
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib -Wl,--unresolved-symbols=ignore-in-shared-libs ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
 set(SERVERNAME voxl-camera-server)
+
+
+if(PLATFORM MATCHES QRB5165)
+set(CMAKE_CXX_FLAGS "-L/usr/lib64 ${CMAKE_CXX_FLAGS}")
+endif()
 
 set(CONFNAME camera-server-config-helper)
 set(CONFSOURCE "config/camera_server_config_helper.cpp")
@@ -57,12 +62,17 @@ file(GLOB_RECURSE all_src_files "src/*.c*")
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
-    proprietary/include/
 	include/
 	include/hal3/
 	include/config/
 	include/common/
 )
+
+if(PLATFORM MATCHES APQ8096)
+    include_directories(
+        proprietary/include/
+    )
+endif()
 
 if(PLATFORM MATCHES APQ8096)
 
@@ -77,6 +87,7 @@ if(PLATFORM MATCHES APQ8096)
     )
 else()
     target_link_libraries(${SERVERNAME}
+        cutils
         modal_pipe
         modal_exposure
         modal_json

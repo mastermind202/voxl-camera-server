@@ -13,8 +13,11 @@
 #include <sys/mman.h>
 #include <linux/ion.h>
 #include <linux/msm_ion.h>
+#include <camera/CameraMetadata.h>
+#include <camera/VendorTagDescriptor.h>
 
 #include "buffer_manager.h"
+#include "common_defs.h"
 #include "debug_log.h"
 
 using namespace std;
@@ -22,8 +25,6 @@ using namespace std;
 static const char* ion_dev_file = "/dev/ion";
 
 static int ionFd;
-static std::mutex bufferMutex;
-static std::condition_variable bufferConditionVar;
 
 #define ALIGN_BYTE(x, a) ((x % a == 0) ? x : x - (x % a) + a)
 
@@ -52,7 +53,7 @@ int allocateOneBuffer(
     }
     memset(&allocation_data, 0, sizeof(allocation_data));
 
-    if (format == HAL_PIXEL_FORMAT_YCBCR_420_888 ||
+    if (format == HAL_PIXEL_FORMAT_YCbCr_420_888 ||
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
