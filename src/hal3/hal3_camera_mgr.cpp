@@ -1010,25 +1010,10 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 {
     camera3_capture_request_t request;
 
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
-
-    // Exposure Debug Oscillator
-    /*{
-        static int mode = 1;
-        static int64_t curexp = 5259763;
-        static int64_t curgain = 800;
-        const uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
-
-        if(curexp > 5250000) mode = -1;
-        if(curexp < 1000000) mode = 1;
-
-        curexp += 50000 * mode;
-
-        requestMetadata.update(ANDROID_CONTROL_AE_MODE, &aeMode, 1);
-        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(curexp), 1);
-        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(curgain), 1);
-    }*/
+    if(usingAE){
+        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
+        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
+    }
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
