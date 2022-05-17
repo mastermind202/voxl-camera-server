@@ -57,12 +57,12 @@ const char* GetImageFmtString(int fmt){
 const char* GetTypeString(int type)
 {
     switch ((CameraType)type){
-        case CAMTYPE_OV7251:   return "ov7251";
-        case CAMTYPE_IMX214:   return "imx214";
+        case CAMTYPE_OV7251:      return "ov7251";
+        case CAMTYPE_IMX214:      return "imx214";
 
     #ifdef APQ8096
         case CAMTYPE_OV7251_PAIR: return "ov7251-pair";
-        case CAMTYPE_TOF:      return "pmd-tof";
+        case CAMTYPE_TOF:         return "pmd-tof";
     #endif
         
         default:               return "Invalid";
@@ -111,9 +111,17 @@ void PrintCameraInfo(PerCameraInfo pCameraInfo)    ///< Camera info
 
     }
 
-    printf("\t Width      : %d\n", pCameraInfo.width);
-    printf("\t Height     : %d\n", pCameraInfo.height);
-    printf("\t Format     : %s\n", GetImageFmtString(pCameraInfo.format));
+    printf("\t Preview Width      : %d\n", pCameraInfo.p_width);
+    printf("\t Preview Height     : %d\n", pCameraInfo.p_height);
+    printf("\t Preview Format     : %s\n", GetImageFmtString(pCameraInfo.p_format));
+    if(pCameraInfo.en_video){
+        printf("\t Video Record Width      : %d\n", pCameraInfo.v_width);
+        printf("\t Video Record Height     : %d\n", pCameraInfo.v_height);
+    }
+    if(pCameraInfo.en_snapshot){
+        printf("\t Snapshot Width      : %d\n", pCameraInfo.s_width);
+        printf("\t Snapshot Height     : %d\n", pCameraInfo.s_height);
+    }
     printf("\t FPS        : %d\n", pCameraInfo.fps);
 
     modal_exposure_print_config(pCameraInfo.expGainInfo);

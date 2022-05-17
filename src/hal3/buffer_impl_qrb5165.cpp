@@ -28,6 +28,22 @@ static int ionFd;
 
 #define ALIGN_BYTE(x, a) ((x % a == 0) ? x : x - (x % a) + a)
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// Moves the UV planes to be contiguous with the y plane
+// -----------------------------------------------------------------------------------------------------------------------------
+void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
+{
+
+    const int height = pBufferInfo->height;
+    const int width  = pBufferInfo->width;
+    //(Total size - expected size) / 1.5 because there's padding at the end as well
+    const int offset = (pBufferInfo->size - (width * height * 1.5))/1.5;
+
+    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height),
+           (uint8_t*)(pBufferInfo->vaddress) + (width*height) + offset,
+           width*height/2);
+}
+
 int allocateOneBuffer(
         BufferGroup&       bufferGroup,
         unsigned int       index,
@@ -53,7 +69,7 @@ int allocateOneBuffer(
     }
     memset(&allocation_data, 0, sizeof(allocation_data));
 
-    if (format == HAL_PIXEL_FORMAT_YCbCr_420_888 ||
+    if (format == HAL_PIXEL_FORMAT_YCBCR_420_888 ||
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
@@ -61,8 +77,13 @@ int allocateOneBuffer(
         slice = ALIGN_BYTE(height, 64);
         buffer_size = (size_t)(stride * slice * 3 / 2);
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
-        buffer_size = (size_t)(width * height * 2);
+        buffer_size = width;
     }
+
+    VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+                width,
+                height,
+                format == HAL_PIXEL_FORMAT_YCBCR_420_888 ? "HAL_PIXEL_FORMAT_YCBCR_420_888" : "HAL_PIXEL_FORMAT_BLOB" );
 
     allocation_data.len = ((size_t)(buffer_size) + 4095U) & (~4095U);
 
@@ -85,6 +106,7 @@ int allocateOneBuffer(
     bufferGroup.bufferBlocks[index].width          = width;
     bufferGroup.bufferBlocks[index].height         = height;
     bufferGroup.bufferBlocks[index].stride         = stride;
+    bufferGroup.bufferBlocks[index].slice          = slice;
 
     native_handle = native_handle_create(1, 4);
     (native_handle)->data[0] = allocation_data.fd;

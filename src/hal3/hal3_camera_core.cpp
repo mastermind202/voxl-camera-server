@@ -189,8 +189,7 @@ void HAL3_print_camera_resolutions(int camId){
         {
             if (entry.data.i32[j + 3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT)
             {
-                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_YCbCr_420_888
-                || entry.data.i32[j] == HAL_PIXEL_FORMAT_BLOB){
+                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_BLOB){
                     printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
                 }
             }

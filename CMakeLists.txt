@@ -47,7 +47,7 @@ endif()
 
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib -Wl,--unresolved-symbols=ignore-in-shared-libs ${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-format-overflow -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
 set(SERVERNAME voxl-camera-server)
 
 

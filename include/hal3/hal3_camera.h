@@ -51,7 +51,6 @@
 //HAL3 will lag the framerate if we attempt autoexposure any more frequently than this
 #define NUM_SKIPPED_FRAMES 4
 
-
 using namespace std;
 
 // Forward Declaration
@@ -73,19 +72,45 @@ public:
     void Stop();
     void EStop();
 
-    void addClient();
-
     int getNumClients(){
         return pipe_server_get_num_clients(outputChannel);
     }
 
-    // Camera module calls this function to pass on the capture frame result
-    static void  CameraModuleCaptureResult(const camera3_callback_ops_t *cb,const camera3_capture_result *hal_result);
-    // Camera module calls this function to notify us of any messages
-    static void  CameraModuleNotify(const camera3_callback_ops_t *cb, const camera3_notify_msg_t *msg);
+    const PerCameraInfo        configInfo;                     ///< Per camera config information
+    const uint8_t              outputChannel;
+    const int32_t              cameraId;                       ///< Camera id
+    char                       name[MAX_NAME_LENGTH];
+    const bool                 en_video;
+    const bool                 en_snapshot;
+    const int32_t              p_width;                        ///< Preview Width
+    const int32_t              p_height;                       ///< Preview Height
+    const int32_t              p_halFmt;                       ///< Preview HAL format
+    const int32_t              v_width;                        ///< Preview Width
+    const int32_t              v_height;                       ///< Preview Height
+    const int32_t              v_halFmt;                       ///< Preview HAL format
+    const int32_t              s_width;                        ///< Preview Width
+    const int32_t              s_height;                       ///< Preview Height
+    const int32_t              s_halFmt;                       ///< Preview HAL format
+
+private:
 
     void* ThreadPostProcessResult();
     void* ThreadIssueCaptureRequests();
+
+    // Call the camera module and pass it the stream configuration
+    int  ConfigureStreams();
+    // Initialize the MPA pipes
+    int  SetupPipes();
+    void HandleControlCmd(char* cmd);
+    void addClient();
+
+    // Call the camera module to get the default camera settings
+    int ConstructDefaultRequestSettings();
+    // Send one capture request to the camera module
+    int  ProcessOneCaptureRequest(int frameNumber);
+
+    void ProcessPreviewFrame (BufferBlock* bufferBlockInfo);
+    void ProcessSnapshotFrame(BufferBlock* bufferBlockInfo);
 
     // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
     // the time of processing the frame result. When we register the callbacks with the camera module, we register the starting
@@ -98,49 +123,10 @@ public:
         void* pPrivate;
     };
 
-    uint8_t                    outputChannel;
-    int32_t                    cameraId;                       ///< Camera id
-    int32_t                    width;                          ///< Width
-    int32_t                    height;                         ///< Height
-    char                       name[64];
-    camera3_device_t*          pDevice;                        ///< HAL3 device
-    android::CameraMetadata    requestMetadata;                ///< Per request metadata
-    BufferGroup                bufferGroup;                    ///< Buffer manager per stream
-    camera3_stream_t*          stream;                         ///< Stream to be used for the camera request
-    camera_module_t*           pCameraModule;                  ///< Camera module
-    int32_t                    halFmt;                         ///< HAL format to use for preview
-    Camera3Callbacks           cameraCallbacks;                ///< Camera callbacks
-    pthread_t                  requestThread;                  ///< Request thread private data
-    pthread_t                  resultThread;                   ///< Result Thread private data
-    pthread_mutex_t            requestMutex;                   ///< Mutex for list access
-    pthread_mutex_t            resultMutex;                    ///< Mutex for list access
-    pthread_cond_t             requestCond;                    ///< Condition variable for wake up
-    pthread_cond_t             resultCond;                     ///< Condition variable for wake up
-    std::mutex                 expgainCondMutex;               ///< Mutex to be used with the condition variable
-    PerCameraInfo              cameraConfigInfo;               ///< Per camera config information
-    bool                       usingAE;                        ///< Internal Auto Exposure (False for ISP or Disabled)
-    int64_t                    currentFrameNumber = 0;         ///< Frame Number
-    int64_t                    currentTimestamp;               ///< Timestamp
-    int64_t                    currentExposure;                ///< Exposure
-    int32_t                    currentGain;                    ///< Gain
-    int64_t                    setExposure;                    ///< Exposure
-    int32_t                    setGain;                        ///< Gain
-    ModalExposureHist          expInterface;
 
-    std::list<buffer_handle_t*>  resultMsgQueue;
-
-private:
-
-    // Call the camera module and pass it the stream configuration
-    int  ConfigureStreams();
-    // Initialize the MPA pipes
-    int  SetupPipes();
-    // Call the camera module to get the default camera settings
-    void ConstructDefaultRequestSettings();
-    // Send one capture request to the camera module
-    int  ProcessOneCaptureRequest(int frameNumber);
-    // Process one capture result sent by the camera module
     void ProcessOneCaptureResult(const camera3_capture_result* pHalResult);
+    static void CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult);
+    static void CameraModuleNotify(const camera3_callback_ops_t *cb, const camera3_notify_msg_t *msg);
 
     enum PCM_MODE {
         MODE_MONO,
@@ -148,15 +134,79 @@ private:
         MODE_STEREO_SLAVE
     };
 
-    pthread_mutex_t            stereoMutex;                 ///< Mutex for stereo comms
-    pthread_cond_t             stereoCond;                  ///< Condition variable for wake up
-    PerCameraMgr*              otherMgr;                    ///< Pointer to the partner manager in a stereo pair
-    PCM_MODE                   partnerMode;                 ///< Mode for mono/stereo
-    uint8_t*                   childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
-    camera_image_metadata_t*   childInfo  = NULL;           ///< Pointer to the child frame info
-    bool                       stopped = false;             ///< Indication for the thread to terminate
-    bool                       EStopped = false;            ///< Emergency Stop, terminate without any cleanup
-    int                        lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
+    enum STREAM_ID {
+        STREAM_PREVIEW,
+        STREAM_VIDEO,
+        STREAM_SNAPSHOT,
+        STREAM_INVALID
+    };
+
+    STREAM_ID GetStreamId(camera3_stream_t *stream){
+        if (stream == &p_stream) {
+            return STREAM_PREVIEW;
+        } else if (stream == &v_stream) {
+            return STREAM_VIDEO;
+        } else if (stream == &s_stream) {
+            return STREAM_SNAPSHOT;
+        } else {
+            return STREAM_INVALID;
+        }
+    }
+
+    BufferGroup *GetBufferGroup(camera3_stream_t *stream){
+        return GetBufferGroup(GetStreamId(stream));
+    }
+    BufferGroup *GetBufferGroup(STREAM_ID stream){
+        switch (stream){
+            case STREAM_PREVIEW:
+                return &p_bufferGroup;
+            case STREAM_VIDEO:
+                return &v_bufferGroup;
+            case STREAM_SNAPSHOT:
+                return &s_bufferGroup;
+            default:
+                return NULL;
+        }
+    }
+
+    camera_module_t*                  pCameraModule;               ///< Camera module
+    ModalExposureHist                 expInterface;
+    Camera3Callbacks                  cameraCallbacks;             ///< Camera callbacks
+    camera3_device_t*                 pDevice;                     ///< HAL3 device
+    camera3_stream_t                  p_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                  v_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                  s_stream;                    ///< Stream to be used for the preview request
+    android::CameraMetadata           requestMetadata;             ///< Per request metadata
+    BufferGroup                       p_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                       v_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                       s_bufferGroup;               ///< Buffer manager per stream
+    pthread_t                         requestThread;               ///< Request thread private data
+    pthread_t                         resultThread;                ///< Result Thread private data
+    pthread_mutex_t                   requestMutex;                ///< Mutex for list access
+    pthread_cond_t                    requestCond;                 ///< Condition variable for wake up
+    pthread_mutex_t                   resultMutex;                 ///< Mutex for list access
+    pthread_cond_t                    resultCond;                  ///< Condition variable for wake up
+    bool                              usingAE;                     ///< Internal Auto Exposure (False for ISP)
+    bool                              is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
+    int64_t                           currentFrameNumber = 0;      ///< Frame Number
+    int64_t                           currentTimestamp;            ///< Timestamp
+    int64_t                           currentExposure;             ///< Exposure
+    int32_t                           currentGain;                 ///< Gain
+    int64_t                           setExposure;                 ///< Exposure
+    int32_t                           setGain;                     ///< Gain
+    std::list<camera3_stream_buffer>  resultMsgQueue;
+    pthread_mutex_t                   stereoMutex;                 ///< Mutex for stereo comms
+    pthread_cond_t                    stereoCond;                  ///< Condition variable for wake up
+    PerCameraMgr*                     otherMgr;                    ///< Pointer to the partner manager in a stereo pair
+    PCM_MODE                          partnerMode;                 ///< Mode for mono/stereo
+    uint8_t*                          childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
+    camera_image_metadata_t*          childInfo  = NULL;           ///< Pointer to the child frame info
+    bool                              stopped = false;             ///< Indication for the thread to terminate
+    bool                              EStopped = false;            ///< Emergency Stop, terminate without any cleanup
+    int                               lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
+    pthread_mutex_t                   snapshotMutex;               ///< Mutex for list access
+    pthread_cond_t                    snapshotCond;                ///< Condition variable for wake up
+    std::list<char *>                 snapshotQueue;
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

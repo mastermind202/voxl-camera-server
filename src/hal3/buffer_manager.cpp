@@ -39,7 +39,9 @@ void bufferDeleteBuffers(BufferGroup& bufferGroup)
 {
 
     if (bufferGroup.totalBuffers != bufferGroup.freeBuffers.size()){
-        VOXL_LOG_ERROR("WARNING: Deleting buffers: %lu of %d still in use\n", (bufferGroup.totalBuffers)-(bufferGroup.freeBuffers.size()), bufferGroup.totalBuffers);
+        VOXL_LOG_ERROR("WARNING: Deleting buffers: %lu of %d still in use\n",
+            (bufferGroup.totalBuffers)-(bufferGroup.freeBuffers.size()),
+            bufferGroup.totalBuffers);
     }
     for (unsigned int i = 0; i < bufferGroup.totalBuffers; i++) {
         deleteOneBuffer(bufferGroup, i);
@@ -68,20 +70,6 @@ int bufferAllocateBuffers(
         bufferGroup.freeBuffers.push_back(&bufferGroup.buffers[i]);
     }
     return 0;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// Moves the UV planes to be contiguous with the y plane
-// -----------------------------------------------------------------------------------------------------------------------------
-void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
-{
-
-    const int height = pBufferInfo->height;
-    const int width  = pBufferInfo->width;
-    //(Total size - expected size) / 1.5 because there's padding at the end as well
-    const int offset = (pBufferInfo->size - (width * height * 1.5))/1.5;
-
-    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), (uint8_t*)(pBufferInfo->vaddress) + (width*height) + offset, width*height/2);
 }
 
 void bufferPush(BufferGroup& bufferGroup, buffer_handle_t* buffer)

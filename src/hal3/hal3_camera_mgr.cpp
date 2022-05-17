@@ -43,6 +43,7 @@
 #include <string>
 #include <camera/CameraMetadata.h>
 #include <camera/VendorTagDescriptor.h>
+#include <hardware/camera_common.h>
 #include <algorithm>
 
 #include "buffer_manager.h"
@@ -54,6 +55,9 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
+#define NUM_VIDEO_BUFFERS 16
+#define NUM_SNAPSHOT_BUFFERS 6
+#define JPEG_DEFUALT_QUALITY        85
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
@@ -61,9 +65,23 @@
 
 using namespace android;
 
-// Main thread functions for request and result processing
-static void* ThreadPostProcessResult(void* pData);
-void* ThreadIssueCaptureRequests(void* pData);
+// Platform Specific Flags
+#ifdef APQ8096
+    #define ROTATION_MODE  CAMERA3_STREAM_ROTATION_0
+    #define OPERATION_MODE QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE
+    #define SNAPSHOT_DS    HAL_DATASPACE_JFIF
+#elif QRB5165
+    #define ROTATION_MODE  2
+    #define OPERATION_MODE CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE
+    #define SNAPSHOT_DS    HAL_DATASPACE_V0_JFIF
+#else
+    #error "No Platform defined"
+#endif
+
+static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
+
+static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
+static int32_t HalFmtFromType(int fmt);
 
 void controlPipeCallback(int ch, char* string, int bytes, void* context);
 
@@ -71,105 +89,150 @@ void controlPipeCallback(int ch, char* string, int bytes, void* context);
 // Constructor
 // -----------------------------------------------------------------------------------------------------------------------------
 PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
-    expInterface(pCameraInfo.expGainInfo)
+    configInfo    (pCameraInfo),
+    outputChannel (pipe_server_get_next_available_channel()),
+    cameraId      (pCameraInfo.camId),
+    //name          (), // Maybe keep trying to make this work, just use strcpy for now
+    en_video      (pCameraInfo.en_video),
+    en_snapshot   (pCameraInfo.en_snapshot),
+    p_width       (pCameraInfo.p_width),
+    p_height      (pCameraInfo.p_height),
+    p_halFmt      (HalFmtFromType(pCameraInfo.p_format)),
+    v_width       (pCameraInfo.v_width),
+    v_height      (pCameraInfo.v_height),
+    v_halFmt      (-1),
+    s_width       (pCameraInfo.s_width),
+    s_height      (pCameraInfo.s_height),
+    s_halFmt      (HAL_PIXEL_FORMAT_BLOB),
+    pCameraModule (HAL3_get_camera_module()),
+    expInterface  (pCameraInfo.expGainInfo),
+    usingAE       (pCameraInfo.useAE)
 {
+
+    strcpy(name, pCameraInfo.name);
+
     cameraCallbacks.cameraCallbacks = {&CameraModuleCaptureResult, &CameraModuleNotify};
     cameraCallbacks.pPrivate        = this;
 
-    sprintf(name, "%.63s", pCameraInfo.name);
-    width  = pCameraInfo.width;
-    height = pCameraInfo.height;
-
-    //Always request raw10 frames to make sure we have a buffer for either,
-    // post processing thread will figure out what the driver is giving us
-    if (pCameraInfo.format == FMT_RAW10 ||
-        pCameraInfo.format == FMT_RAW8)
-    {
-        halFmt = HAL_PIXEL_FORMAT_RAW10;
-    }
-    else if ((pCameraInfo.format == FMT_NV21) ||
-             (pCameraInfo.format == FMT_NV12))
-    {
-        halFmt = HAL_PIXEL_FORMAT_YCbCr_420_888;
-    }
-
-    cameraConfigInfo = pCameraInfo;
-
-    if((pCameraModule = HAL3_get_camera_module()) == NULL ){
+    if(pCameraModule == NULL ){
         VOXL_LOG_ERROR("ERROR: Failed to get HAL module!\n");
 
         throw -EINVAL;
     }
 
-    cameraId = cameraConfigInfo.camId;
 
     if(currentDebugLevel == DebugLevel::VERBOSE)
         HAL3_print_camera_resolutions(cameraId);
 
-    char cameraName[20];
-    sprintf(cameraName, "%d", cameraId);
-
     // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
     // we just exit. The stream configuration is checked into the static metadata associated with every camera.
-    if (!HAL3_is_config_supported(cameraId, width, height, halFmt))
+    if (!HAL3_is_config_supported(cameraId, p_width, p_height, p_halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported config: %dx%d\n", cameraId, width, height);
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported preview config: %dx%d\n", cameraId, p_width, p_height);
+
+        throw -EINVAL;
+    }
+    if (en_video && !HAL3_is_config_supported(cameraId, v_width, v_height, v_halFmt))
+    {
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported video config: %dx%d\n", cameraId, v_width, v_height);
+
+        throw -EINVAL;
+    }
+    if (en_snapshot && !HAL3_is_config_supported(cameraId, s_width, s_height, s_halFmt))
+    {
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported snapshot config: %dx%d\n", cameraId, s_width, s_height);
 
         throw -EINVAL;
     }
 
+    char cameraName[20];
+    sprintf(cameraName, "%d", cameraId);
 
     if (pCameraModule->common.methods->open(&pCameraModule->common, cameraName, (hw_device_t**)(&pDevice)))
     {
-        VOXL_LOG_ERROR("ERROR: Open camera %s(%s) failed!\n", cameraName, name);
+        VOXL_LOG_ERROR("ERROR: Open camera %s failed!\n", name);
 
         throw -EINVAL;
     }
 
     if (pDevice->ops->initialize(pDevice, (camera3_callback_ops*)&cameraCallbacks))
     {
-        VOXL_LOG_ERROR("ERROR: Initialize camera %s(%s) failed!\n", cameraName, name);
+        VOXL_LOG_ERROR("ERROR: Initialize camera %s failed!\n", name);
 
         throw -EINVAL;
     }
 
     if (ConfigureStreams())
     {
-        VOXL_LOG_ERROR("ERROR: Failed to configure streams for camera: %s(%s)\n", cameraName, name);
+        VOXL_LOG_ERROR("ERROR: Failed to configure streams for camera: %s\n", name);
 
         throw -EINVAL;
     }
 
-    if (bufferAllocateBuffers(bufferGroup,
+    if (bufferAllocateBuffers(p_bufferGroup,
                               NUM_PREVIEW_BUFFERS,
-                              stream->width,
-                              stream->height,
-                              stream->format,
-                              stream->usage)) {
-        VOXL_LOG_ERROR("ERROR: Failed to allocate buffers for camera: %s(%s)\n", cameraName, name);
+                              p_stream.width,
+                              p_stream.height,
+                              p_stream.format,
+                              p_stream.usage)) {
+        VOXL_LOG_ERROR("ERROR: Failed to allocate preview buffers for camera: %s\n", name);
+
+        throw -EINVAL;
+    }
+    if (en_video && bufferAllocateBuffers(v_bufferGroup,
+                                          NUM_VIDEO_BUFFERS,
+                                          v_stream.width,
+                                          v_stream.height,
+                                          v_stream.format,
+                                          v_stream.usage)) {
+        VOXL_LOG_ERROR("ERROR: Failed to allocate video buffers for camera: %s\n", name);
+
+        throw -EINVAL;
+    }
+    if (en_snapshot) {
+
+        camera_info halCameraInfo;
+        pCameraModule->get_camera_info(cameraId, &halCameraInfo);
+        camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
+
+        int blobWidth = estimateJpegBufferSize(pStaticMetadata, s_width, s_height);
+
+        if(bufferAllocateBuffers(s_bufferGroup,
+                                 NUM_SNAPSHOT_BUFFERS,
+                                 blobWidth,
+                                 1,
+                                 s_stream.format,
+                                 s_stream.usage)) {
+            VOXL_LOG_ERROR("ERROR: Failed to allocate snapshot buffers for camera: %s\n", name);
+
+            throw -EINVAL;
+        }
+    }
+
+    if (ConstructDefaultRequestSettings()){
+
+        VOXL_LOG_ERROR("ERROR: Failed to construct request settings for camera: %s\n", name);
 
         throw -EINVAL;
     }
 
-
-    // This is the default metadata i.e. camera settings per request. The camera module passes us the best set of baseline
-    // settings. We can modify any setting, for any frame or for every frame, as we see fit.
-    ConstructDefaultRequestSettings();
-
-    if(cameraConfigInfo.camId2 == -1){
+    if(configInfo.camId2 == -1){
         partnerMode = MODE_MONO;
     } else {
         partnerMode = MODE_STEREO_MASTER;
 
-        PerCameraInfo newInfo = cameraConfigInfo;
+        PerCameraInfo newInfo = configInfo;
         sprintf(newInfo.name, "%s%s", name, "_child");
         newInfo.camId = newInfo.camId2;
         newInfo.camId2 = -1;
 
+        // These are disabled until(if) we figure out a good way to handle them
+        newInfo.en_video = false;
+        newInfo.en_snapshot = false;
+
         otherMgr = new PerCameraMgr(newInfo);
 
         otherMgr->setMaster(this);
-
     }
 
 }
@@ -186,36 +249,42 @@ PerCameraMgr::~PerCameraMgr() {
 int PerCameraMgr::ConfigureStreams()
 {
 
+    std::vector<camera3_stream_t*> streams;
+
     camera3_stream_configuration_t streamConfig = { 0 };
 
-    stream              = new camera3_stream_t();
-    stream->stream_type = CAMERA3_STREAM_OUTPUT;
-    stream->width       = width;
-    stream->height      = height;
-    stream->format      = halFmt;
-    stream->data_space  = HAL_DATASPACE_UNKNOWN;
-    stream->usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    #ifdef APQ8096
-    stream->rotation    = CAMERA3_STREAM_ROTATION_0;
-    #elif QRB5165
-    stream->rotation    = 2;
-    #else
-    #error "No Platform defined"
-    #endif
-    stream->max_buffers = NUM_PREVIEW_BUFFERS;
-    stream->priv        = 0;
+    streamConfig.operation_mode = OPERATION_MODE;
+    streamConfig.num_streams    = 0;
 
-    streamConfig.num_streams = 1;
+    p_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+    p_stream.width       = p_width;
+    p_stream.height      = p_height;
+    p_stream.format      = p_halFmt;
+    p_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+    p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+    p_stream.rotation    = ROTATION_MODE;
+    p_stream.max_buffers = NUM_PREVIEW_BUFFERS;
+    p_stream.priv        = 0;
 
-    #ifdef APQ8096
-    streamConfig.operation_mode = QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE;
-    #elif QRB5165
-    streamConfig.operation_mode = CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE;
-    #else
-    #error "No Platform defined"
-    #endif
+    streams.push_back(&p_stream);
+    streamConfig.num_streams ++;
 
-    streamConfig.streams = &stream;
+    if(en_snapshot) {
+        s_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        s_stream.width       = s_width;
+        s_stream.height      = s_height;
+        s_stream.format      = s_halFmt;
+        s_stream.data_space  = SNAPSHOT_DS;
+        s_stream.usage       = GRALLOC_USAGE_SW_READ_OFTEN;
+        s_stream.rotation    = ROTATION_MODE;
+        s_stream.max_buffers = NUM_SNAPSHOT_BUFFERS;
+        s_stream.priv        = 0;
+
+        streams.push_back(&s_stream);
+        streamConfig.num_streams ++;
+    }
+
+    streamConfig.streams        = streams.data();
 
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
     if (pDevice->ops->configure_streams(pDevice, &streamConfig))
@@ -223,7 +292,6 @@ int PerCameraMgr::ConfigureStreams()
         VOXL_LOG_FATAL("voxl-camera-server FATAL: Configure streams failed for camera: %d\n", cameraId);
         return -EINVAL;
     }
-    VOXL_LOG_VERBOSE("Completed Configure Streams for camera: %d\n", cameraId);
 
     return S_OK;
 }
@@ -232,21 +300,22 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 // Construct default camera settings that will be passed to the camera module to be used for capturing the frames
 // -----------------------------------------------------------------------------------------------------------------------------
-void PerCameraMgr::ConstructDefaultRequestSettings()
+int PerCameraMgr::ConstructDefaultRequestSettings()
 {
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
             (camera_metadata_t *)pDevice->ops->construct_default_request_settings(pDevice, CAMERA3_TEMPLATE_PREVIEW);
 
+    if(en_snapshot){
+        pDefaultMetadata =
+                    (camera_metadata_t *)pDevice->ops->construct_default_request_settings(pDevice, CAMERA3_TEMPLATE_STILL_CAPTURE);
+    }
+
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    if (cameraConfigInfo.type == CAMTYPE_OV7251
-        #ifdef APQ8096
-        || cameraConfigInfo.type == CAMTYPE_OV7251_PAIR
-        #endif
-        ) {
+    if (usingAE) {
 
         //This covers the 5 below modes, we want them all off
         uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
@@ -271,15 +340,11 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
         requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
 
-    } else if (cameraConfigInfo.type == CAMTYPE_IMX214){
+    } else {
 
-        //Want these on for hires
         uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
         uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
         uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_AUTO;
-
-        // This is the flag for running our AE, want off since we're using ISP's
-        usingAE                   =  false;
 
         //Don't have any autofocus so turn these off
         uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
@@ -290,20 +355,23 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
         requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
         requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
         requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
-
-    } else { //Make sure to add the desired parameters for any new cameras
-
-        VOXL_LOG_FATAL("WARNING: Camera %s's type has not been added to %s possible resulting in unknown behavior\n",
-            name,
-            __FUNCTION__);
-
     }
 
-    int fpsRange[] = {cameraConfigInfo.fps, cameraConfigInfo.fps};
-    int64_t frameDuration = 1e9 / cameraConfigInfo.fps;
+    if(en_snapshot){
+        uint8_t jpegQuality     = JPEG_DEFUALT_QUALITY;
+        //uint8_t ZslEnable       = ANDROID_CONTROL_ENABLE_ZSL_TRUE;
+
+        requestMetadata.update(ANDROID_JPEG_QUALITY, &(jpegQuality), sizeof(jpegQuality));
+        //requestMetadata.update(ANDROID_CONTROL_ENABLE_ZSL, &(ZslEnable), 1);
+    }
+
+    int fpsRange[] = {configInfo.fps, configInfo.fps};
+    int64_t frameDuration = 1e9 / configInfo.fps;
 
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
+
+    return 0;
 
 }
 
@@ -319,8 +387,6 @@ void PerCameraMgr::Start()
 
             throw -EINVAL;
         }
-    } else {
-        outputChannel = otherMgr->outputChannel;
     }
 
     pthread_condattr_t condAttr;
@@ -342,14 +408,6 @@ void PerCameraMgr::Start()
     pthread_create(&requestThread, &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadIssueCaptureRequests();}, this);
     pthread_create(&resultThread,  &attr, [](void* data){return ((PerCameraMgr*)data)->ThreadPostProcessResult();},  this);
     pthread_attr_destroy(&attr);
-
-    char buf[16];
-    sprintf(buf, "cam%d-request", cameraId);
-
-    pthread_setname_np(requestThread, buf);
-
-    sprintf(buf, "cam%d-result", cameraId);
-    pthread_setname_np(resultThread, buf);
 
     if(partnerMode == MODE_STEREO_MASTER){
         otherMgr->Start();
@@ -387,7 +445,9 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-    bufferDeleteBuffers(bufferGroup);
+    bufferDeleteBuffers(p_bufferGroup);
+    bufferDeleteBuffers(v_bufferGroup);
+    bufferDeleteBuffers(s_bufferGroup);
 
     if (pDevice != NULL)
     {
@@ -399,6 +459,7 @@ void PerCameraMgr::Stop()
     pthread_cond_destroy(&stereoCond);
 
 }
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function that will process one capture result sent from the camera module. Remember this function is operating in the camera
@@ -438,10 +499,10 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         }
     }
 
-    if (pHalResult->num_output_buffers > 0)
+    for (uint i = 0; i < pHalResult->num_output_buffers; i++)
     {
 
-        VOXL_LOG_VERBOSE("Received Frame %d from camera %s\n", pHalResult->frame_number, name);
+        VOXL_LOG_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
         currentFrameNumber = pHalResult->frame_number;
 
@@ -449,7 +510,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         pthread_mutex_lock(&resultMutex);
 
         // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push_back(pHalResult->output_buffers[0].buffer);
+        resultMsgQueue.push_back(pHalResult->output_buffers[i]);
         pthread_cond_signal(&resultCond);
         pthread_mutex_unlock(&resultMutex);
 
@@ -558,6 +619,289 @@ static void reverse(uint8_t *mem, int size){
     }
 }
 
+static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
+{
+    uint64_t size    = bufferBlockInfo->size;
+    //uint32_t width   = bufferBlockInfo->width;
+    //uint32_t height  = bufferBlockInfo->height;
+    //uint32_t stride  = bufferBlockInfo->stride;
+    //uint32_t slice   = bufferBlockInfo->slice;
+
+    uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
+
+    FILE* file_descriptor = fopen(path, "wb");
+
+    if (format == HAL_PIXEL_FORMAT_BLOB) {
+        /*
+        struct Camera3JPEGBlob cameraJpegBlob;
+        size_t jpegOffsetToEof = (size_t)size - (size_t)sizeof(cameraJpegBlob);
+        unsigned char* jpegEndOfFile = &src_data[jpegOffsetToEof];
+        memcpy(&cameraJpegBlob, jpegEndOfFile, sizeof(Camera3JPEGBlob));
+
+        if (cameraJpegBlob.JPEGBlobId == JPEG_BLOB_ID) {
+            fwrite(src_data, cameraJpegBlob.JPEGBlobSize, 1, file_descriptor);
+        } else {*/
+            fwrite(src_data, size, 1, file_descriptor);
+        //}
+
+    }/* else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+        int plane_number  = 2;
+        int byte_per_pixel = 1;
+
+        for (int i = 1; i <= plane_number; i++) {
+            for (unsigned int h = 0; h < height / i; h++) {
+                fwrite(src_data, (width * byte_per_pixel), 1, file_descriptor);
+                src_data += stride;
+            }
+            src_data += stride * (slice - height);
+        }
+
+    }*/ else {
+        VOXL_LOG_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
+    }
+
+    fclose(file_descriptor);
+}
+
+
+void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
+
+    camera_image_metadata_t imageInfo;
+    imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
+
+    //imageInfo.exposure_ns = currentExposure;
+    //imageInfo.gain        = currentGain;
+
+    //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
+    imageInfo.exposure_ns = setExposure;
+    imageInfo.gain        = setGain;
+
+    uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
+    imageInfo.width        = p_width;
+    imageInfo.height       = p_height;
+    imageInfo.timestamp_ns = currentTimestamp;
+    imageInfo.frame_id     = currentFrameNumber;
+
+    if (p_halFmt == HAL_PIXEL_FORMAT_RAW10)
+    {
+
+        // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
+        if(imageInfo.frame_id == 1){
+
+            //Only need to set this info once, put in the condition to save a few cycles
+            imageInfo.format     = IMAGE_FORMAT_RAW8;
+            imageInfo.size_bytes = p_width * p_height;
+            imageInfo.stride     = p_width;
+
+            VOXL_LOG_VERBOSE("Received raw10 frame, checking to see if is actually raw8\n");
+
+            if((is10bit = Check10bit(srcPixel, p_width, p_height))){
+                VOXL_LOG_VERBOSE("Frame was actually 10 bit, proceeding with conversions\n");
+            } else {
+                VOXL_LOG_VERBOSE("Frame was actually 8 bit, sending as is\n");
+            }
+
+        }
+
+        if(is10bit){
+            ConvertTo8bitRaw(srcPixel,
+                             p_width,
+                             p_height);
+        }
+    }
+    else if (p_halFmt == HAL_PIXEL_FORMAT_YCbCr_420_888)
+    {
+        // For ov7251 camera there is no color so we just send the Y channel data as RAW8
+        if (configInfo.type == CAMTYPE_OV7251)
+        {
+            imageInfo.format     = IMAGE_FORMAT_RAW8;
+            imageInfo.size_bytes = p_width * p_height;
+        }
+        #ifdef APQ8096
+        //APQ only, stereo frames can come in as a pair, need to deinterlace them
+        else if (configInfo.type == CAMTYPE_OV7251_PAIR)
+        {
+            static uint8_t *stereoBuffer = (uint8_t*)malloc(p_width/2 * p_height);
+
+            imageInfo.format     = IMAGE_FORMAT_STEREO_RAW8;
+            imageInfo.size_bytes = p_width * p_height;
+            imageInfo.width      = p_width / 2;
+
+            for(int i = 0; i < p_height; i++){
+                memcpy(&(srcPixel[i * p_width / 2]), &(srcPixel[i * p_width]), p_width / 2);
+                memcpy(&(stereoBuffer[i * p_width / 2]), &(srcPixel[(i * p_width) + (p_width/2)]), p_width / 2);
+            }
+            memcpy(&(srcPixel[p_width/2*p_height]), stereoBuffer, p_width/2*p_height);
+
+        }
+        #endif
+        // We always send YUV contiguous data out of the camera server
+        else {
+            imageInfo.format     = IMAGE_FORMAT_NV12;
+            bufferMakeYUVContiguous(bufferBlockInfo);
+            ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
+            imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
+        }
+
+        if(configInfo.flip){
+            if(imageInfo.frame_id == 0){
+                VOXL_LOG_ERROR("Flipping not currently supported for YUV images, writing as-is\n");
+            }
+        }
+    } else {
+        VOXL_LOG_ERROR("Camera: %s received invalid preview format, stopping\n", name);
+        EStopCameraServer();
+    }
+
+    if(partnerMode == MODE_MONO){
+        // Ship the frame out of the camera server
+        pipe_server_write_camera_frame(outputChannel, imageInfo, srcPixel);
+        VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+
+        int64_t    new_exposure_ns;
+        int32_t    new_gain;
+
+        if (usingAE && expInterface.update_exposure(
+                srcPixel,
+                p_width,
+                p_height,
+                imageInfo.exposure_ns,
+                imageInfo.gain,
+                &new_exposure_ns,
+                &new_gain)){
+
+            setExposure = new_exposure_ns;
+            setGain     = new_gain;
+
+        }
+
+    } else if (partnerMode == MODE_STEREO_MASTER){
+
+        switch (imageInfo.format){
+            case IMAGE_FORMAT_NV21:
+                imageInfo.format = IMAGE_FORMAT_STEREO_NV21;
+                imageInfo.size_bytes = p_width * p_height * 1.5 * 2;
+                break;
+            case IMAGE_FORMAT_RAW8:
+                imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
+                imageInfo.size_bytes = p_width * p_height * 2;
+                break;
+            case IMAGE_FORMAT_STEREO_RAW8:
+            case IMAGE_FORMAT_STEREO_NV21:
+                break;
+            default:
+                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV21 or RAW8\n");
+                EStopCameraServer();
+                break;
+        }
+
+        NEED_CHILD:
+        pthread_mutex_lock(&stereoMutex);
+        if(childFrame == NULL){
+
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            ts.tv_nsec += MAX_STEREO_DISCREPENCY_NS;
+
+            pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
+        }
+
+        if(EStopped | stopped) {
+            pthread_cond_signal(&(otherMgr->stereoCond));
+            return;
+        }
+
+        if(childFrame == NULL){
+            pthread_mutex_unlock(&stereoMutex);
+            VOXL_LOG_INFO("Child frame not received\n");
+            return;
+        }
+
+        //Much newer child, discard master but keep the child
+        if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
+            VOXL_LOG_INFO("INFO: Camera %s recieved much newer child than master (%lu), discarding master and trying again\n", name, childInfo->timestamp_ns - imageInfo.timestamp_ns);
+            pthread_mutex_unlock(&stereoMutex);
+            return;
+        }
+
+        //Much newer master, discard the child and get a new one
+        if(imageInfo.timestamp_ns - childInfo->timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
+            VOXL_LOG_INFO("INFO: Camera %s recieved much newer master than child (%lu), discarding child and trying again\n", name, imageInfo.timestamp_ns - childInfo->timestamp_ns);
+            childFrame = NULL;
+            childInfo  = NULL;
+            pthread_mutex_unlock(&stereoMutex);
+            pthread_cond_signal(&(otherMgr->stereoCond));
+            goto NEED_CHILD;
+        }
+
+        // Assume the earlier timestamp is correct
+        if(imageInfo.timestamp_ns > childInfo->timestamp_ns){
+            imageInfo.timestamp_ns = childInfo->timestamp_ns;
+        }
+
+        if(configInfo.flip){
+            reverse(srcPixel, imageInfo.size_bytes/2);
+            reverse(childFrame, imageInfo.size_bytes/2);
+        }
+
+        // Ship the frame out of the camera server
+        pipe_server_write_stereo_frame(outputChannel, imageInfo, srcPixel, childFrame);
+        VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+
+        // Run Auto Exposure
+        int64_t    new_exposure_ns;
+        int32_t    new_gain;
+
+        if (usingAE && expInterface.update_exposure(
+                srcPixel,
+                p_width,
+                p_height,
+                imageInfo.exposure_ns,
+                imageInfo.gain,
+                &new_exposure_ns,
+                &new_gain)){
+
+            setExposure = new_exposure_ns;
+            setGain     = new_gain;
+
+            //Pass back the new AE values to the other camera
+            otherMgr->setExposure = new_exposure_ns;
+            otherMgr->setGain = new_gain;
+        }
+
+        //Clear the pointers and signal the child thread for cleanup
+        childFrame = NULL;
+        childInfo  = NULL;
+        pthread_mutex_unlock(&stereoMutex);
+        pthread_cond_signal(&(otherMgr->stereoCond));
+
+    } else if (partnerMode == MODE_STEREO_SLAVE){
+
+        pthread_mutex_lock(&(otherMgr->stereoMutex));
+
+        otherMgr->childFrame = srcPixel;
+        otherMgr->childInfo  = &imageInfo;
+
+        pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
+        pthread_mutex_unlock(&(otherMgr->stereoMutex));
+    }
+
+}
+void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
+
+    static int counter = 1;
+
+    char buffer[128];
+
+    sprintf(buffer, "/data/screenshots/%s-%d.jpg", name, counter);
+
+    VOXL_LOG_VERBOSE("--Writing snapshot to :\"%s\"\n", buffer);
+    WriteSnapshot(bufferBlockInfo, s_halFmt, buffer);
+
+    counter++;
+
+}
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // PerCameraMgr::CameraModuleCaptureResult(..) is the entry callback that is registered with the camera module to be called when
 // the camera module has frame result available to be processed by this application. We do not want to do much processing in
@@ -568,25 +912,18 @@ static void reverse(uint8_t *mem, int size){
 // -----------------------------------------------------------------------------------------------------------------------------
 void* PerCameraMgr::ThreadPostProcessResult()
 {
-    char buf[16];
-    pthread_getname_np(pthread_self(), buf, 16);
-    VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
+    { // Configuration, these variables don't need to persist
+        char buf[16];
+        pid_t tid = syscall(SYS_gettid);
+        sprintf(buf, "cam%d-result", cameraId);
+        pthread_setname_np(pthread_self(), buf);
+        VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, tid);
 
-    // Set thread priority
-    pid_t tid = syscall(SYS_gettid);
-    int which = PRIO_PROCESS;
-    int nice  = -10;
-
-    setpriority(which, tid, nice);
-
-    ///<@todo Pass all the information we obtain using the "GetXXX" functions in "struct ThreadData"
-    camera_image_metadata_t imageInfo   = { 0 };
-    CameraType              cameraType  = cameraConfigInfo.type;
-    bool                    is10bit     = false;
-
-    imageInfo.exposure_ns  = 0;
-    imageInfo.gain         = 0.0;
-    imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
+        // Set thread priority
+        int which = PRIO_PROCESS;
+        int nice  = -10;
+        setpriority(which, tid, nice);
+    }
 
     // The condition of the while loop is such that this thread will not terminate till it receives the last expected image
     // frame from the camera module or detects the ESTOP flag
@@ -610,246 +947,45 @@ void* PerCameraMgr::ThreadPostProcessResult()
             continue;
         }
 
-        buffer_handle_t *handle = resultMsgQueue.front();
+        buffer_handle_t  *handle      = resultMsgQueue.front().buffer;
+        camera3_stream_t *stream      = resultMsgQueue.front().stream;
+        BufferGroup      *bufferGroup = GetBufferGroup(stream);
 
         // Coming here means we have a result frame to process
-        VOXL_LOG_VERBOSE("%s procesing new frame\n", name);
+        VOXL_LOG_VERBOSE("%s procesing new buffer\n", name);
 
         resultMsgQueue.pop_front();
         pthread_mutex_unlock(&resultMutex);
 
         if(stopped) {
-            bufferPush(bufferGroup, handle);
+            bufferPush(*bufferGroup, handle);
             pthread_cond_signal(&stereoCond);
             continue;
         }
 
-        BufferBlock* pBufferInfo  = bufferGetBufferInfo(&bufferGroup, handle);
+        BufferBlock* pBufferInfo  = bufferGetBufferInfo(bufferGroup, handle);
+        switch (GetStreamId(stream)){
+            case STREAM_PREVIEW:
+                VOXL_LOG_VERBOSE("Camera: %s processing preview frame\n", name);
+                ProcessPreviewFrame(pBufferInfo);
+                break;
 
-        //imageInfo.exposure_ns = currentExposure;
-        //imageInfo.gain        = currentGain;
+            case STREAM_VIDEO: // Not Ready
+                VOXL_LOG_VERBOSE("Camera: %s processing video frame\n", name);
+                //ProcessVideoFrame(pBufferInfo);
+                break;
 
-        //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
-        imageInfo.exposure_ns = setExposure;
-        imageInfo.gain        = setGain;
+            case STREAM_SNAPSHOT:
+                VOXL_LOG_VERBOSE("Camera: %s processing snapshot frame\n", name);
+                ProcessSnapshotFrame(pBufferInfo);
+                break;
 
-        uint8_t* pSrcPixel     = (uint8_t*)pBufferInfo->vaddress;
-        imageInfo.width        = (uint32_t)width;
-        imageInfo.height       = (uint32_t)height;
-        imageInfo.timestamp_ns = currentTimestamp;
-        imageInfo.frame_id     = currentFrameNumber;
-
-        if (halFmt == HAL_PIXEL_FORMAT_RAW10)
-        {
-
-            // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-            if(imageInfo.frame_id == 1){
-
-                //Only need to set this info once, put in the condition to save a few cycles
-                imageInfo.format     = IMAGE_FORMAT_RAW8;
-                imageInfo.size_bytes = width * height;
-                imageInfo.stride     = width;
-
-                VOXL_LOG_VERBOSE("Received raw10 frame, checking to see if is actually raw8\n");
-
-                if((is10bit = Check10bit(pSrcPixel, width, height))){
-                    VOXL_LOG_VERBOSE("Frame was actually 10 bit, proceeding with conversions\n");
-                } else {
-                    VOXL_LOG_VERBOSE("Frame was actually 8 bit, sending as is\n");
-                }
-
-            }
-
-            if(is10bit){
-                ConvertTo8bitRaw(pSrcPixel,
-                                 width,
-                                 height);
-            }
-        }
-        else
-        {
-            // For ov7251 camera there is no color so we just send the Y channel data as RAW8
-            if (cameraType == CAMTYPE_OV7251)
-            {
-                imageInfo.format     = IMAGE_FORMAT_RAW8;
-                imageInfo.size_bytes = width * height;
-            }
-            #ifdef APQ8096
-            //APQ only, stereo frames can come in as a pair, need to deinterlace them
-            else if (cameraType == CAMTYPE_OV7251_PAIR)
-            {
-                static uint8_t *stereoBuffer = (uint8_t*)malloc(width/2 * height);
-
-                imageInfo.format     = IMAGE_FORMAT_STEREO_RAW8;
-                imageInfo.size_bytes = width * height;
-                imageInfo.width      = width / 2;
-
-                for(int i = 0; i < height; i++){
-                    memcpy(&(pSrcPixel[i * width / 2]), &(pSrcPixel[i * width]), width / 2);
-                    memcpy(&(stereoBuffer[i * width / 2]), &(pSrcPixel[(i * width) + (width/2)]), width / 2);
-                }
-                memcpy(&(pSrcPixel[width/2*height]), stereoBuffer, width/2*height);
-
-            }
-            #endif
-            // We always send YUV contiguous data out of the camera server
-            else {
-                imageInfo.format     = IMAGE_FORMAT_NV12;
-                bufferMakeYUVContiguous(pBufferInfo);
-                ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
-                imageInfo.size_bytes = (pBufferInfo->width * pBufferInfo->height * 1.5);
-            }
-
-            if(cameraConfigInfo.flip){
-                if(imageInfo.frame_id == 0){
-                    VOXL_LOG_ERROR("Flipping not currently supported for YUV images, writing as-is\n");
-                }
-                //int ylen = (imageInfo.size_bytes * 2 / 3);
-                //int uvlen = (imageInfo.size_bytes / 6);
-                //reverse(pSrcPixel, ylen);
-                //reverse(pSrcPixel+ylen, uvlen);
-                //reverse(pSrcPixel+ylen+uvlen, uvlen);
-            }
+            default:
+                VOXL_LOG_ERROR("Camera: %s recieved frame for unknown stream\n", name);
+                break;
         }
 
-        if(partnerMode == MODE_MONO){
-            // Ship the frame out of the camera server
-            pipe_server_write_camera_frame(outputChannel, imageInfo, pSrcPixel);
-            VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
-
-            int64_t    new_exposure_ns;
-            int32_t    new_gain;
-
-            if (expInterface.update_exposure(
-                    pSrcPixel,
-                    width,
-                    height,
-                    imageInfo.exposure_ns,
-                    imageInfo.gain,
-                    &new_exposure_ns,
-                    &new_gain)){
-
-                setExposure = new_exposure_ns;
-                setGain     = new_gain;
-
-            }
-
-        } else if (partnerMode == MODE_STEREO_MASTER){
-
-            switch (imageInfo.format){
-                case IMAGE_FORMAT_NV21:
-                    imageInfo.format = IMAGE_FORMAT_STEREO_NV21;
-                    imageInfo.size_bytes = width * height * 1.5 * 2;
-                    break;
-                case IMAGE_FORMAT_RAW8:
-                    imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
-                    imageInfo.size_bytes = width * height * 2;
-                    break;
-                case IMAGE_FORMAT_STEREO_RAW8:
-                case IMAGE_FORMAT_STEREO_NV21:
-                    break;
-                default:
-                    VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV21 or RAW8\n");
-                    EStopCameraServer();
-                    break;
-            }
-
-            NEED_CHILD:
-            pthread_mutex_lock(&stereoMutex);
-            if(childFrame == NULL){
-
-                struct timespec ts;
-                clock_gettime(CLOCK_MONOTONIC, &ts);
-                ts.tv_nsec += MAX_STEREO_DISCREPENCY_NS;
-
-                pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
-            }
-
-            if(EStopped | stopped) {
-                pthread_cond_signal(&(otherMgr->stereoCond));
-                bufferPush(bufferGroup, handle);
-                continue;
-            }
-
-            if(childFrame == NULL){
-                pthread_mutex_unlock(&stereoMutex);
-                VOXL_LOG_INFO("Child frame not received\n");
-                bufferPush(bufferGroup, handle);
-                continue;
-            }
-
-            //Much newer child, discard master but keep the child
-            if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-                VOXL_LOG_INFO("INFO: Camera %s recieved much newer child than master (%lu), discarding master and trying again\n", name, childInfo->timestamp_ns - imageInfo.timestamp_ns);
-                bufferPush(bufferGroup, handle);
-                pthread_mutex_unlock(&stereoMutex);
-                continue;
-            }
-
-            //Much newer master, discard the child and get a new one
-            if(imageInfo.timestamp_ns - childInfo->timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-                VOXL_LOG_INFO("INFO: Camera %s recieved much newer master than child (%lu), discarding child and trying again\n", name, imageInfo.timestamp_ns - childInfo->timestamp_ns);
-                childFrame = NULL;
-                childInfo  = NULL;
-                pthread_mutex_unlock(&stereoMutex);
-                pthread_cond_signal(&(otherMgr->stereoCond));
-                goto NEED_CHILD;
-            }
-
-            // Assume the earlier timestamp is correct
-            if(imageInfo.timestamp_ns > childInfo->timestamp_ns){
-                imageInfo.timestamp_ns = childInfo->timestamp_ns;
-            }
-
-            if(cameraConfigInfo.flip){
-                reverse(pSrcPixel, imageInfo.size_bytes/2);
-                reverse(childFrame, imageInfo.size_bytes/2);
-            }
-
-            // Ship the frame out of the camera server
-            pipe_server_write_stereo_frame(outputChannel, imageInfo, pSrcPixel, childFrame);
-            VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
-
-            // Run Auto Exposure
-            int64_t    new_exposure_ns;
-            int32_t    new_gain;
-
-            if (expInterface.update_exposure(
-                    pSrcPixel,
-                    width,
-                    height,
-                    imageInfo.exposure_ns,
-                    imageInfo.gain,
-                    &new_exposure_ns,
-                    &new_gain)){
-
-                setExposure = new_exposure_ns;
-                setGain     = new_gain;
-
-                //Pass back the new AE values to the other camera
-                otherMgr->setExposure = new_exposure_ns;
-                otherMgr->setGain = new_gain;
-            }
-
-            //Clear the pointers and signal the child thread for cleanup
-            childFrame = NULL;
-            childInfo  = NULL;
-            pthread_mutex_unlock(&stereoMutex);
-            pthread_cond_signal(&(otherMgr->stereoCond));
-
-        } else if (partnerMode == MODE_STEREO_SLAVE){
-
-            pthread_mutex_lock(&(otherMgr->stereoMutex));
-
-            otherMgr->childFrame = pSrcPixel;
-            otherMgr->childInfo  = &imageInfo;
-
-            pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
-            pthread_mutex_unlock(&(otherMgr->stereoMutex));
-        }
-
-
-        bufferPush(bufferGroup, handle); // This queues up the buffer for recycling
+        bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
 
     }
 
@@ -895,17 +1031,30 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     }*/
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
+    request.num_output_buffers  = 0;
 
-    camera3_stream_buffer_t streamBuffer;
-    streamBuffer.buffer        = (const native_handle_t**)bufferPop(bufferGroup);
-    streamBuffer.stream        = stream;
-    streamBuffer.status        = 0;
-    streamBuffer.acquire_fence = -1;
-    streamBuffer.release_fence = -1;
+    camera3_stream_buffer_t pstreamBuffer;
+    pstreamBuffer.buffer        = (const native_handle_t**)bufferPop(p_bufferGroup);
+    pstreamBuffer.stream        = &p_stream;
+    pstreamBuffer.status        = 0;
+    pstreamBuffer.acquire_fence = -1;
+    pstreamBuffer.release_fence = -1;
 
-    streamBufferList.push_back(streamBuffer);
+    request.num_output_buffers ++;
+    streamBufferList.push_back(pstreamBuffer);
 
-    request.num_output_buffers  = 1;
+    if(en_snapshot){
+        camera3_stream_buffer_t sstreamBuffer;
+        sstreamBuffer.buffer        = (const native_handle_t**)bufferPop(s_bufferGroup);
+        sstreamBuffer.stream        = &s_stream;
+        sstreamBuffer.status        = 0;
+        sstreamBuffer.acquire_fence = -1;
+        sstreamBuffer.release_fence = -1;
+
+        request.num_output_buffers ++;
+        streamBufferList.push_back(sstreamBuffer);
+    }
+
     request.output_buffers      = streamBufferList.data();
     request.frame_number        = frameNumber;
     request.settings            = requestMetadata.getAndLock();
@@ -969,7 +1118,9 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 {
 
     char buf[16];
-    pthread_getname_np(pthread_self(), buf, 16);
+    sprintf(buf, "cam%d-request", cameraId);
+    pthread_setname_np(pthread_self(), buf);
+
     VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
 
     // Set thread priority
@@ -1004,15 +1155,36 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     return NULL;
 }
 
+enum AECommandVals {
+    SET_EXP_GAIN,
+    SET_EXP,
+    SET_GAIN,
+    START_AE,
+    STOP_AE,
+    SNAPSHOT
+};
+static const char* CmdStrings[] = {
+    "set_exp_gain",
+    "set_exp",
+    "set_gain",
+    "start_ae",
+    "stop_ae",
+    "snapshot"
+};
+
 int PerCameraMgr::SetupPipes(){
 
-    outputChannel = pipe_server_get_next_available_channel();
-
-    //Set up the connect callback to be the addClient function (wrapped in a lambda because it's a member function)
+    //Set up the connect callback (wrapped in a lambda because it's a member function)
     pipe_server_set_connect_cb(
             outputChannel,                                         //Channel
             [](int ch, int client_id, char* name, void* context)   //Callback
                     {((PerCameraMgr*)context)->addClient();},
+            this);
+    //Set up the control callback (wrapped in a lambda because it's a member function)
+    pipe_server_set_control_cb(
+            outputChannel,                                         //Channel
+            [](int ch, char * string, int bytes, void* context)    //Callback
+                    {((PerCameraMgr*)context)->HandleControlCmd(string);},
             this);                                                 //Context
 
     pipe_info_t info;
@@ -1026,6 +1198,143 @@ int PerCameraMgr::SetupPipes(){
 
     return S_OK;
 }
+
+void PerCameraMgr::HandleControlCmd(char* cmd) {
+
+    __attribute__((unused)) const int MIN_EXP  = configInfo.expGainInfo.exposure_min_us;
+    __attribute__((unused)) const int MAX_EXP  = configInfo.expGainInfo.exposure_max_us;
+    __attribute__((unused)) const int MIN_GAIN = configInfo.expGainInfo.gain_min;
+    __attribute__((unused)) const int MAX_GAIN = configInfo.expGainInfo.gain_max;
+
+    /**************************
+     *
+     * SET Exposure and Gain
+     *
+     */
+    // if(strncmp(cmd, CmdStrings[SET_EXP_GAIN], strlen(CmdStrings[SET_EXP_GAIN])) == 0){
+
+    //     char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
+    //     float exp = -1.0;
+    //     int gain = -1;
+
+    //     if(sscanf(cmd, "%s %f %d", buffer, &exp, &gain) == 3){
+    //         bool valid = true;
+    //         if(exp < MIN_EXP || exp > MAX_EXP){
+    //             valid = false;
+    //             VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+    //         }
+    //         if(gain < MIN_GAIN || gain > MAX_GAIN){
+    //             valid = false;
+    //             VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+    //         }
+    //         if(valid){
+    //             pCameraMgr->SetUsingAE(false);
+    //             VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", pCameraMgr->GetName(), exp, gain);
+    //             pCameraMgr->SetNextExpGain(exp*1000000, gain);
+    //         }
+    //     } else {
+    //         VOXL_LOG_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n", pCameraMgr->GetName());
+    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
+    //     }
+
+    // }
+    // /**************************
+    //  *
+    //  * SET Exposure
+    //  *
+    //  */ else if(strncmp(cmd, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
+
+    //     char buffer[strlen(CmdStrings[SET_EXP])+1];
+    //     float exp = -1.0;
+
+    //     if(sscanf(cmd, "%s %f", buffer, &exp) == 2){
+    //         bool valid = true;
+    //         if(exp < MIN_EXP || exp > MAX_EXP){
+    //             valid = false;
+    //             VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+    //         }
+    //         if(valid){
+    //             pCameraMgr->SetUsingAE(false);
+    //             VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", pCameraMgr->GetName(), exp);
+    //             pCameraMgr->SetNextExpGain(exp*1000000, pCameraMgr->GetCurrentGain());
+    //         }
+    //     } else {
+    //         VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", pCameraMgr->GetName());
+    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
+    //     }
+    // }
+    // /**************************
+    //  *
+    //  * SET Gain
+    //  *
+    //  */ else if(strncmp(cmd, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
+
+    //     char buffer[strlen(CmdStrings[SET_GAIN])+1];
+    //     int gain = -1;
+
+    //     if(sscanf(cmd, "%s %d", buffer, &gain) == 2){
+    //         bool valid = true;
+    //         if(gain < MIN_GAIN || gain > MAX_GAIN){
+    //             valid = false;
+    //             VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+    //         }
+    //         if(valid){
+    //             pCameraMgr->SetUsingAE(false);
+    //             VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", pCameraMgr->GetName(), gain);
+    //             pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), gain);
+    //         }
+    //     } else {
+    //         VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", pCameraMgr->GetName());
+    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
+    //     }
+    // }
+
+    // /**************************
+    //  *
+    //  * START Auto Exposure
+    //  *
+    //  */ else if(strncmp(cmd, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
+    //     pCameraMgr->SetUsingAE(true);
+    //     //Use this to awaken the process capture result block and avoid race conditions
+    //     pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), pCameraMgr->GetCurrentGain());
+    //     VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", pCameraMgr->GetName());
+    // }
+    // /**************************
+    //  *
+    //  * STOP Auto Exposure
+    //  *
+    //  */ else if(strncmp(cmd, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
+    //     if(pCameraMgr->IsUsingAE()){
+    //         VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", pCameraMgr->GetName());
+    //         pCameraMgr->SetUsingAE(false);
+    //     }
+    // } else
+
+    /**************************
+     *
+     * START Auto Exposure
+     *
+     */
+    if(strncmp(cmd, CmdStrings[SNAPSHOT], strlen(CmdStrings[SNAPSHOT])) == 0){
+        if(en_snapshot){
+            VOXL_LOG_INFO("Camera: %s taking snapshot\n", name);
+
+        } else {
+            VOXL_LOG_ERROR("Camera: %s failed to take snapshot, mode not enabled\n", name);
+        }
+    } else
+
+    /**************************
+     *
+     * Unknown Command
+     *
+     */
+    {
+        VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", name, string);
+    }
+
+}
+
 
 void PerCameraMgr::addClient(){
 
@@ -1048,4 +1357,44 @@ void PerCameraMgr::EStop(){
         otherMgr->EStop();
     }
 
+}
+
+static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height)
+{
+
+    int maxJpegBufferSize = 0;
+    camera_metadata_ro_entry jpegBufferMaxSize;
+    find_camera_metadata_ro_entry(cameraCharacteristics,
+                                        ANDROID_JPEG_MAX_SIZE,
+                                        &jpegBufferMaxSize);
+    if (jpegBufferMaxSize.count == 0) {
+        fprintf(stderr, "Find maximum JPEG size from metadat failed.!\n");
+        return 0;
+    }
+    maxJpegBufferSize = jpegBufferMaxSize.data.i32[0];
+
+    float scaleFactor = ((float)width * (float)height) /
+        (((float)maxJpegBufferSize - (float)sizeof(camera3_jpeg_blob)) / 3.0f);
+    int jpegBufferSize = minJpegBufferSize + (maxJpegBufferSize - minJpegBufferSize) * scaleFactor;
+
+    return jpegBufferSize;
+}
+
+static int32_t HalFmtFromType(int fmt){
+    //Always request raw10 frames to make sure we have a buffer for either,
+    // post processing thread will figure out what the driver is giving us
+    if (fmt == FMT_RAW10 ||
+        fmt == FMT_RAW8)
+    {
+        return HAL_PIXEL_FORMAT_RAW10;
+    }
+    else if ((fmt == FMT_NV21) ||
+             (fmt == FMT_NV12))
+    {
+        return HAL_PIXEL_FORMAT_YCbCr_420_888;
+    } else {
+        VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
+
+        throw -EINVAL;
+    }
 }

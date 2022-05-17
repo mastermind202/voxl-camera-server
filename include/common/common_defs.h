@@ -40,7 +40,7 @@
 #define PADDING_DISABLED __attribute__((packed))
 
 static const int INT_INVALID_VALUE   = 0xdeadbeef;
-static const int MAX_NAME_LENGTH     = 128;
+static const int MAX_NAME_LENGTH     = 64;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Supported stream types
@@ -112,12 +112,19 @@ struct PerCameraInfo
     int           camId2;                ///< id of second camera (if stereo)
     bool          isEnabled;             ///< Is the camera enabled/disabled
 
-    int  fps;                ///< Frame rate - number of frames per second
-    int  width;              ///< Width of the frame
-    int  height;             ///< Height of the frame
-    int  format;             ///< Frame format
-    bool flip;               ///< Flip?
+    int   fps;                ///< Frame rate - number of frames per second
+    int   p_width;            ///< Preview Width of the frame
+    int   p_height;           ///< Preview Height of the frame
+    int   p_format;           ///< Preview Frame format
+    bool  en_video;
+    int   v_width;            ///< Video Record Width of the frame
+    int   v_height;           ///< Video Record Height of the frame
+    bool  en_snapshot;
+    int   s_width;            ///< Snapshot Width of the frame
+    int   s_height;           ///< Snapshot Height of the frame
+    bool  flip;               ///< Flip?
 
+    bool useAE;
     modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
 };
 

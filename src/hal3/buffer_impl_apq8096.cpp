@@ -10,13 +10,18 @@
 #include <log/log.h>
 #include <hardware/gralloc.h>
 #include <errno.h>
+#include <map>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
 #include "debug_log.h"
 
+using namespace std;
+
 static gralloc_module_t* grallocModule = NULL;
 static alloc_device_t*   grallocDevice = NULL;
+
+static map<BufferBlock*, void*> offsetMap;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Sets up the gralloc interface to be used for making the buffer memory allocation and lock/unlock/free calls
@@ -41,6 +46,18 @@ static int SetupGrallocInterface()
     }
 
     return 0;
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------
+// Moves the UV planes to be contiguous with the y plane
+// -----------------------------------------------------------------------------------------------------------------------------
+void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
+{
+
+    const int height = pBufferInfo->height;
+    const int width  = pBufferInfo->width;
+
+    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -99,6 +116,14 @@ int allocateOneBuffer(
                                    &ycbcr);
 
         bufferGroup.bufferBlocks[index].vaddress  = ycbcr.y;
+        if (ycbcr.cr < ycbcr.cb)
+        {
+            offsetMap.insert(pair<BufferBlock*, void*> (&(bufferGroup.bufferBlocks[index]), ycbcr.cb) );
+        }
+        else
+        {
+            offsetMap.insert(pair<BufferBlock*, void*> (&(bufferGroup.bufferBlocks[index]), ycbcr.cr) );
+        }
 
         bufferGroup.bufferBlocks[index].size =
                 bufferGroup.bufferBlocks[index].stride * height * 1.5; // 1.5 because it is 12 bits / pixel

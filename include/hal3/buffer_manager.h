@@ -20,6 +20,7 @@ typedef struct _BufferBlock {
     unsigned int      width;
     unsigned int      height;
     unsigned int      stride;
+    unsigned int      slice;
 } BufferBlock;
 
 typedef struct _BufferGroup {
