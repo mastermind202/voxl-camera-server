@@ -119,7 +119,7 @@ public:
     pthread_cond_t             resultCond;                     ///< Condition variable for wake up
     std::mutex                 expgainCondMutex;               ///< Mutex to be used with the condition variable
     PerCameraInfo              cameraConfigInfo;               ///< Per camera config information
-    bool                       usingAE = true;                 ///< Disabled AE via control pipe
+    bool                       usingAE;                        ///< Disabled AE via control pipe
     int64_t                    currentFrameNumber = 0;         ///< Frame Number
     int64_t                    currentTimestamp;               ///< Timestamp
     int64_t                    currentExposure;                ///< Exposure
