@@ -50,6 +50,7 @@ static const PerCameraInfo OV7251Defaults =
         480,                        //Height
         FMT_RAW8,                   //Format
         false,                      //Flip
+        true,                       //Use ModalAI AE
         {                           //ModalAI AE Algorithm Parameters
             100,                    //Gain Min
             1000,                   //Gain Max
@@ -80,6 +81,7 @@ static const PerCameraInfo IMX214Defaults =
         480,                        //Height
         FMT_NV21,                   //Format
         false,                      //Flip
+        false,                      //Use ModalAI AE
         {                           //ModalAI AE Algorithm Parameters
             100,                    //Gain Min
             1000,                   //Gain Max
@@ -110,6 +112,7 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //Height
         FMT_INVALID,                //Format
         false,                      //Flip
+        false,                      //Use ModalAI AE
         {                           //ModalAI AE Algorithm Parameters
             0,                      //Gain Min
             0,                      //Gain Max

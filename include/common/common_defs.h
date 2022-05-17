@@ -108,14 +108,16 @@ struct PerCameraInfo
     int           camId2;                ///< id of second camera (if stereo)
     bool          isEnabled;             ///< Is the camera enabled/disabled
 
-    int  fps;                ///< Frame rate - number of frames per second
-    int  width;              ///< Width of the frame
-    int  height;             ///< Height of the frame
-    int  format;             ///< Frame format
-    bool flip;               ///< Flip?
+    int   fps;                ///< Frame rate - number of frames per second
+    int   width;              ///< Preview Width of the frame
+    int   height;             ///< Preview Height of the frame
+    int   format;             ///< Preview Frame format
+    bool  flip;               ///< Flip?
 
+    bool useAE;
     modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
 };
+
 
 void PrintCameraInfo(PerCameraInfo pCameraInfo);
 

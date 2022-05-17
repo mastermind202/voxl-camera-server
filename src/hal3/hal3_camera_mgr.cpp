@@ -75,6 +75,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     cameraCallbacks.cameraCallbacks = {&CameraModuleCaptureResult, &CameraModuleNotify};
     cameraCallbacks.pPrivate        = this;
 
+    usingAE=pCameraInfo.useAE;
+
     sprintf(name, "%.63s", pCameraInfo.name);
     width  = pCameraInfo.width;
     height = pCameraInfo.height;
@@ -222,18 +224,6 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    int fpsRange[] = {cameraConfigInfo.fps, cameraConfigInfo.fps};
-    int64_t frameDuration = 1e9 / cameraConfigInfo.fps;
-
-    setExposure             =  5259763;
-    setGain                 =  800;
-    //This covers the 5 below modes, we want them all off
-    uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
-    //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
-    //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
-    //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
-    //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
-    //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -242,15 +232,51 @@ void PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    //This covers the 5 below modes, we want them all off
-    requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
-    //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
-    //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
-    //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
-    //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
-    //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
+    if (usingAE) {
+
+        //This covers the 5 below modes, we want them all off
+        uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
+        //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
+        //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
+        //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+        //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+        //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+
+        //This covers the 5 below modes, we want them all off
+        requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
+        //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+        //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+        //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+        //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+        //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+
+        setExposure             =  5259763;
+        setGain                 =  800;
+        usingAE                 =  true;
+
+        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
+        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
+
+    } else {
+
+        uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
+        uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
+        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_AUTO;
+
+        //Don't have any autofocus so turn these off
+        uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+        uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+
+        requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+        requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+        requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+        requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+        requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+    }
+
+    int fpsRange[] = {cameraConfigInfo.fps, cameraConfigInfo.fps};
+    int64_t frameDuration = 1e9 / cameraConfigInfo.fps;
+
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
@@ -461,25 +487,10 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 {
     camera3_capture_request_t request;
 
-    requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
-    requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
-
-    // Exposure Debug Oscillator
-    /*{
-        static int mode = 1;
-        static int64_t curexp = 5259763;
-        static int64_t curgain = 800;
-        const uint8_t aeMode = 0; // Auto exposure is off i.e. the underlying driver does not control exposure/gain
-
-        if(curexp > 5250000) mode = -1;
-        if(curexp < 1000000) mode = 1;
-
-        curexp += 50000 * mode;
-
-        requestMetadata.update(ANDROID_CONTROL_AE_MODE, &aeMode, 1);
-        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &(curexp), 1);
-        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY, &(curgain), 1);
-    }*/
+    if(usingAE) {
+        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
+        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
+    }
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
 
@@ -749,7 +760,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             int64_t    new_exposure_ns;
             int32_t    new_gain;
 
-            if (expInterface.update_exposure(
+            if (usingAE && expInterface.update_exposure(
                     pSrcPixel,
                     width,
                     height,
@@ -843,7 +854,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             int64_t    new_exposure_ns;
             int32_t    new_gain;
 
-            if (expInterface.update_exposure(
+            if (usingAE && expInterface.update_exposure(
                     pSrcPixel,
                     width,
                     height,
