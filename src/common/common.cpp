@@ -95,34 +95,34 @@ const CameraType GetCameraTypeFromString(char *type)
 void PrintCameraInfo(PerCameraInfo pCameraInfo)    ///< Camera info
 {
 
-    printf("\t Name       : %s\n", pCameraInfo.name);
-    printf("\t Enabled    : %d\n", pCameraInfo.isEnabled);
+    printf("\t Name                : %s\n", pCameraInfo.name);
+    printf("\t Enabled             : %d\n", pCameraInfo.isEnabled);
 
     if(pCameraInfo.isMono){
 
-    	printf("\t Type       : mono %s\n", GetTypeString(pCameraInfo.type));
-    	printf("\t Cam ID     : %d\n", pCameraInfo.camId);
+    printf("\t Type                : mono %s\n", GetTypeString(pCameraInfo.type));
+    printf("\t Cam ID              : %d\n", pCameraInfo.camId);
 
     } else {
 
-    	printf("\t Type       : stereo %s\n", GetTypeString(pCameraInfo.type));
-    	printf("\t Cam ID 1   : %d\n", pCameraInfo.camId);
-    	printf("\t Cam ID 2   : %d\n", pCameraInfo.camId2);
+    printf("\t Type                : stereo %s\n", GetTypeString(pCameraInfo.type));
+    printf("\t Cam ID 1            : %d\n", pCameraInfo.camId);
+    printf("\t Cam ID 2            : %d\n", pCameraInfo.camId2);
 
     }
 
-    printf("\t Preview Width      : %d\n", pCameraInfo.p_width);
-    printf("\t Preview Height     : %d\n", pCameraInfo.p_height);
-    printf("\t Preview Format     : %s\n", GetImageFmtString(pCameraInfo.p_format));
+    printf("\t Preview Width       : %d\n", pCameraInfo.p_width);
+    printf("\t Preview Height      : %d\n", pCameraInfo.p_height);
+    printf("\t Preview Format      : %s\n", GetImageFmtString(pCameraInfo.p_format));
     if(pCameraInfo.en_video){
-        printf("\t Video Record Width      : %d\n", pCameraInfo.v_width);
-        printf("\t Video Record Height     : %d\n", pCameraInfo.v_height);
+    printf("\t Video Record Width  : %d\n", pCameraInfo.v_width);
+    printf("\t Video Record Height : %d\n", pCameraInfo.v_height);
     }
     if(pCameraInfo.en_snapshot){
-        printf("\t Snapshot Width      : %d\n", pCameraInfo.s_width);
-        printf("\t Snapshot Height     : %d\n", pCameraInfo.s_height);
+    printf("\t Snapshot Width      : %d\n", pCameraInfo.s_width);
+    printf("\t Snapshot Height     : %d\n", pCameraInfo.s_height);
     }
-    printf("\t FPS        : %d\n", pCameraInfo.fps);
+    printf("\t FPS                 : %d\n", pCameraInfo.fps);
 
     modal_exposure_print_config(pCameraInfo.expGainInfo);
 

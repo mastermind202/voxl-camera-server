@@ -206,6 +206,8 @@ private:
     pthread_mutex_t                   snapshotMutex;               ///< Mutex for list access
     pthread_cond_t                    snapshotCond;                ///< Condition variable for wake up
     std::list<char *>                 snapshotQueue;
+    int                               numNeededSnapshots = 0;
+    int                               lastSnapshotNumber = 0;
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

@@ -83,15 +83,15 @@ static const PerCameraInfo IMX214Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
-        640,                        //< Preview Width of the frame
-        480,                        //< Preview Height of the frame
+        1280,                        //< Preview Width of the frame
+        720,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
         false,                      //< Enable Video Record
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
-        false,                       //< Enable Snapshot mode?
-        1920,                       //< Snapshot Width of the frame
-        1080,                       //< Snapshot Height of the frame
+        true,                       //< Enable Snapshot mode?
+        3840,                       //< Snapshot Width of the frame
+        2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,
         {                           //< ModalAI AE Algorithm Parameters

@@ -76,14 +76,19 @@ int allocateOneBuffer(
         stride = ALIGN_BYTE(width, 64);
         slice = ALIGN_BYTE(height, 64);
         buffer_size = (size_t)(stride * slice * 3 / 2);
+
+        VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+                    width,
+                    height,
+                    "HAL_PIXEL_FORMAT_YCBCR_420_888");
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
         buffer_size = width;
-    }
 
-    VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
-                width,
-                height,
-                format == HAL_PIXEL_FORMAT_YCBCR_420_888 ? "HAL_PIXEL_FORMAT_YCBCR_420_888" : "HAL_PIXEL_FORMAT_BLOB" );
+        VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+                    width,
+                    height,
+                    "HAL_PIXEL_FORMAT_BLOB" );
+    }
 
     allocation_data.len = ((size_t)(buffer_size) + 4095U) & (~4095U);
 

@@ -56,7 +56,7 @@
 
 #define NUM_PREVIEW_BUFFERS 16
 #define NUM_VIDEO_BUFFERS 16
-#define NUM_SNAPSHOT_BUFFERS 6
+#define NUM_SNAPSHOT_BUFFERS 16
 #define JPEG_DEFUALT_QUALITY        85
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
@@ -82,8 +82,6 @@ static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 static int32_t HalFmtFromType(int fmt);
-
-void controlPipeCallback(int ch, char* string, int bytes, void* context);
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor
@@ -235,6 +233,10 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         otherMgr->setMaster(this);
     }
 
+    VOXL_LOG_INFO("\nSuccessfully configured camera: %s with settings:\n", name);
+    if(currentDebugLevel <= DebugLevel::INFO)
+        PrintCameraInfo(pCameraInfo);
+
 }
 
 PerCameraMgr::~PerCameraMgr() {
@@ -309,7 +311,8 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
     if(en_snapshot){
         pDefaultMetadata =
-                    (camera_metadata_t *)pDevice->ops->construct_default_request_settings(pDevice, CAMERA3_TEMPLATE_STILL_CAPTURE);
+                    //(camera_metadata_t *)pDevice->ops->construct_default_request_settings(pDevice, CAMERA3_TEMPLATE_STILL_CAPTURE);
+                    (camera_metadata_t *)pDevice->ops->construct_default_request_settings(pDevice, CAMERA3_TEMPLATE_VIDEO_RECORD);
     }
 
     // Modify all the settings that we want to
@@ -393,9 +396,11 @@ void PerCameraMgr::Start()
     pthread_mutex_init(&requestMutex, NULL);
     pthread_mutex_init(&resultMutex, NULL);
     pthread_mutex_init(&stereoMutex, NULL);
+    pthread_mutex_init(&snapshotMutex, NULL);
     pthread_cond_init(&requestCond, &condAttr);
     pthread_cond_init(&resultCond, &condAttr);
     pthread_cond_init(&stereoCond, &condAttr);
+    pthread_cond_init(&snapshotCond, &condAttr);
     pthread_condattr_destroy(&condAttr);
 
     // Start the thread that will process the camera capture result. This thread wont exit till it consumes all expected
@@ -455,6 +460,9 @@ void PerCameraMgr::Stop()
 
     pthread_mutex_destroy(&stereoMutex);
     pthread_cond_destroy(&stereoCond);
+
+    pthread_mutex_destroy(&snapshotMutex);
+    pthread_cond_destroy(&snapshotCond);
 
 }
 
@@ -885,18 +893,20 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     }
 
 }
+
 void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 
-    static int counter = 1;
+    if(snapshotQueue.size() != 0){
+        char *filename = snapshotQueue.front();
 
-    char buffer[128];
+        pthread_mutex_lock(&snapshotMutex);
+        snapshotQueue.pop_front();
+        pthread_mutex_unlock(&snapshotMutex);
 
-    sprintf(buffer, "/data/screenshots/%s-%d.jpg", name, counter);
-
-    VOXL_LOG_VERBOSE("--Writing snapshot to :\"%s\"\n", buffer);
-    WriteSnapshot(bufferBlockInfo, s_halFmt, buffer);
-
-    counter++;
+        VOXL_LOG_FATAL("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
+        WriteSnapshot(bufferBlockInfo, s_halFmt, filename);
+        free(filename);
+    }
 
 }
 
@@ -1026,7 +1036,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.num_output_buffers ++;
     streamBufferList.push_back(pstreamBuffer);
 
-    if(en_snapshot){
+    if(en_snapshot && numNeededSnapshots != 0){
         camera3_stream_buffer_t sstreamBuffer;
         sstreamBuffer.buffer        = (const native_handle_t**)bufferPop(s_bufferGroup);
         sstreamBuffer.stream        = &s_stream;
@@ -1036,6 +1046,11 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         request.num_output_buffers ++;
         streamBufferList.push_back(sstreamBuffer);
+
+        pthread_mutex_lock(&snapshotMutex);
+        numNeededSnapshots --;
+        pthread_mutex_unlock(&snapshotMutex);
+
     }
 
     request.output_buffers      = streamBufferList.data();
@@ -1169,6 +1184,7 @@ int PerCameraMgr::SetupPipes(){
             [](int ch, char * string, int bytes, void* context)    //Callback
                     {((PerCameraMgr*)context)->HandleControlCmd(string);},
             this);                                                 //Context
+    pipe_server_set_available_control_commands(outputChannel, "snapshot");
 
     pipe_info_t info;
     strcpy(info.name       , name);
@@ -1177,9 +1193,17 @@ int PerCameraMgr::SetupPipes(){
     info.size_bytes = 64*1024*1024;
 
     strcpy(info.location, info.name);
-    pipe_server_create(outputChannel, info, 0);
+    pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
 
     return S_OK;
+}
+
+static int _exists(char* path)
+{
+    // file exists
+    if(access(path, F_OK ) != -1 ) return 1;
+    // file doesn't exist
+    return 0;
 }
 
 void PerCameraMgr::HandleControlCmd(char* cmd) {
@@ -1302,18 +1326,33 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
         if(en_snapshot){
             VOXL_LOG_INFO("Camera: %s taking snapshot\n", name);
 
+            char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
+            char *filename = (char *)malloc(128);
+
+            if(sscanf(cmd, "%s %s", buffer, filename) != 2){
+                // We weren't given a proper file, generate a default one
+                // find next index open for that name. e/g/ hires-0, hires-1, hires-2...
+                for(int i=lastSnapshotNumber;;i++){
+                    // construct a new path with the current dir, name, and index i
+                    sprintf(filename,"/data/screenshots/%s-%d.jpg", name, i);
+                    if(!_exists(filename)){
+                        // name with this index doesn't exist yet, good, use it!
+                        lastSnapshotNumber = i;
+                        break;
+                    }
+                }
+            }
+
+            pthread_mutex_lock(&snapshotMutex);
+            snapshotQueue.push_back(filename);
+            numNeededSnapshots++;
+            pthread_mutex_unlock(&snapshotMutex);
+
         } else {
             VOXL_LOG_ERROR("Camera: %s failed to take snapshot, mode not enabled\n", name);
         }
-    } else
-
-    /**************************
-     *
-     * Unknown Command
-     *
-     */
-    {
-        VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", name, string);
+    } else {
+        VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", name, cmd);
     }
 
 }
