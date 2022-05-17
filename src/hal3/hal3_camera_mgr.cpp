@@ -359,10 +359,8 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
     if(en_snapshot){
         uint8_t jpegQuality     = JPEG_DEFUALT_QUALITY;
-        //uint8_t ZslEnable       = ANDROID_CONTROL_ENABLE_ZSL_TRUE;
 
         requestMetadata.update(ANDROID_JPEG_QUALITY, &(jpegQuality), sizeof(jpegQuality));
-        //requestMetadata.update(ANDROID_CONTROL_ENABLE_ZSL, &(ZslEnable), 1);
     }
 
     int fpsRange[] = {configInfo.fps, configInfo.fps};

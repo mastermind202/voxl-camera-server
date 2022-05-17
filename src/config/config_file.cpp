@@ -199,8 +199,10 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
             && info.type != CAMTYPE_TOF
             #endif
             ) {
-
             cJSON_AddBoolToObject   (node, JsonFlipString,           info.flip);
+        }
+        
+        if(info.useAE){
             cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.expGainInfo.desired_msv);
             cJSON_AddNumberToObject (node, JsonAEKPString ,          info.expGainInfo.k_p_ns);
             cJSON_AddNumberToObject (node, JsonAEKIString ,          info.expGainInfo.k_i_ns);

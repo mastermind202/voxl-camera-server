@@ -128,6 +128,7 @@ struct PerCameraInfo
     modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
 };
 
+
 void PrintCameraInfo(PerCameraInfo pCameraInfo);
 
 #endif // COMMON_DEFS

@@ -123,7 +123,6 @@ private:
         void* pPrivate;
     };
 
-
     void ProcessOneCaptureResult(const camera3_capture_result* pHalResult);
     static void CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult);
     static void CameraModuleNotify(const camera3_callback_ops_t *cb, const camera3_notify_msg_t *msg);
