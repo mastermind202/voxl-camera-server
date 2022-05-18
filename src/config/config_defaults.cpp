@@ -56,7 +56,7 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        true,
+        true,                       //< Use ModalAI AE
         {                           //< ModalAI AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
@@ -74,6 +74,7 @@ static const PerCameraInfo OV7251Defaults =
         }
     };
 
+#ifdef APQ8096
 static const PerCameraInfo IMX214Defaults =
     {
         "",                         //< Name
@@ -83,7 +84,7 @@ static const PerCameraInfo IMX214Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
-        1280,                        //< Preview Width of the frame
+        1280,                       //< Preview Width of the frame
         720,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
         false,                      //< Enable Video Record
@@ -93,7 +94,7 @@ static const PerCameraInfo IMX214Defaults =
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
-        false,
+        false,                      //< Use ModalAI AE
         {                           //< ModalAI AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
@@ -110,6 +111,48 @@ static const PerCameraInfo IMX214Defaults =
             8000,                   //< Exposure offset
         }
     };
+#elif QRB5165
+// IMX sensor is missing proper driver on QRB5, can only do 640x480 right now
+static const PerCameraInfo IMX214Defaults =
+    {
+        "",                         //< Name
+        CAMTYPE_IMX214,             //< Type
+        true,                       //< Is mono?
+        -1,                         //< ID
+        -1,                         //< ID2
+        true,                       //< Enabled?
+        30,                         //< Framerate
+        640,                        //< Preview Width of the frame
+        480,                        //< Preview Height of the frame
+        FMT_NV21,                   //< Preview Frame format
+        false,                      //< Enable Video Record
+        1920,                       //< Video Record Width of the frame
+        1080,                       //< Video Record Height of the frame
+        true,                       //< Enable Snapshot mode?
+        640,                        //< Snapshot Width of the frame
+        480,                        //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Use ModalAI AE
+        {                           //< ModalAI AE Algorithm Parameters
+            100,                    //< Gain Min
+            1000,                   //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            54.0,                   //< Desired MSV
+            8000.0,                 //< k_p_ns
+            5.0,                    //< k_i_ns
+            250.0,                  //< Max i
+            3,                      //< p Good Threshold
+            1,                      //< Exposure Period
+            2,                      //< Gain Period
+            false,                  //< Display Debug
+            8000,                   //< Exposure offset
+        }
+    };
+#else
+    #error "Missing Architecture"
+#endif
+
 
 #ifdef APQ8096
 static const PerCameraInfo TOFDefaults =
@@ -131,7 +174,7 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //Flip
-        false,
+        false,                      //< Use ModalAI AE
         {                           //ModalAI AE Algorithm Parameters
             0,                      //Gain Min
             0,                      //Gain Max
@@ -169,7 +212,7 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        false,
+        false,                      //< Use ModalAI AE
         {                           //< ModalAI AE Algorithm Parameters
             0,                      //< Gain Min
             0,                      //< Gain Max

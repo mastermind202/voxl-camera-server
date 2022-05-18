@@ -14,6 +14,15 @@
 
 #define ALIGN_BYTE(x, a) ((x % a == 0) ? x : x - (x % a) + a)
 
+// Platform Specific Flags
+#ifdef APQ8096
+    #define HAL3_FMT_YUV  HAL_PIXEL_FORMAT_YCbCr_420_888
+#elif QRB5165
+    #define HAL3_FMT_YUV  HAL_PIXEL_FORMAT_YCBCR_420_888
+#else
+    #error "No Platform defined"
+#endif
+
 typedef struct _BufferBlock {
     void*             vaddress;
     unsigned long int size;

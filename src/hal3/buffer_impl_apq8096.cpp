@@ -103,7 +103,7 @@ int allocateOneBuffer(
         bufferGroup.bufferBlocks[index].size =
                 bufferGroup.bufferBlocks[index].stride * height;
 
-    } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888)
+    } else if (format == HAL3_FMT_YUV)
     {
         struct android_ycbcr ycbcr;
         grallocModule->lock_ycbcr(grallocModule,

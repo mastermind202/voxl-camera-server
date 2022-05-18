@@ -400,7 +400,6 @@ void PerCameraMgr::Start()
     pthread_cond_init(&requestCond, &condAttr);
     pthread_cond_init(&resultCond, &condAttr);
     pthread_cond_init(&stereoCond, &condAttr);
-    pthread_cond_init(&snapshotCond, &condAttr);
     pthread_condattr_destroy(&condAttr);
 
     // Start the thread that will process the camera capture result. This thread wont exit till it consumes all expected
@@ -462,7 +461,6 @@ void PerCameraMgr::Stop()
     pthread_cond_destroy(&stereoCond);
 
     pthread_mutex_destroy(&snapshotMutex);
-    pthread_cond_destroy(&snapshotCond);
 
 }
 
@@ -634,8 +632,11 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     //uint32_t slice   = bufferBlockInfo->slice;
 
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
-
     FILE* file_descriptor = fopen(path, "wb");
+    if(! file_descriptor){
+        VOXL_LOG_ERROR("ERROR: failed to open file descriptor for snapshot save\n");
+        return;
+    }
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
         /*
@@ -650,7 +651,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
             fwrite(src_data, size, 1, file_descriptor);
         //}
 
-    }/* else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+    }/* else if (format == HAL3_FMT_YUV) {
         int plane_number  = 2;
         int byte_per_pixel = 1;
 
@@ -715,7 +716,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
                              p_height);
         }
     }
-    else if (p_halFmt == HAL_PIXEL_FORMAT_YCbCr_420_888)
+    else if (p_halFmt == HAL3_FMT_YUV)
     {
         // For ov7251 camera there is no color so we just send the Y channel data as RAW8
         if (configInfo.type == CAMTYPE_OV7251)
@@ -905,6 +906,7 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 
         VOXL_LOG_FATAL("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
         WriteSnapshot(bufferBlockInfo, s_halFmt, filename);
+
         free(filename);
     }
 
@@ -1413,7 +1415,7 @@ static int32_t HalFmtFromType(int fmt){
     else if ((fmt == FMT_NV21) ||
              (fmt == FMT_NV12))
     {
-        return HAL_PIXEL_FORMAT_YCbCr_420_888;
+        return HAL3_FMT_YUV;
     } else {
         VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
 

@@ -204,7 +204,6 @@ private:
     bool                              EStopped = false;            ///< Emergency Stop, terminate without any cleanup
     int                               lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
     pthread_mutex_t                   snapshotMutex;               ///< Mutex for list access
-    pthread_cond_t                    snapshotCond;                ///< Condition variable for wake up
     std::list<char *>                 snapshotQueue;
     int                               numNeededSnapshots = 0;
     int                               lastSnapshotNumber = 0;

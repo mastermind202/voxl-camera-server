@@ -69,7 +69,7 @@ int allocateOneBuffer(
     }
     memset(&allocation_data, 0, sizeof(allocation_data));
 
-    if (format == HAL_PIXEL_FORMAT_YCBCR_420_888 ||
+    if (format == HAL3_FMT_YUV ||
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
