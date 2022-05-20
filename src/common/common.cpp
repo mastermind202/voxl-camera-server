@@ -58,6 +58,7 @@ const char* GetTypeString(int type)
 {
     switch ((CameraType)type){
         case CAMTYPE_OV7251:      return "ov7251";
+        case CAMTYPE_OV9782:      return "ov9782";
         case CAMTYPE_IMX214:      return "imx214";
 
     #ifdef APQ8096

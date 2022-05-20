@@ -74,6 +74,43 @@ static const PerCameraInfo OV7251Defaults =
         }
     };
 
+static const PerCameraInfo OV9782Defaults =
+    {
+        "",                         //< Name
+        CAMTYPE_OV9782,             //< Type
+        true,                       //< Is mono?
+        -1,                         //< ID
+        -1,                         //< ID2
+        true,                       //< Enabled?
+        30,                         //< Framerate
+        1280,                       //< Preview Width of the frame
+        720,                        //< Preview Height of the frame
+        FMT_NV21,                   //< Preview Frame format
+        false,                      //< Enable Video Record
+        -1,                         //< Video Record Width of the frame
+        -1,                         //< Video Record Height of the frame
+        false,                      //< Enable Snapshot mode?
+        -1,                         //< Snapshot Width of the frame
+        -1,                         //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Use ModalAI AE
+        {                           //< ModalAI AE Algorithm Parameters
+            100,                    //< Gain Min
+            1000,                   //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            64.0,                   //< Desired MSV
+            8000.0,                 //< k_p_ns
+            5.0,                    //< k_i_ns
+            250.0,                  //< Max i
+            3,                      //< p Good Threshold
+            1,                      //< Exposure Period
+            2,                      //< Gain Period
+            false,                  //< Display Debug
+            8000,                   //< Exposure offset
+        }
+    };
+
 #ifdef APQ8096
 static const PerCameraInfo IMX214Defaults =
     {
@@ -234,6 +271,8 @@ const PerCameraInfo getDefaultCameraInfo(CameraType t) {
     switch(t){
         case CAMTYPE_OV7251:
             return OV7251Defaults;
+        case CAMTYPE_OV9782:
+            return OV9782Defaults;
         case CAMTYPE_IMX214:
             return IMX214Defaults;
 

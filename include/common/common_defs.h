@@ -86,6 +86,7 @@ enum CameraType
 {
     CAMTYPE_INVALID = -1,   ///< Invalid
     CAMTYPE_OV7251,
+    CAMTYPE_OV9782,
     CAMTYPE_IMX214,
 #ifdef APQ8096
     CAMTYPE_OV7251_PAIR,

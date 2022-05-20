@@ -347,7 +347,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
         uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
         uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
-        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_AUTO;
+        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_WARM_FLUORESCENT;
 
         //Don't have any autofocus so turn these off
         uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
@@ -485,6 +485,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
+            VOXL_LOG_VERBOSE("\tTimestamp: %ld\n", entry.data.i64[0]);
             currentTimestamp = entry.data.i64[0];
         }
 
@@ -492,6 +493,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
+            VOXL_LOG_VERBOSE("\tGain: %d\n", entry.data.i32[0]);
             currentGain = entry.data.i32[0];
         }
 
@@ -499,6 +501,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
+            VOXL_LOG_VERBOSE("\tExposure: %ld\n", entry.data.i64[0]);
             currentExposure = entry.data.i64[0];
         }
     }
@@ -676,8 +679,8 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     camera_image_metadata_t imageInfo;
     imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
 
-    //imageInfo.exposure_ns = currentExposure;
-    //imageInfo.gain        = currentGain;
+    imageInfo.exposure_ns = currentExposure;
+    imageInfo.gain        = currentGain;
 
     //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
     imageInfo.exposure_ns = setExposure;
@@ -785,8 +788,8 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     } else if (partnerMode == MODE_STEREO_MASTER){
 
         switch (imageInfo.format){
-            case IMAGE_FORMAT_NV21:
-                imageInfo.format = IMAGE_FORMAT_STEREO_NV21;
+            case IMAGE_FORMAT_NV12:
+                imageInfo.format = IMAGE_FORMAT_STEREO_NV12;
                 imageInfo.size_bytes = p_width * p_height * 1.5 * 2;
                 break;
             case IMAGE_FORMAT_RAW8:
@@ -797,7 +800,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             case IMAGE_FORMAT_STEREO_NV21:
                 break;
             default:
-                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV21 or RAW8\n");
+                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8\n");
                 EStopCameraServer();
                 break;
         }
@@ -1134,7 +1137,7 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
-        if(!getNumClients()){
+        if(!getNumClients() && !numNeededSnapshots){
             pthread_cond_wait(&requestCond, &requestMutex);
             if(stopped || EStopped) break;
         }
@@ -1348,6 +1351,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
             pthread_mutex_lock(&snapshotMutex);
             snapshotQueue.push_back(filename);
             numNeededSnapshots++;
+            pthread_cond_signal(&requestCond);
             pthread_mutex_unlock(&snapshotMutex);
 
         } else {
