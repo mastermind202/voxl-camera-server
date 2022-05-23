@@ -338,7 +338,6 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
         setExposure             =  5259763;
         setGain                 =  800;
-        usingAE                 =  true;
 
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
         requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
@@ -346,8 +345,8 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     } else {
 
         uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
-        uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_AUTO;
-        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_WARM_FLUORESCENT;
+        uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
+        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
 
         //Don't have any autofocus so turn these off
         uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;

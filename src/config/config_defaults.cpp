@@ -93,13 +93,13 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        false,                      //< Use ModalAI AE
+        true,                       //< Use ModalAI AE
         {                           //< ModalAI AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
+            54,                     //< Gain Min
+            835,                    //< Gain Max
             20,                     //< Exposure Min
             33000,                  //< Exposure Max
-            64.0,                   //< Desired MSV
+            54.0,                   //< Desired MSV
             8000.0,                 //< k_p_ns
             5.0,                    //< k_i_ns
             250.0,                  //< Max i
