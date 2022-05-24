@@ -72,6 +72,8 @@ print_configurations () {
 	echo -e "9  TOF Only"
 	echo -e "10 Stereo only"
 	echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo Pairs${RESET_ALL}"
+    echo -e "${SET_STRIKETHROUGH}12 Stereo OV9782 only${RESET_ALL}"
+
 }
 
 print_usage () {

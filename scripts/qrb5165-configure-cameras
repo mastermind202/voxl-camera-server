@@ -41,19 +41,20 @@ ENABLE_CAMERA_SERVER=1
 . /home/root/.profile.d/modal_bash_formatting.sh
 
 print_configurations () {
-	echo -e ""
-	echo -e "0  None"
-	echo -e "1  Tracking + Stereo"
-	echo -e "2  Tracking Only"
-	echo -e "3  Hires + Stereo + Tracking"
-	echo -e "4  Hires + Tracking"
-	echo -e "${SET_STRIKETHROUGH}5  TOF + Tracking${RESET_ALL}"
-	echo -e "${SET_STRIKETHROUGH}6  Hires + TOF + Tracking${RESET_ALL}"
-	echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo + Tracking${RESET_ALL}"
-	echo -e "8  Hires Only"
-	echo -e "${SET_STRIKETHROUGH}9  TOF Only${RESET_ALL}"
-	echo -e "10 Stereo only"
-	echo -e "11 Tracking + Hires + Dual Stereo Pairs"
+    echo -e ""
+    echo -e "0  None"
+    echo -e "1  Tracking + Stereo"
+    echo -e "2  Tracking Only"
+    echo -e "3  Hires + Stereo + Tracking"
+    echo -e "4  Hires + Tracking"
+    echo -e "${SET_STRIKETHROUGH}5  TOF + Tracking${RESET_ALL}"
+    echo -e "${SET_STRIKETHROUGH}6  Hires + TOF + Tracking${RESET_ALL}"
+    echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo + Tracking${RESET_ALL}"
+    echo -e "8  Hires Only"
+    echo -e "${SET_STRIKETHROUGH}9  TOF Only${RESET_ALL}"
+    echo -e "10 Stereo OV7251 only"
+    echo -e "11 Tracking + Hires + Dual Stereo Pairs"
+    echo -e "12 Stereo OV9782 only"
 }
 
 print_usage () {
@@ -132,90 +133,93 @@ echo "Camera Configuration: $CAM_CONFIG_ID"
 
 CAM_LIST=()
 case $CAM_CONFIG_ID in
-	0) # none
-		ENABLE_CAMERA_SERVER=0;
-		;;
-	1) #Tracking + Stereo
+    0) # none
+        ENABLE_CAMERA_SERVER=0;
+        ;;
+    1) #Tracking + Stereo
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	2) # Tracking Only
+        ;;
+    2) # Tracking Only
         CAM_LIST+=("tracking:ov7251:0")
-		;;
-	3) # Hires + Stereo + Tracking
+        ;;
+    3) # Hires + Stereo + Tracking
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("hires:imx214:3")
         CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	4) # Hires + Tracking
+        ;;
+    4) # Hires + Tracking
         CAM_LIST+=("tracking:ov7251:0")
         CAM_LIST+=("hires:imx214:1")
-		;;
-	5) # TOF + Tracking
+        ;;
+    5) # TOF + Tracking
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
         exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=1
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=0
-	 	;;
-	6) # Hires + TOF + Tracking
+    #   HIRES_CAM_ID=-1
+    #   TRACKING_CAM_ID=1
+    #   STEREO_CAM_ID=-1
+    #   TOF_CAM_ID=0
+        ;;
+    6) # Hires + TOF + Tracking
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
         exit -1
-	# 	HIRES_CAM_ID=0
-	# 	TRACKING_CAM_ID=2
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=1
-	 	;;
-	7) # TOF + Stereo + Tracking
+    #   HIRES_CAM_ID=0
+    #   TRACKING_CAM_ID=2
+    #   STEREO_CAM_ID=-1
+    #   TOF_CAM_ID=1
+        ;;
+    7) # TOF + Stereo + Tracking
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
         exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=0
-	# 	STEREO_CAM_ID=1
-	# 	TOF_CAM_ID=2
-	 	;;
-	8) # Hires only
+    #   HIRES_CAM_ID=-1
+    #   TRACKING_CAM_ID=0
+    #   STEREO_CAM_ID=1
+    #   TOF_CAM_ID=2
+        ;;
+    8) # Hires only
         CAM_LIST+=("hires:imx214:0")
-		;;
-	 9) # TOF only
+        ;;
+     9) # TOF only
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
         exit -1
-	# 	HIRES_CAM_ID=-1
-	# 	TRACKING_CAM_ID=-1
-	# 	STEREO_CAM_ID=-1
-	# 	TOF_CAM_ID=0
-	 	;;
-	10) # Stereo only
+    #   HIRES_CAM_ID=-1
+    #   TRACKING_CAM_ID=-1
+    #   STEREO_CAM_ID=-1
+    #   TOF_CAM_ID=0
+        ;;
+    10) # Stereo 7251 only
         CAM_LIST+=("stereo:ov7251:0:1")
-		;;
-	11) # 6-cam
+        ;;
+    11) # 6-cam
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("hires:imx214:3")
         CAM_LIST+=("stereo_front:ov7251:0:1")
         CAM_LIST+=("stereo_rear:ov7251:5:4")
-		;;
-	*)
-		echo "invalid option"
-		echo "Please provide a camera configuration-id"
+        ;;
+    12) # Stereo 9782 only
+        CAM_LIST+=("stereo_front:ov9782:0:1")
+        ;;
+    *)
+        echo "invalid option"
+        echo "Please provide a camera configuration-id"
         echo ""
         echo "available camera configurations are as follows:"
         print_configurations
-		exit -1
-		;;
+        exit -1
+        ;;
 esac
 
 camera-server-config-helper ${CAM_LIST[@]}
 
 ## Enable or disable voxl-camera-server
 if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
-	echo "stopping and disabling voxl-camera-server"
-	systemctl disable voxl-camera-server
-	systemctl stop voxl-camera-server
+    echo "stopping and disabling voxl-camera-server"
+    systemctl disable voxl-camera-server
+    systemctl stop voxl-camera-server
 else
-	echo "enabling and starting voxl-camera-server"
-	systemctl enable voxl-camera-server
-	systemctl start voxl-camera-server
+    echo "enabling and starting voxl-camera-server"
+    systemctl enable voxl-camera-server
+    systemctl start voxl-camera-server
 fi
 
 echo "Done Configuring Cameras"
