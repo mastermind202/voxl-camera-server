@@ -84,7 +84,7 @@ static const PerCameraInfo OV9782Defaults =
         true,                       //< Enabled?
         30,                         //< Framerate
         1280,                       //< Preview Width of the frame
-        720,                        //< Preview Height of the frame
+        800,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
         false,                      //< Enable Video Record
         -1,                         //< Video Record Width of the frame
