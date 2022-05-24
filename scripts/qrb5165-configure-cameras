@@ -43,18 +43,18 @@ ENABLE_CAMERA_SERVER=1
 print_configurations () {
     echo -e ""
     echo -e "0  None"
-    echo -e "1  Tracking + Stereo"
+    echo -e "1  Tracking + Stereo(OV7251)"
     echo -e "2  Tracking Only"
-    echo -e "3  Hires + Stereo + Tracking"
+    echo -e "3  Hires + Stereo(OV7251) + Tracking"
     echo -e "4  Hires + Tracking"
     echo -e "${SET_STRIKETHROUGH}5  TOF + Tracking${RESET_ALL}"
     echo -e "${SET_STRIKETHROUGH}6  Hires + TOF + Tracking${RESET_ALL}"
-    echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo + Tracking${RESET_ALL}"
+    echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo(OV7251) + Tracking${RESET_ALL}"
     echo -e "8  Hires Only"
     echo -e "${SET_STRIKETHROUGH}9  TOF Only${RESET_ALL}"
-    echo -e "10 Stereo OV7251 only"
+    echo -e "10 Stereo(OV7251) only"
     echo -e "11 Tracking + Hires + Dual Stereo Pairs"
-    echo -e "12 Stereo OV9782 only"
+    echo -e "12 Stereo(OV9782)0 only"
 }
 
 print_usage () {
