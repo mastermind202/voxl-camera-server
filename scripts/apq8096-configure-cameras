@@ -59,19 +59,19 @@ ROTATE_STEREO=0
 ENABLE_CAMERA_SERVER=1
 
 print_configurations () {
-	echo -e ""
-	echo -e "0  None"
-	echo -e "1  Tracking + Stereo"
-	echo -e "2  Tracking Only"
-	echo -e "3  Hires + Stereo + Tracking"
-	echo -e "4  Hires + Tracking"
-	echo -e "5  TOF + Tracking"
-	echo -e "6  Hires + TOF + Tracking"
-	echo -e "7  TOF + Stereo + Tracking"
-	echo -e "8  Hires Only"
-	echo -e "9  TOF Only"
-	echo -e "10 Stereo only"
-	echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo Pairs${RESET_ALL}"
+    echo -e ""
+    echo -e "0  None"
+    echo -e "1  Tracking + Stereo"
+    echo -e "2  Tracking Only"
+    echo -e "3  Hires + Stereo + Tracking"
+    echo -e "4  Hires + Tracking"
+    echo -e "5  TOF + Tracking"
+    echo -e "6  Hires + TOF + Tracking"
+    echo -e "7  TOF + Stereo + Tracking"
+    echo -e "8  Hires Only"
+    echo -e "9  TOF Only"
+    echo -e "10 Stereo only"
+    echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo Pairs${RESET_ALL}"
     echo -e "${SET_STRIKETHROUGH}12 Stereo OV9782 only${RESET_ALL}"
 
 }
@@ -212,11 +212,15 @@ case $CAM_CONFIG_ID in
     9) # TOF only
         CAM_LIST+=("tof:pmd-tof:0")
         ;;
-    10) # Stereo only
+    10) # Stereo 7251 only
         CAM_LIST+=("stereo:ov7251-pair:0")
         ;;
     11) # 6-cam
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the APQ8096 Platform"
+        exit -1
+        ;;
+    12) # Stereo 9782 only
+        echo "Configuration ${CAM_CONFIG_ID} is not supported on the APQ8096 Platform yet"
         exit -1
         ;;
     *)
@@ -233,46 +237,46 @@ camera-server-config-helper ${CAM_LIST[@]}
 ## in system images newer than 3.3.0, set up the 7251 drivers
 if [ -f ${FILE_OV7251_8BIT} ]; then
 
-	## backup and replace camera config XML
-	if [ ! -f ${CONFIG_XML_BAK} ]; then
-		echo "making new backup of ${CONFIG_XML}"
-		mv ${CONFIG_XML} ${CONFIG_XML_BAK}
-	fi
-	cp -f ${CONFIG_XML_NEW} ${CONFIG_XML}
+    ## backup and replace camera config XML
+    if [ ! -f ${CONFIG_XML_BAK} ]; then
+        echo "making new backup of ${CONFIG_XML}"
+        mv ${CONFIG_XML} ${CONFIG_XML_BAK}
+    fi
+    cp -f ${CONFIG_XML_NEW} ${CONFIG_XML}
 
-	## create correct symlinks for tracking and stereo cameras
-	if [ "${ROTATE_TRACKING}" == "0" ]; then
-		echo "making symlink for tracking upright 8-bit"
-		ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_TRACKING}
-	else
-		echo "making symlink for tracking rotated 8-bit"
-		ln -sf ${FILE_OV7251_8BIT_ROT} ${FILE_OV7251_TRACKING}
-	fi
-	if [ "${ROTATE_STEREO}" == "0" ]; then
-		echo "making symlink for stereo upright 8-bit"
-		ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_STEREO}
-	else
-		echo "making symlink for stereo rotated 8-bit"
-		ln -sf ${FILE_OV7251_8BIT_ROT} ${FILE_OV7251_STEREO}
-	fi
+    ## create correct symlinks for tracking and stereo cameras
+    if [ "${ROTATE_TRACKING}" == "0" ]; then
+        echo "making symlink for tracking upright 8-bit"
+        ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_TRACKING}
+    else
+        echo "making symlink for tracking rotated 8-bit"
+        ln -sf ${FILE_OV7251_8BIT_ROT} ${FILE_OV7251_TRACKING}
+    fi
+    if [ "${ROTATE_STEREO}" == "0" ]; then
+        echo "making symlink for stereo upright 8-bit"
+        ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_STEREO}
+    else
+        echo "making symlink for stereo rotated 8-bit"
+        ln -sf ${FILE_OV7251_8BIT_ROT} ${FILE_OV7251_STEREO}
+    fi
 
 ## on older system images without new drivers we can't use the new
 ## config XML so just warn the user
 else
-	echo "WARNING Please upgrade to VOXL system image 3.3.0 or newer"
-	echo "for optimized tracking/stereo performance and rotation."
-	echo ""
+    echo "WARNING Please upgrade to VOXL system image 3.3.0 or newer"
+    echo "for optimized tracking/stereo performance and rotation."
+    echo ""
 fi
 
 ## Enable or disable voxl-camera-server
 if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
-	echo "stopping and disabling voxl-camera-server"
-	systemctl disable voxl-camera-server
-	systemctl stop voxl-camera-server
+    echo "stopping and disabling voxl-camera-server"
+    systemctl disable voxl-camera-server
+    systemctl stop voxl-camera-server
 else
-	echo "enabling and starting voxl-camera-server"
-	systemctl enable voxl-camera-server
-	systemctl start voxl-camera-server
+    echo "enabling and starting voxl-camera-server"
+    systemctl enable voxl-camera-server
+    systemctl start voxl-camera-server
 fi
 
 echo "Done Configuring Cameras"
