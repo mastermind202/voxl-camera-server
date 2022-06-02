@@ -36,6 +36,7 @@
 #include "debug_log.h"
 #include "stdio.h"
 #include "exposure-hist.h"
+#include "exposure-msv.h"
 
 #define PADDING_DISABLED __attribute__((packed))
 
@@ -90,8 +91,8 @@ enum CameraType
     CAMTYPE_IMX214,
 #ifdef APQ8096
     CAMTYPE_OV7251_PAIR,
-    CAMTYPE_TOF,
 #endif
+    CAMTYPE_TOF,
     CAMTYPE_MAX_TYPES       ///< Max types
 };
 // Get the string associated with the type
@@ -99,6 +100,14 @@ const char* GetTypeString(int type);
 
 // Get the type associated with the string
 const CameraType GetCameraTypeFromString(char *type);
+
+enum AE_MODE
+{
+    AE_OFF   = 0,
+    AE_ISP,
+    AE_LME_HIST,
+    AE_LME_MSV
+};
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Structure containing information for one camera
@@ -125,8 +134,9 @@ struct PerCameraInfo
     int   s_height;           ///< Snapshot Height of the frame
     bool  flip;               ///< Flip?
 
-    bool useAE;
-    modal_exposure_config_t expGainInfo; ///< ModalAI AE data (from libmodal_exposure)
+    AE_MODE ae_mode;
+    modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)
+    modal_exposure_msv_config_t  ae_msv_info;  ///< ModalAI AE data (MSV)
 };
 
 

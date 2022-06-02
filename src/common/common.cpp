@@ -125,7 +125,11 @@ void PrintCameraInfo(PerCameraInfo pCameraInfo)    ///< Camera info
     }
     printf("\t FPS                 : %d\n", pCameraInfo.fps);
 
-    modal_exposure_print_config(pCameraInfo.expGainInfo);
+    if(pCameraInfo.ae_mode == AE_LME_HIST){
+        modal_exposure_print_config(pCameraInfo.ae_hist_info);
+    } else if(pCameraInfo.ae_mode == AE_LME_MSV){
+        modal_exposure_msv_print_config(pCameraInfo.ae_msv_info);
+    }
 
     printf("\n");
 }

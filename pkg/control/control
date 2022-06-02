@@ -1,5 +1,5 @@
 Package: qrb5165-camera-server
-Version: 0.3.1
+Version: 0.3.2
 Section: base
 Priority: optional
 Architecture: arm64

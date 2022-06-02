@@ -56,8 +56,8 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        true,                       //< Use ModalAI AE
-        {                           //< ModalAI AE Algorithm Parameters
+        AE_LME_HIST,                //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
             20,                     //< Exposure Min
@@ -73,7 +73,6 @@ static const PerCameraInfo OV7251Defaults =
             8000,                   //< Exposure offset
         }
     };
-
 static const PerCameraInfo OV9782Defaults =
     {
         "",                         //< Name
@@ -93,8 +92,8 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        true,                       //< Use ModalAI AE
-        {                           //< ModalAI AE Algorithm Parameters
+        AE_LME_MSV,                 //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
             54,                     //< Gain Min
             835,                    //< Gain Max
             20,                     //< Exposure Min
@@ -108,6 +107,20 @@ static const PerCameraInfo OV9782Defaults =
             2,                      //< Gain Period
             false,                  //< Display Debug
             8000,                   //< Exposure offset
+        },
+        {                           //< MSV AE Algorithm Parameters
+            54,                     //< Gain Min
+            835,                    //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            5000,                   //< Soft min exposure
+            0.5,                    //< Gain Slope
+            80.0,                   //< Desired MSV
+            0.3,                    //< Filter Alpha
+            0.2,                    //< Most saturated ignore frac
+            1,                      //< Exposure update period
+            1,                      //< Gain update period
+            false                   //< Display Debug
         }
     };
 
@@ -131,8 +144,8 @@ static const PerCameraInfo IMX214Defaults =
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
-        false,                      //< Use ModalAI AE
-        {                           //< ModalAI AE Algorithm Parameters
+        AE_OFF,                     //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
             20,                     //< Exposure Min
@@ -169,8 +182,8 @@ static const PerCameraInfo IMX214Defaults =
         640,                        //< Snapshot Width of the frame
         480,                        //< Snapshot Height of the frame
         false,                      //< Flip
-        false,                      //< Use ModalAI AE
-        {                           //< ModalAI AE Algorithm Parameters
+        AE_OFF,                     //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
             20,                     //< Exposure Min
@@ -211,22 +224,7 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //Flip
-        false,                      //< Use ModalAI AE
-        {                           //ModalAI AE Algorithm Parameters
-            0,                      //Gain Min
-            0,                      //Gain Max
-            0,                      //Exposure Min
-            0,                      //Exposure Max
-            0,                      //Desired MSV
-            0,                      //k_p_ns
-            0,                      //k_i_ns
-            0,                      //Max i
-            0,                      //p Good Threshold
-            0,                      //Exposure Period
-            0,                      //Gain Period
-            0,                      //Display Debug
-            0,                      //Exposure offset
-        }
+        AE_OFF,                     //< AE Mode
     };
 #endif
 
@@ -249,22 +247,7 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        false,                      //< Use ModalAI AE
-        {                           //< ModalAI AE Algorithm Parameters
-            0,                      //< Gain Min
-            0,                      //< Gain Max
-            0,                      //< Exposure Min
-            0,                      //< Exposure Max
-            0,                      //< Desired MSV
-            0,                      //< k_p_ns
-            0,                      //< k_i_ns
-            0,                      //< Max i
-            0,                      //< p Good Threshold
-            0,                      //< Exposure Period
-            0,                      //< Gain Period
-            0,                      //< Display Debug
-            0,                      //< Exposure offset
-        }
+        AE_OFF,                     //< AE Mode
     };
 
 const PerCameraInfo getDefaultCameraInfo(CameraType t) {

@@ -45,6 +45,7 @@
 #include "buffer_manager.h"
 #include "common_defs.h"
 #include "exposure-hist.h"
+#include "exposure-msv.h"
 
 #define NUM_MODULE_OPEN_ATTEMPTS 10
 
@@ -91,6 +92,7 @@ public:
     const int32_t              s_width;                        ///< Preview Width
     const int32_t              s_height;                       ///< Preview Height
     const int32_t              s_halFmt;                       ///< Preview HAL format
+    const AE_MODE              ae_mode;
 
 private:
 
@@ -169,7 +171,8 @@ private:
     }
 
     camera_module_t*                  pCameraModule;               ///< Camera module
-    ModalExposureHist                 expInterface;
+    ModalExposureHist                 expHistInterface;
+    ModalExposureMSV                  expMSVInterface;
     Camera3Callbacks                  cameraCallbacks;             ///< Camera callbacks
     camera3_device_t*                 pDevice;                     ///< HAL3 device
     camera3_stream_t                  p_stream;                    ///< Stream to be used for the preview request
@@ -185,7 +188,6 @@ private:
     pthread_cond_t                    requestCond;                 ///< Condition variable for wake up
     pthread_mutex_t                   resultMutex;                 ///< Mutex for list access
     pthread_cond_t                    resultCond;                  ///< Condition variable for wake up
-    bool                              usingAE;                     ///< Internal Auto Exposure (False for ISP)
     bool                              is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
     int64_t                           currentFrameNumber = 0;      ///< Frame Number
     int64_t                           currentTimestamp;            ///< Timestamp

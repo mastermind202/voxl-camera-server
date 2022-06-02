@@ -87,24 +87,25 @@ static int32_t HalFmtFromType(int fmt);
 // Constructor
 // -----------------------------------------------------------------------------------------------------------------------------
 PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
-    configInfo    (pCameraInfo),
-    outputChannel (pipe_server_get_next_available_channel()),
-    cameraId      (pCameraInfo.camId),
-    //name          (), // Maybe keep trying to make this work, just use strcpy for now
-    en_video      (pCameraInfo.en_video),
-    en_snapshot   (pCameraInfo.en_snapshot),
-    p_width       (pCameraInfo.p_width),
-    p_height      (pCameraInfo.p_height),
-    p_halFmt      (HalFmtFromType(pCameraInfo.p_format)),
-    v_width       (pCameraInfo.v_width),
-    v_height      (pCameraInfo.v_height),
-    v_halFmt      (-1),
-    s_width       (pCameraInfo.s_width),
-    s_height      (pCameraInfo.s_height),
-    s_halFmt      (HAL_PIXEL_FORMAT_BLOB),
-    pCameraModule (HAL3_get_camera_module()),
-    expInterface  (pCameraInfo.expGainInfo),
-    usingAE       (pCameraInfo.useAE)
+    configInfo        (pCameraInfo),
+    outputChannel     (pipe_server_get_next_available_channel()),
+    cameraId          (pCameraInfo.camId),
+    //name              (), // Maybe keep trying to make this work, just use strcpy for now
+    en_video          (pCameraInfo.en_video),
+    en_snapshot       (pCameraInfo.en_snapshot),
+    p_width           (pCameraInfo.p_width),
+    p_height          (pCameraInfo.p_height),
+    p_halFmt          (HalFmtFromType(pCameraInfo.p_format)),
+    v_width           (pCameraInfo.v_width),
+    v_height          (pCameraInfo.v_height),
+    v_halFmt          (-1),
+    s_width           (pCameraInfo.s_width),
+    s_height          (pCameraInfo.s_height),
+    s_halFmt          (HAL_PIXEL_FORMAT_BLOB),
+    ae_mode           (pCameraInfo.ae_mode),
+    pCameraModule     (HAL3_get_camera_module()),
+    expHistInterface  (pCameraInfo.ae_hist_info),
+    expMSVInterface   (pCameraInfo.ae_msv_info)
 {
 
     strcpy(name, pCameraInfo.name);
@@ -318,45 +319,54 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     // Modify all the settings that we want to
     requestMetadata = clone_camera_metadata(pDefaultMetadata);
 
-    if (usingAE) {
+    switch (ae_mode){
 
-        //This covers the 5 below modes, we want them all off
-        uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
-        //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
-        //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
-        //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
-        //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
-        //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+        case AE_OFF :
+        case AE_LME_HIST :
+        case AE_LME_MSV : {
 
-        //This covers the 5 below modes, we want them all off
-        requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
-        //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
-        //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
-        //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
-        //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
-        //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+            //This covers the 5 below modes, we want them all off
+            uint8_t controlMode = ANDROID_CONTROL_MODE_OFF;
+            //uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_OFF;
+            //uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
+            //uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+            //uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+            //uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
 
-        setExposure             =  5259763;
-        setGain                 =  800;
+            //This covers the 5 below modes, we want them all off
+            requestMetadata.update(ANDROID_CONTROL_MODE,                &controlMode,        1);
+            //requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+            //requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+            //requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+            //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+            //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
 
-        requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
-        requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
+            setExposure             =  5259763;
+            setGain                 =  800;
 
-    } else {
+            requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
+            requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
 
-        uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
-        uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
-        uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+            break;
+        }
 
-        //Don't have any autofocus so turn these off
-        uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
-        uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+        case AE_ISP : {
 
-        requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
-        requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
-        requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
-        requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
-        requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+            uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
+            uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
+            uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+
+            //Don't have any autofocus so turn these off
+            uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;
+            uint8_t faceDetectMode    =  ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
+
+            requestMetadata.update(ANDROID_CONTROL_AE_MODE,             &aeMode,             1);
+            requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
+            requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
+            requestMetadata.update(ANDROID_STATISTICS_FACE_DETECT_MODE, &faceDetectMode,     1);
+            requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
+            break;
+        }
     }
 
     if(en_snapshot){
@@ -770,7 +780,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         int64_t    new_exposure_ns;
         int32_t    new_gain;
 
-        if (usingAE && expInterface.update_exposure(
+        if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 srcPixel,
                 p_width,
                 p_height,
@@ -781,7 +791,19 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
             setExposure = new_exposure_ns;
             setGain     = new_gain;
+        }
 
+        if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
+                srcPixel,
+                p_width,
+                p_height,
+                imageInfo.exposure_ns,
+                imageInfo.gain,
+                &new_exposure_ns,
+                &new_gain)){
+
+            setExposure = new_exposure_ns;
+            setGain     = new_gain;
         }
 
     } else if (partnerMode == MODE_STEREO_MASTER){
@@ -861,7 +883,24 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         int64_t    new_exposure_ns;
         int32_t    new_gain;
 
-        if (usingAE && expInterface.update_exposure(
+        if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
+                srcPixel,
+                p_width,
+                p_height,
+                imageInfo.exposure_ns,
+                imageInfo.gain,
+                &new_exposure_ns,
+                &new_gain)){
+
+            setExposure = new_exposure_ns;
+            setGain     = new_gain;
+
+            //Pass back the new AE values to the other camera
+            otherMgr->setExposure = new_exposure_ns;
+            otherMgr->setGain = new_gain;
+        }
+
+        if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
                 srcPixel,
                 p_width,
                 p_height,
@@ -1022,7 +1061,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 {
     camera3_capture_request_t request;
 
-    if(usingAE){
+    if(ae_mode != AE_ISP){
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
         requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
     }
@@ -1212,10 +1251,10 @@ static int _exists(char* path)
 
 void PerCameraMgr::HandleControlCmd(char* cmd) {
 
-    __attribute__((unused)) const int MIN_EXP  = configInfo.expGainInfo.exposure_min_us;
-    __attribute__((unused)) const int MAX_EXP  = configInfo.expGainInfo.exposure_max_us;
-    __attribute__((unused)) const int MIN_GAIN = configInfo.expGainInfo.gain_min;
-    __attribute__((unused)) const int MAX_GAIN = configInfo.expGainInfo.gain_max;
+    __attribute__((unused)) const int MIN_EXP  = configInfo.ae_hist_info.exposure_min_us;
+    __attribute__((unused)) const int MAX_EXP  = configInfo.ae_hist_info.exposure_max_us;
+    __attribute__((unused)) const int MIN_GAIN = configInfo.ae_hist_info.gain_min;
+    __attribute__((unused)) const int MAX_GAIN = configInfo.ae_hist_info.gain_max;
 
     /**************************
      *
