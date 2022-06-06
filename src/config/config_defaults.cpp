@@ -114,9 +114,9 @@ static const PerCameraInfo OV9782Defaults =
             20,                     //< Exposure Min
             33000,                  //< Exposure Max
             5000,                   //< Soft min exposure
-            0.5,                    //< Gain Slope
-            80.0,                   //< Desired MSV
-            0.3,                    //< Filter Alpha
+            0.05,                   //< Gain Slope
+            60.0,                   //< Desired MSV
+            0.6,                    //< Filter Alpha
             0.2,                    //< Most saturated ignore frac
             1,                      //< Exposure update period
             1,                      //< Gain update period
