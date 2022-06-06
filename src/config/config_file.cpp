@@ -66,7 +66,10 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonFpsString          "frame_rate"               ///< Fps
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
 #define JsonAEFilterAlpha      "ae_filter_alpha"          ///< Modal AE MSV Algo filter alpha
-#define JsonAEKIIgnoreFraction "ae_ignore_fraction"       ///< Modal AE MSV algo ignore frac for most saturated
+#define JsonAEIgnoreFraction   "ae_ignore_fraction"       ///< Modal AE MSV algo ignore frac for most saturated
+#define JsonAESlope            "ae_slope"                 ///< Modal AE MSV algo Exp/Gain Slope
+#define JsonAEExposurePeriod   "ae_exposure_period"       ///< Modal AE MSV algo Exposure Period
+#define JsonAEGainPeriod       "ae_gain_period"           ///< Modal AE MSV algo Gain Period
 #define JsonAEKPString         "ae_k_p_ns"                ///< Modal AE Algorithm k_p
 #define JsonAEKIString         "ae_k_i_ns"                ///< Modal AE Algorithm k_i
 #define JsonAEMaxIString       "ae_max_i"                 ///< Modal AE Algorithm max i
@@ -149,14 +152,17 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
         info.flip = tmp;
 
-        json_fetch_float_with_default (cur, JsonAEDesiredMSVString ,   &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
-        json_fetch_float_with_default (cur, JsonAEKPString ,           &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
-        json_fetch_float_with_default (cur, JsonAEKIString ,           &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
-        json_fetch_float_with_default (cur, JsonAEMaxIString ,         &info.ae_hist_info.max_i,       info.ae_hist_info.max_i);
+        json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
+        json_fetch_float_with_default (cur, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
+        json_fetch_float_with_default (cur, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
+        json_fetch_float_with_default (cur, JsonAEMaxIString ,       &info.ae_hist_info.max_i,       info.ae_hist_info.max_i);
 
-        json_fetch_float_with_default (cur, JsonAEDesiredMSVString ,   &info.ae_msv_info.desired_msv, info.ae_msv_info.desired_msv);
-        json_fetch_float_with_default (cur, JsonAEFilterAlpha ,        &info.ae_msv_info.msv_filter_alpha, info.ae_msv_info.msv_filter_alpha);
-        json_fetch_float_with_default (cur, JsonAEKIIgnoreFraction ,   &info.ae_msv_info.max_saturated_pix_ignore_fraction, info.ae_msv_info.max_saturated_pix_ignore_fraction);
+        json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_msv_info.desired_msv,                       info.ae_msv_info.desired_msv);
+        json_fetch_float_with_default (cur, JsonAEFilterAlpha ,      &info.ae_msv_info.msv_filter_alpha,                  info.ae_msv_info.msv_filter_alpha);
+        json_fetch_float_with_default (cur, JsonAEIgnoreFraction ,   &info.ae_msv_info.max_saturated_pix_ignore_fraction, info.ae_msv_info.max_saturated_pix_ignore_fraction);
+        json_fetch_float_with_default (cur, JsonAESlope ,            &info.ae_msv_info.exposure_gain_slope,               info.ae_msv_info.exposure_gain_slope);
+        json_fetch_int_with_default   (cur, JsonAEExposurePeriod ,   (int*)&info.ae_msv_info.exposure_update_period, (int)info.ae_msv_info.exposure_update_period);
+        json_fetch_int_with_default   (cur, JsonAEGainPeriod ,       (int*)&info.ae_msv_info.gain_update_period,     (int)info.ae_msv_info.gain_update_period);
 
         cameraNames.push_back(info.name);
         cameras.push_back(info);
@@ -216,7 +222,11 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         } else if(info.ae_mode == AE_LME_MSV){
             cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.ae_msv_info.desired_msv);
             cJSON_AddNumberToObject (node, JsonAEFilterAlpha ,       info.ae_msv_info.msv_filter_alpha);
-            cJSON_AddNumberToObject (node, JsonAEKIIgnoreFraction ,  info.ae_msv_info.max_saturated_pix_ignore_fraction);
+            cJSON_AddNumberToObject (node, JsonAEIgnoreFraction ,    info.ae_msv_info.max_saturated_pix_ignore_fraction);
+            cJSON_AddNumberToObject (node, JsonAESlope ,             info.ae_msv_info.exposure_gain_slope);
+            cJSON_AddNumberToObject (node, JsonAEExposurePeriod ,    info.ae_msv_info.exposure_update_period);
+            cJSON_AddNumberToObject (node, JsonAEGainPeriod ,        info.ae_msv_info.gain_update_period);
+
         }
 
         cJSON_AddItemToArray(camArray, node);

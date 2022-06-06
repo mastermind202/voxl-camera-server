@@ -1,3 +1,5 @@
+0.3.3
+    * Expose additional msv algo parameters to the config file
 0.3.2
     * Implement MSV exposure algo option
 0.3.1
