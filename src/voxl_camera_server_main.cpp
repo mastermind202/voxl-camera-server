@@ -59,12 +59,6 @@ static void   PrintHelpMessage();
 static int    ParseArgs(int         argc,
                  char* const argv[]);
 
-
-int framerate;
-int useAE;
-int setEXP;
-int setIntent;
-
 static list<PerCameraMgr*> mgrs;
 static void cleanManagers();
 
@@ -105,6 +99,8 @@ int main(int argc, char* const argv[])
     // we can be fairly confident there is no PID file already and we can
     // make our own safely.
     make_pid_file(PROCESS_NAME);
+
+    pipe_set_process_priority(THREAD_PRIORITY_RT_MED);
 
     main_running = 1;
 

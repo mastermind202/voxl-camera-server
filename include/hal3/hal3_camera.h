@@ -190,7 +190,7 @@ private:
     pthread_cond_t                    resultCond;                  ///< Condition variable for wake up
     bool                              is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
     int64_t                           currentFrameNumber = 0;      ///< Frame Number
-    int64_t                           currentTimestamp;            ///< Timestamp
+    unsigned long long                currentTimestamp;            ///< Timestamp
     int64_t                           currentExposure;             ///< Exposure
     int32_t                           currentGain;                 ///< Gain
     int64_t                           setExposure;                 ///< Exposure
@@ -201,7 +201,7 @@ private:
     PerCameraMgr*                     otherMgr;                    ///< Pointer to the partner manager in a stereo pair
     PCM_MODE                          partnerMode;                 ///< Mode for mono/stereo
     uint8_t*                          childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
-    camera_image_metadata_t*          childInfo  = NULL;           ///< Pointer to the child frame info
+    camera_image_metadata_t           childInfo;                   ///< Copy of the child frame info
     bool                              stopped = false;             ///< Indication for the thread to terminate
     bool                              EStopped = false;            ///< Emergency Stop, terminate without any cleanup
     int                               lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating

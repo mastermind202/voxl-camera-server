@@ -341,6 +341,7 @@ LensType :
 
   <!-- ov7251 stereo pair in camera slot 1 -->
   <!-- ov7251 stereo can only work in slot 1 -->
+  <!--
   <StereoConfig>
     <SensorNode>
       <CameraId>1</CameraId>
@@ -388,6 +389,56 @@ LensType :
       </LensInfo>
     </SensorNode>
   </StereoConfig>
+-->
+
+  <!-- ov7251 camera in camera slot 1 (left) using i2c0-->
+  <CameraModuleConfig>
+    <CameraId>1</CameraId>
+    <SensorName>ov7251_stereo</SensorName>
+    <SensorSlaveAddress>0xC0</SensorSlaveAddress>
+    <ChromatixName>ov7251_chromatix</ChromatixName>
+    <ModesSupported>1</ModesSupported>
+    <Position>FRONT</Position>
+    <MountAngle>360</MountAngle>
+    <CSIInfo>
+      <CSIDCore>1</CSIDCore>
+      <LaneMask>0x3</LaneMask>
+      <LaneAssign>0x0</LaneAssign>
+      <ComboMode>1</ComboMode>
+    </CSIInfo>
+    <LensInfo>
+      <FocalLength>4.73</FocalLength>
+      <FNumber>2.2</FNumber>
+      <TotalFocusDistance>1.9</TotalFocusDistance>
+      <HorizontalViewAngle>64.1</HorizontalViewAngle>
+      <VerticalViewAngle>51.6</VerticalViewAngle>
+      <MinFocusDistance>0.1</MinFocusDistance>
+    </LensInfo>
+  </CameraModuleConfig>
+  <!-- ov7251 camera in camera slot 1 (right) using i2c1-->
+  <CameraModuleConfig>
+    <CameraId>3</CameraId>
+    <SensorName>ov7251_stereo</SensorName>
+    <SensorSlaveAddress>0xC0</SensorSlaveAddress>
+    <ChromatixName>ov7251_chromatix</ChromatixName>
+    <ModesSupported>1</ModesSupported>
+    <Position>FRONT</Position>
+    <MountAngle>360</MountAngle>
+    <CSIInfo>
+      <CSIDCore>3</CSIDCore>
+      <LaneMask>0x18</LaneMask>
+      <LaneAssign>0x3</LaneAssign>
+      <ComboMode>1</ComboMode>
+    </CSIInfo>
+    <LensInfo>
+      <FocalLength>4.73</FocalLength>
+      <FNumber>2.2</FNumber>
+      <TotalFocusDistance>1.9</TotalFocusDistance>
+      <HorizontalViewAngle>64.1</HorizontalViewAngle>
+      <VerticalViewAngle>51.6</VerticalViewAngle>
+      <MinFocusDistance>0.1</MinFocusDistance>
+    </LensInfo>
+  </CameraModuleConfig>
 
 <!-- IMX296 module in camera slot 0 -->
 <!--

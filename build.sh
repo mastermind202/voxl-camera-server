@@ -20,7 +20,7 @@ print_usage(){
     echo " Usage:"
     echo ""
     echo "  ./build.sh apq8096"
-    echo "        Build 64-bit binaries for apq8096"
+    echo "        Build 32-bit binaries for apq8096"
     echo ""
     echo "  ./build.sh qrb5165"
     echo "        Build 64-bit binaries for qrb5165"

@@ -203,8 +203,6 @@ static const PerCameraInfo IMX214Defaults =
     #error "Missing Architecture"
 #endif
 
-
-#ifdef APQ8096
 static const PerCameraInfo TOFDefaults =
     {
         "",                         //Name
@@ -226,7 +224,6 @@ static const PerCameraInfo TOFDefaults =
         false,                      //Flip
         AE_OFF,                     //< AE Mode
     };
-#endif
 
 static const PerCameraInfo emptyDefaults =
     {
@@ -258,21 +255,8 @@ const PerCameraInfo getDefaultCameraInfo(CameraType t) {
             return OV9782Defaults;
         case CAMTYPE_IMX214:
             return IMX214Defaults;
-
-    #ifdef APQ8096
-        case CAMTYPE_OV7251_PAIR:{
-            PerCameraInfo temp = OV7251Defaults;
-            temp.p_width *= 2;
-            temp.v_width *= 2;
-            temp.s_width *= 2;
-            temp.p_format = FMT_NV21;
-            temp.type = CAMTYPE_OV7251_PAIR;
-            return temp;
-        }
-
         case CAMTYPE_TOF:
             return TOFDefaults;
-    #endif
 
         default:
             return emptyDefaults;

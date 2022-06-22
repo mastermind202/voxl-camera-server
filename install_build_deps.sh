@@ -19,7 +19,8 @@ DEPS_APQ8096=( "
 libmodal-pipe
 libmodal-json
 libmodal-exposure
-libvoxl-cutils" )
+libvoxl-cutils
+/data/offline_ipk_packages/apq8096-proprietary*.ipk" )
 
 
 ## this list is just for tab-completion
@@ -35,6 +36,12 @@ print_usage(){
     echo "  ./install_build_deps.sh {platform} {section}"
     echo ""
     echo " Examples:"
+    echo ""
+    echo "  ./install_build_deps.sh apq8096 dev"
+    echo "        Install from apq8096 development repo."
+    echo ""
+    echo "  ./install_build_deps.sh apq8096 sdk-1.0"
+    echo "        Install from apq8096 sdk-1.0 repo."
     echo ""
     echo "  ./install_build_deps.sh qrb5165 dev"
     echo "        Install from qrb5165 development repo."

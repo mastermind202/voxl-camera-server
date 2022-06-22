@@ -1,21 +1,20 @@
-# RB5 Camera Server
+# VOXL Camera Server
 
 ## Build Instructions
 
-1. Requires the voxl-cross>=v1.9 docker image (found [here](https://developer.modalai.com/asset))
-    * (PC) cd [Path To]/qrb5165-camera-server
-    * (PC) voxl-docker -i voxl-cross
+1. Requires the voxl-cross>=v2.0 docker image (found [here](https://developer.modalai.com/asset))
+    * (PC) ```cd [Path To]/voxl-camera-server```
+    * (PC) ```voxl-docker -i voxl-cross```
 2. Build project binary:
-    * (voxl-cross) ./install_build_deps.sh qrb5165 [repo]
-    * (voxl-cross) ./clean.sh
-    * (voxl-cross) ./build.sh
-    * (voxl-cross) ./make_package.sh
+    * (voxl-cross) ```./install_build_deps.sh {platform type} {repo}```
+    * (voxl-cross) ```./clean.sh```
+    * (voxl-cross) ```./build.sh {platform type}```
+    * (voxl-cross) ```./make_package.sh {package type}```
 
 ## Installing and running on VOXL
 
-* (PC) ./deploy_to_voxl.sh
-* (RB5) voxl-configure-cameras
-* (RB5) systemctl start voxl-camera-server
+* (PC) ```./deploy_to_voxl.sh```
+* (VOXL) ```voxl-configure-cameras {id number}```
 
 ### Testing
 
@@ -25,7 +24,7 @@ You can test with the tracking camera running the following command on VOXL:
 $ voxl-portal
 ```
 
-And then pulling up the drone's IP address on a mobile or desktop device connected to the same network can pull up a web view of any of the cameras.
+And then pulling up the drone's IP address on a mobile or desktop device connected to the same network, pulling up a web view of any of the cameras.
 
 #### ModalAI Auto-Exposure
 

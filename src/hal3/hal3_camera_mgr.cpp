@@ -438,14 +438,15 @@ void PerCameraMgr::Stop()
         otherMgr->stopped = true;
     }
 
-    pthread_cond_signal(&requestCond);
+    pthread_cond_broadcast(&requestCond);
     pthread_join(requestThread, NULL);
     pthread_cond_signal(&requestCond);
     pthread_mutex_unlock(&requestMutex);
     pthread_mutex_destroy(&requestMutex);
     pthread_cond_destroy(&requestCond);
 
-    pthread_cond_signal(&resultCond);
+    pthread_cond_broadcast(&stereoCond);
+    pthread_cond_broadcast(&resultCond);
     pthread_join(resultThread, NULL);
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
@@ -485,6 +486,8 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
     if(pHalResult->partial_result > 1){
 
+        pthread_mutex_lock(&resultMutex);
+
         VOXL_LOG_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
 
         int result = 0;
@@ -494,25 +497,27 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
-            VOXL_LOG_VERBOSE("\tTimestamp: %ld\n", entry.data.i64[0]);
             currentTimestamp = entry.data.i64[0];
+            VOXL_LOG_VERBOSE("\tTimestamp: %llu\n", currentTimestamp);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
 
         if (!result && entry.count)
         {
-            VOXL_LOG_VERBOSE("\tGain: %d\n", entry.data.i32[0]);
             currentGain = entry.data.i32[0];
+            VOXL_LOG_VERBOSE("\tGain: %d\n", currentGain);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
 
         if (!result && entry.count)
         {
-            VOXL_LOG_VERBOSE("\tExposure: %ld\n", entry.data.i64[0]);
             currentExposure = entry.data.i64[0];
+            VOXL_LOG_VERBOSE("\tExposure: %ld\n", currentExposure);
         }
+        pthread_mutex_unlock(&resultMutex);
+
     }
 
     for (uint i = 0; i < pHalResult->num_output_buffers; i++)
@@ -707,11 +712,6 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
         if(imageInfo.frame_id == 1){
 
-            //Only need to set this info once, put in the condition to save a few cycles
-            imageInfo.format     = IMAGE_FORMAT_RAW8;
-            imageInfo.size_bytes = p_width * p_height;
-            imageInfo.stride     = p_width;
-
             VOXL_LOG_VERBOSE("Received raw10 frame, checking to see if is actually raw8\n");
 
             if((is10bit = Check10bit(srcPixel, p_width, p_height))){
@@ -721,6 +721,10 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             }
 
         }
+
+        imageInfo.format     = IMAGE_FORMAT_RAW8;
+        imageInfo.size_bytes = p_width * p_height;
+        imageInfo.stride     = p_width;
 
         if(is10bit){
             ConvertTo8bitRaw(srcPixel,
@@ -733,29 +737,15 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         // For ov7251 camera there is no color so we just send the Y channel data as RAW8
         if (configInfo.type == CAMTYPE_OV7251)
         {
+            printf("%s, %d\n", __FUNCTION__, __LINE__ );
+
             imageInfo.format     = IMAGE_FORMAT_RAW8;
             imageInfo.size_bytes = p_width * p_height;
         }
-        #ifdef APQ8096
-        //APQ only, stereo frames can come in as a pair, need to deinterlace them
-        else if (configInfo.type == CAMTYPE_OV7251_PAIR)
-        {
-            static uint8_t *stereoBuffer = (uint8_t*)malloc(p_width/2 * p_height);
-
-            imageInfo.format     = IMAGE_FORMAT_STEREO_RAW8;
-            imageInfo.size_bytes = p_width * p_height;
-            imageInfo.width      = p_width / 2;
-
-            for(int i = 0; i < p_height; i++){
-                memcpy(&(srcPixel[i * p_width / 2]), &(srcPixel[i * p_width]), p_width / 2);
-                memcpy(&(stereoBuffer[i * p_width / 2]), &(srcPixel[(i * p_width) + (p_width/2)]), p_width / 2);
-            }
-            memcpy(&(srcPixel[p_width/2*p_height]), stereoBuffer, p_width/2*p_height);
-
-        }
-        #endif
         // We always send YUV contiguous data out of the camera server
         else {
+            printf("%s, %d\n", __FUNCTION__, __LINE__ );
+
             imageInfo.format     = IMAGE_FORMAT_NV12;
             bufferMakeYUVContiguous(bufferBlockInfo);
             ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
@@ -821,7 +811,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             case IMAGE_FORMAT_STEREO_NV21:
                 break;
             default:
-                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8\n");
+                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8: %s\n", pipe_image_format_to_string(imageInfo.format));
                 EStopCameraServer();
                 break;
         }
@@ -844,30 +834,33 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
         if(childFrame == NULL){
             pthread_mutex_unlock(&stereoMutex);
-            VOXL_LOG_INFO("Child frame not received\n");
+            VOXL_LOG_WARNING("Child frame not received\n");
             return;
         }
 
+        VOXL_LOG_VERBOSE("%s timestamps: %llu, %llu\n", name, imageInfo.timestamp_ns, childInfo.timestamp_ns);
+
         //Much newer child, discard master but keep the child
-        if(childInfo->timestamp_ns - imageInfo.timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_INFO("INFO: Camera %s recieved much newer child than master (%lu), discarding master and trying again\n", name, childInfo->timestamp_ns - imageInfo.timestamp_ns);
+        long diff = childInfo.timestamp_ns - imageInfo.timestamp_ns;
+        if(diff > MAX_STEREO_DISCREPENCY_NS){
+            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer child than master (%llu), discarding master and trying again\n", name, diff);
             pthread_mutex_unlock(&stereoMutex);
             return;
         }
 
         //Much newer master, discard the child and get a new one
-        if(imageInfo.timestamp_ns - childInfo->timestamp_ns > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_INFO("INFO: Camera %s recieved much newer master than child (%lu), discarding child and trying again\n", name, imageInfo.timestamp_ns - childInfo->timestamp_ns);
+        diff *= -1;
+        if(diff > MAX_STEREO_DISCREPENCY_NS){
+            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer master than child (%llu), discarding child and trying again\n", name, diff);
             childFrame = NULL;
-            childInfo  = NULL;
             pthread_mutex_unlock(&stereoMutex);
             pthread_cond_signal(&(otherMgr->stereoCond));
             goto NEED_CHILD;
         }
 
         // Assume the earlier timestamp is correct
-        if(imageInfo.timestamp_ns > childInfo->timestamp_ns){
-            imageInfo.timestamp_ns = childInfo->timestamp_ns;
+        if(imageInfo.timestamp_ns > childInfo.timestamp_ns){
+            imageInfo.timestamp_ns = childInfo.timestamp_ns;
         }
 
         if(configInfo.flip){
@@ -919,7 +912,6 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
         //Clear the pointers and signal the child thread for cleanup
         childFrame = NULL;
-        childInfo  = NULL;
         pthread_mutex_unlock(&stereoMutex);
         pthread_cond_signal(&(otherMgr->stereoCond));
 
@@ -928,7 +920,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         pthread_mutex_lock(&(otherMgr->stereoMutex));
 
         otherMgr->childFrame = srcPixel;
-        otherMgr->childInfo  = &imageInfo;
+        otherMgr->childInfo  = imageInfo;
 
         pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
         pthread_mutex_unlock(&(otherMgr->stereoMutex));
@@ -1006,11 +998,11 @@ void* PerCameraMgr::ThreadPostProcessResult()
         VOXL_LOG_VERBOSE("%s procesing new buffer\n", name);
 
         resultMsgQueue.pop_front();
-        pthread_mutex_unlock(&resultMutex);
 
         if(stopped) {
             bufferPush(*bufferGroup, handle);
             pthread_cond_signal(&stereoCond);
+            pthread_mutex_unlock(&resultMutex);
             continue;
         }
 
@@ -1035,6 +1027,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 VOXL_LOG_ERROR("Camera: %s recieved frame for unknown stream\n", name);
                 break;
         }
+        pthread_mutex_unlock(&resultMutex);
 
         bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
 
@@ -1416,8 +1409,10 @@ void PerCameraMgr::addClient(){
 void PerCameraMgr::EStop(){
 
     EStopped = true;
-    pthread_cond_signal(&requestCond);
-    pthread_cond_signal(&resultCond);
+    stopped = true;
+    pthread_cond_broadcast(&requestCond);
+    pthread_cond_broadcast(&stereoCond);
+    pthread_cond_broadcast(&resultCond);
 
     if(partnerMode == MODE_STEREO_MASTER){
         otherMgr->EStop();

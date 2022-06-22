@@ -262,9 +262,9 @@ void HAL3_print_camera_resolutions(int camId){
 
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE, &entry);
-        uint64_t min_exposure = entry.data.i64[0];  //ns
-        uint64_t max_exposure = entry.data.i64[1];  //ns
-        printf("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %luns\n\tmax = %luns\n",min_exposure,max_exposure);
+        unsigned long long min_exposure = entry.data.i64[0];  //ns
+        unsigned long long max_exposure = entry.data.i64[1];  //ns
+        printf("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %lluns\n\tmax = %lluns\n",min_exposure,max_exposure);
 
         printf("\n");
 

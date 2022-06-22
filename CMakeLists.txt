@@ -68,32 +68,23 @@ include_directories(
 	include/common/
 )
 
-if(PLATFORM MATCHES APQ8096)
-    include_directories(
-        proprietary/include/
-    )
-endif()
+target_link_libraries(${SERVERNAME}
+    modal_pipe
+    modal_exposure
+    modal_json
+    voxl_cutils
+    camera_metadata
+    hardware
+)
 
 if(PLATFORM MATCHES APQ8096)
-
-    FILE( GLOB_RECURSE TMP_LIBS "proprietary/lib/*.so*" )
 
     target_link_libraries(${SERVERNAME}
-        ${TMP_LIBS}
-        modal_pipe
-        modal_exposure
-        modal_json
-        voxl_cutils
+        camera_client
     )
 else()
     target_link_libraries(${SERVERNAME}
         cutils
-        modal_pipe
-        modal_exposure
-        modal_json
-        voxl_cutils
-        camera_metadata
-        hardware
     )
 endif()
 

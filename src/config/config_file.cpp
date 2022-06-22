@@ -207,9 +207,7 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if (
             info.type != CAMTYPE_IMX214
-            #ifdef APQ8096
             && info.type != CAMTYPE_TOF
-            #endif
             ) {
             cJSON_AddBoolToObject   (node, JsonFlipString,           info.flip);
         }

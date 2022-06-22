@@ -203,7 +203,7 @@ case $CAM_CONFIG_ID in
         ;;
     7) # TOF + Stereo + Tracking
         CAM_LIST+=("tracking:ov7251:1")
-        CAM_LIST+=("stereo:ov7251-pair:2")
+        CAM_LIST+=("stereo:ov7251:2:3")
         CAM_LIST+=("tof:pmd-tof:0")
         ;;
     8) # Hires only
