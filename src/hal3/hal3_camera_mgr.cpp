@@ -656,31 +656,10 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     }
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
-        /*
-        struct Camera3JPEGBlob cameraJpegBlob;
-        size_t jpegOffsetToEof = (size_t)size - (size_t)sizeof(cameraJpegBlob);
-        unsigned char* jpegEndOfFile = &src_data[jpegOffsetToEof];
-        memcpy(&cameraJpegBlob, jpegEndOfFile, sizeof(Camera3JPEGBlob));
 
-        if (cameraJpegBlob.JPEGBlobId == JPEG_BLOB_ID) {
-            fwrite(src_data, cameraJpegBlob.JPEGBlobSize, 1, file_descriptor);
-        } else {*/
-            fwrite(src_data, size, 1, file_descriptor);
-        //}
+        fwrite(src_data, size, 1, file_descriptor);
 
-    }/* else if (format == HAL3_FMT_YUV) {
-        int plane_number  = 2;
-        int byte_per_pixel = 1;
-
-        for (int i = 1; i <= plane_number; i++) {
-            for (unsigned int h = 0; h < height / i; h++) {
-                fwrite(src_data, (width * byte_per_pixel), 1, file_descriptor);
-                src_data += stride;
-            }
-            src_data += stride * (slice - height);
-        }
-
-    }*/ else {
+    } else {
         VOXL_LOG_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
     }
 
@@ -696,10 +675,6 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     imageInfo.exposure_ns = currentExposure;
     imageInfo.gain        = currentGain;
 
-    //Temporary solution to prevent oscillating until we figure out how to set this to the registers manually
-    imageInfo.exposure_ns = setExposure;
-    imageInfo.gain        = setGain;
-
     uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
     imageInfo.width        = p_width;
     imageInfo.height       = p_height;
@@ -712,12 +687,12 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
         if(imageInfo.frame_id == 1){
 
-            VOXL_LOG_VERBOSE("Received raw10 frame, checking to see if is actually raw8\n");
+            VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
             if((is10bit = Check10bit(srcPixel, p_width, p_height))){
-                VOXL_LOG_VERBOSE("Frame was actually 10 bit, proceeding with conversions\n");
+                VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
             } else {
-                VOXL_LOG_VERBOSE("Frame was actually 8 bit, sending as is\n");
+                VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
             }
 
         }
@@ -737,14 +712,12 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         // For ov7251 camera there is no color so we just send the Y channel data as RAW8
         if (configInfo.type == CAMTYPE_OV7251)
         {
-            printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
             imageInfo.format     = IMAGE_FORMAT_RAW8;
             imageInfo.size_bytes = p_width * p_height;
         }
         // We always send YUV contiguous data out of the camera server
         else {
-            printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
             imageInfo.format     = IMAGE_FORMAT_NV12;
             bufferMakeYUVContiguous(bufferBlockInfo);
@@ -1370,7 +1343,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                 // find next index open for that name. e/g/ hires-0, hires-1, hires-2...
                 for(int i=lastSnapshotNumber;;i++){
                     // construct a new path with the current dir, name, and index i
-                    sprintf(filename,"/data/screenshots/%s-%d.jpg", name, i);
+                    sprintf(filename,"/data/snapshots/%s-%d.jpg", name, i);
                     if(!_exists(filename)){
                         // name with this index doesn't exist yet, good, use it!
                         lastSnapshotNumber = i;

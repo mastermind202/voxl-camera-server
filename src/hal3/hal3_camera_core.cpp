@@ -94,21 +94,6 @@ camera_module_t* HAL3_get_camera_module()
 
     VOXL_LOG_INFO("----------- Number of cameras: %d\n\n", numCameras);
 
-    for (int i = 0 ; i < numCameras; i++)
-    {
-        camera_info halCameraInfo;
-        // This gives the camera's fixed characteristics that can be extracted from the camera_metadata
-        // "info.static_camera_characteristics"
-        cameraModule->get_camera_info(i, &halCameraInfo);
-
-        camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
-        camera_metadata_ro_entry entry;
-
-        // Get the list of all stream resolutions supported and then go through each one of them looking for a match
-        find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
-
-    }
-
     cameraModule->set_callbacks(&moduleCallbacks);
 
     return cameraModule;

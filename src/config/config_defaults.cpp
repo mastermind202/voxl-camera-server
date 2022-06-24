@@ -56,7 +56,7 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
-        AE_LME_HIST,                //< AE Mode
+        AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
@@ -71,6 +71,20 @@ static const PerCameraInfo OV7251Defaults =
             2,                      //< Gain Period
             false,                  //< Display Debug
             8000,                   //< Exposure offset
+        },
+        {                           //< MSV AE Algorithm Parameters
+            54,                     //< Gain Min
+            835,                    //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            5000,                   //< Soft min exposure
+            0.05,                   //< Gain Slope
+            60.0,                   //< Desired MSV
+            0.6,                    //< Filter Alpha
+            0.2,                    //< Most saturated ignore frac
+            1,                      //< Exposure update period
+            1,                      //< Gain update period
+            false                   //< Display Debug
         }
     };
 static const PerCameraInfo OV9782Defaults =
@@ -124,7 +138,6 @@ static const PerCameraInfo OV9782Defaults =
         }
     };
 
-#ifdef APQ8096
 static const PerCameraInfo IMX214Defaults =
     {
         "",                         //< Name
@@ -141,8 +154,8 @@ static const PerCameraInfo IMX214Defaults =
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
         true,                       //< Enable Snapshot mode?
-        3840,                       //< Snapshot Width of the frame
-        2160,                       //< Snapshot Height of the frame
+        4160,                       //< Snapshot Width of the frame
+        3120,                       //< Snapshot Height of the frame
         false,                      //< Flip
         AE_OFF,                     //< AE Mode
         {                           //< Hist AE Algorithm Parameters
@@ -161,47 +174,6 @@ static const PerCameraInfo IMX214Defaults =
             8000,                   //< Exposure offset
         }
     };
-#elif QRB5165
-// IMX sensor is missing proper driver on QRB5, can only do 640x480 right now
-static const PerCameraInfo IMX214Defaults =
-    {
-        "",                         //< Name
-        CAMTYPE_IMX214,             //< Type
-        true,                       //< Is mono?
-        -1,                         //< ID
-        -1,                         //< ID2
-        true,                       //< Enabled?
-        30,                         //< Framerate
-        640,                        //< Preview Width of the frame
-        480,                        //< Preview Height of the frame
-        FMT_NV21,                   //< Preview Frame format
-        false,                      //< Enable Video Record
-        1920,                       //< Video Record Width of the frame
-        1080,                       //< Video Record Height of the frame
-        true,                       //< Enable Snapshot mode?
-        640,                        //< Snapshot Width of the frame
-        480,                        //< Snapshot Height of the frame
-        false,                      //< Flip
-        AE_OFF,                     //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            54.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            false,                  //< Display Debug
-            8000,                   //< Exposure offset
-        }
-    };
-#else
-    #error "Missing Architecture"
-#endif
 
 static const PerCameraInfo TOFDefaults =
     {
