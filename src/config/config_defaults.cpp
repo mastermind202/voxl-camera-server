@@ -154,10 +154,10 @@ static const PerCameraInfo IMX214Defaults =
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
         true,                       //< Enable Snapshot mode?
-        4160,                       //< Snapshot Width of the frame
-        3120,                       //< Snapshot Height of the frame
+        3840,                       //< Snapshot Width of the frame
+        2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
-        AE_OFF,                     //< AE Mode
+        AE_ISP,                     //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
             1000,                   //< Gain Max
