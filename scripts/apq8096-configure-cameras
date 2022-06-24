@@ -178,7 +178,7 @@ case $CAM_CONFIG_ID in
         ;;
     1) #Tracking + Stereo
         CAM_LIST+=("tracking:ov7251:0")
-        CAM_LIST+=("stereo:ov7251-pair:1")
+        CAM_LIST+=("stereo:ov7251:1:2")
         ;;
     2) # Tracking Only
         CAM_LIST+=("tracking:ov7251:0")
@@ -186,7 +186,7 @@ case $CAM_CONFIG_ID in
     3) # Hires + Stereo + Tracking
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("hires:imx214:0")
-        CAM_LIST+=("stereo:ov7251-pair:2")
+        CAM_LIST+=("stereo:ov7251:2:3")
         ;;
     4) # Hires + Tracking
         CAM_LIST+=("tracking:ov7251:1")
@@ -213,7 +213,7 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("tof:pmd-tof:0")
         ;;
     10) # Stereo 7251 only
-        CAM_LIST+=("stereo:ov7251-pair:0")
+        CAM_LIST+=("stereo:ov7251:0:1")
         ;;
     11) # 6-cam
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the APQ8096 Platform"
