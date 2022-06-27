@@ -1,3 +1,5 @@
+1.0.1
+    * Add camera configuration 13
 1.0.0
     * Merge in apq functionality, TOF will be handled by a separate service
 0.3.3
