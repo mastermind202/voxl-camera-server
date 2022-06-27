@@ -73,6 +73,7 @@ print_configurations () {
     echo -e "10 Stereo(OV7251) only"
     echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo Pairs${RESET_ALL}"
     echo -e "${SET_STRIKETHROUGH}12 Stereo(OV9782) only${RESET_ALL}"
+    echo -e "13 Hires + Stereo(OV7251)"
 
 }
 
@@ -222,6 +223,10 @@ case $CAM_CONFIG_ID in
     12) # Stereo 9782 only
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the APQ8096 Platform yet"
         exit -1
+        ;;
+    13) # Hires + 7251 stereo
+        CAM_LIST+=("hires:imx214:0")
+        CAM_LIST+=("stereo:ov7251:1:2")
         ;;
     *)
         echo "invalid option"

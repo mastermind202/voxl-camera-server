@@ -55,6 +55,7 @@ print_configurations () {
     echo -e "10 Stereo(OV7251) only"
     echo -e "11 Tracking + Hires + Dual Stereo Pairs"
     echo -e "12 Stereo(OV9782) only"
+    echo -e "13 Hires + Stereo(OV7251)"
 }
 
 print_usage () {
@@ -198,6 +199,10 @@ case $CAM_CONFIG_ID in
         ;;
     12) # Stereo 9782 only
         CAM_LIST+=("stereo_front:ov9782:0:1")
+        ;;
+    13) # Hires + 7251 stereo
+        CAM_LIST+=("hires:imx214:0")
+        CAM_LIST+=("stereo:ov7251:1:2")
         ;;
     *)
         echo "invalid option"
