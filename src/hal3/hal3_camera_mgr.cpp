@@ -610,15 +610,9 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
         throw -EINVAL;
     }
 
-    uint8_t buffer[heightPixels * widthPixels * 2];
-    memcpy(buffer, pImg, heightPixels * widthPixels);
-
-    ConvertTo8bitRaw(buffer,
-                     widthPixels,
-                     heightPixels);
     //check the row that is 4/5ths of the way down the image, if we just converted a
     //raw8 image to raw8, it will be empty
-    uint8_t* row = &(buffer[((heightPixels * 4 / 5) + 5) * widthPixels]);
+    uint8_t* row = &(pImg[(heightPixels * widthPixels)]);
     for(unsigned int i = 0; i < widthPixels; i++){
         if(row[i] != 0){
             return true;
@@ -715,6 +709,8 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
             imageInfo.format     = IMAGE_FORMAT_RAW8;
             imageInfo.size_bytes = p_width * p_height;
+            imageInfo.stride     = p_width;
+
         }
         // We always send YUV contiguous data out of the camera server
         else {

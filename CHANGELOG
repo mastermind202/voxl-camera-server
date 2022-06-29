@@ -1,3 +1,5 @@
+1.0.2
+    * Fix bug with QRB 10 bit detection
 1.0.1
     * Add camera configuration 13
 1.0.0
