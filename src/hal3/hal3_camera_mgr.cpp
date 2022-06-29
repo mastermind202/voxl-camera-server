@@ -1324,15 +1324,13 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
 
     /**************************
      *
-     * START Auto Exposure
+     * Take snapshot
      *
      */
     if(strncmp(cmd, CmdStrings[SNAPSHOT], strlen(CmdStrings[SNAPSHOT])) == 0){
         if(en_snapshot){
-            VOXL_LOG_INFO("Camera: %s taking snapshot\n", name);
-
             char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
-            char *filename = (char *)malloc(128);
+            char *filename = (char *)malloc(256);
 
             if(sscanf(cmd, "%s %s", buffer, filename) != 2){
                 // We weren't given a proper file, generate a default one
@@ -1347,6 +1345,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                     }
                 }
             }
+
+            VOXL_LOG_INFO("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
             pthread_mutex_lock(&snapshotMutex);
             snapshotQueue.push_back(filename);
