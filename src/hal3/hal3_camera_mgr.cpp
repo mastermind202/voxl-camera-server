@@ -1346,7 +1346,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                 }
             }
 
-            VOXL_LOG_INFO("Camera: %s taking snapshot (destination: %s)\n", name, filename);
+            VOXL_LOG_ERROR("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
             pthread_mutex_lock(&snapshotMutex);
             snapshotQueue.push_back(filename);
