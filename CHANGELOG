@@ -1,3 +1,5 @@
+1.0.3
+    * clean up snapshot code, now makes parent directories if needed
 1.0.2
     * Fix bug with QRB 10 bit detection
 1.0.1

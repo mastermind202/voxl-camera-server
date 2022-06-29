@@ -40,7 +40,7 @@
 #include <iostream>
 #include <modal_pipe.h>
 #include <vector>
-#include <string>
+#include <string.h>
 #include <camera/CameraMetadata.h>
 #include <camera/VendorTagDescriptor.h>
 #include <hardware/camera_common.h>
@@ -634,19 +634,37 @@ static void reverse(uint8_t *mem, int size){
     }
 }
 
+// Given a file path, create all constituent directories if missing
+static void CreateParentDirs(const char *file_path) {
+  char *dir_path = (char *) malloc(strlen(file_path) + 1);
+  const char *next_sep = strchr(file_path, '/');
+  while (next_sep != NULL) {
+    int dir_path_len = next_sep - file_path;
+    memcpy(dir_path, file_path, dir_path_len);
+    dir_path[dir_path_len] = '\0';
+    mkdir(dir_path, S_IRWXU|S_IRWXG|S_IROTH);
+    next_sep = strchr(next_sep + 1, '/');
+  }
+  free(dir_path);
+}
+
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
     uint64_t size    = bufferBlockInfo->size;
-    //uint32_t width   = bufferBlockInfo->width;
-    //uint32_t height  = bufferBlockInfo->height;
-    //uint32_t stride  = bufferBlockInfo->stride;
-    //uint32_t slice   = bufferBlockInfo->slice;
 
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
     FILE* file_descriptor = fopen(path, "wb");
     if(! file_descriptor){
-        VOXL_LOG_ERROR("ERROR: failed to open file descriptor for snapshot save\n");
-        return;
+
+        //Check to see if we were just missing parent directories
+        CreateParentDirs(path);
+
+        file_descriptor = fopen(path, "wb");
+
+        if(! file_descriptor){
+            VOXL_LOG_ERROR("ERROR: failed to open file descriptor for snapshot save\n");
+            return;
+        }
     }
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {

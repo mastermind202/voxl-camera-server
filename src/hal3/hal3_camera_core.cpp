@@ -197,7 +197,7 @@ void HAL3_print_camera_resolutions(int camId){
     if(camId == -1){
         int numCameras = cameraModule->get_number_of_cameras();
 
-        printf("Note: This list comes from the HAL module and may nfot be indicative\n");
+        printf("Note: This list comes from the HAL module and may not be indicative\n");
         printf("\tof configurations that have full pipelines\n\n");
         printf("Number of cameras: %d\n\n", numCameras);
 
