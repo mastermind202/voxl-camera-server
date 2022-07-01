@@ -1,3 +1,5 @@
+1.0.4
+    * add 9782 to camera_config.xml for voxl1
 1.0.3
     * clean up snapshot code, now makes parent directories if needed
 1.0.2
