@@ -1,3 +1,5 @@
+1.1.0
+    * fix bug in stereo state machine, quicker and more robust now
 1.0.5
     * expose preview and snapshot resolutions for imx sensor in config file
 1.0.4
