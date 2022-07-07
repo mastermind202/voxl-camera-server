@@ -190,12 +190,10 @@ private:
     pthread_cond_t                    resultCond;                  ///< Condition variable for wake up
     bool                              is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
     int64_t                           currentFrameNumber = 0;      ///< Frame Number
-    unsigned long long                currentTimestamp;            ///< Timestamp
-    int64_t                           currentExposure;             ///< Exposure
-    int32_t                           currentGain;                 ///< Gain
     int64_t                           setExposure;                 ///< Exposure
     int32_t                           setGain;                     ///< Gain
     std::list<camera3_stream_buffer>  resultMsgQueue;
+    std::list<camera_image_metadata_t> resultMetaQueue;
     pthread_mutex_t                   stereoMutex;                 ///< Mutex for stereo comms
     pthread_cond_t                    stereoCond;                  ///< Condition variable for wake up
     PerCameraMgr*                     otherMgr;                    ///< Pointer to the partner manager in a stereo pair

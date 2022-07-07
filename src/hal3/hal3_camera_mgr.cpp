@@ -45,6 +45,7 @@
 #include <camera/VendorTagDescriptor.h>
 #include <hardware/camera_common.h>
 #include <algorithm>
+#include <voxl_cutils.h>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
@@ -61,9 +62,7 @@
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
-#define MAX_STEREO_DISCREPENCY_NS 8000000
-
-using namespace android;
+#define MAX_STEREO_DISCREPENCY_NS ((1000000000/configInfo.fps)*0.9)
 
 // Platform Specific Flags
 #ifdef APQ8096
@@ -472,6 +471,8 @@ void PerCameraMgr::Stop()
 
     pthread_mutex_destroy(&snapshotMutex);
 
+    pipe_server_close(outputChannel);
+
 }
 
 
@@ -488,6 +489,9 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         pthread_mutex_lock(&resultMutex);
 
+        camera_image_metadata_t meta = {0};
+        meta.frame_id=pHalResult->frame_number;
+
         VOXL_LOG_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
 
         int result = 0;
@@ -497,25 +501,27 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
-            currentTimestamp = entry.data.i64[0];
-            VOXL_LOG_VERBOSE("\tTimestamp: %llu\n", currentTimestamp);
+            meta.timestamp_ns = entry.data.i64[0];
+            VOXL_LOG_VERBOSE("\tTimestamp: %llu\n", meta.timestamp_ns);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
 
         if (!result && entry.count)
         {
-            currentGain = entry.data.i32[0];
-            VOXL_LOG_VERBOSE("\tGain: %d\n", currentGain);
+            meta.gain = entry.data.i32[0];
+            VOXL_LOG_VERBOSE("\tGain: %d\n", meta.gain);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
 
         if (!result && entry.count)
         {
-            currentExposure = entry.data.i64[0];
-            VOXL_LOG_VERBOSE("\tExposure: %ld\n", currentExposure);
+            meta.exposure_ns = entry.data.i64[0];
+            VOXL_LOG_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
         }
+        resultMetaQueue.push_back(meta);
+
         pthread_mutex_unlock(&resultMutex);
 
     }
@@ -694,17 +700,13 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
 void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
-    camera_image_metadata_t imageInfo;
+    camera_image_metadata_t imageInfo = resultMetaQueue.front();
+    resultMetaQueue.pop_front();
     imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
-
-    imageInfo.exposure_ns = currentExposure;
-    imageInfo.gain        = currentGain;
-
-    uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
     imageInfo.width        = p_width;
     imageInfo.height       = p_height;
-    imageInfo.timestamp_ns = currentTimestamp;
-    imageInfo.frame_id     = currentFrameNumber;
+
+    uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
 
     if (p_halFmt == HAL_PIXEL_FORMAT_RAW10)
     {
@@ -819,43 +821,45 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         NEED_CHILD:
         pthread_mutex_lock(&stereoMutex);
         if(childFrame == NULL){
-
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            ts.tv_nsec += MAX_STEREO_DISCREPENCY_NS;
-
-            pthread_cond_timedwait(&stereoCond, &stereoMutex, &ts);
+            pthread_cond_wait(&stereoCond, &stereoMutex);
         }
 
         if(EStopped | stopped) {
             pthread_cond_signal(&(otherMgr->stereoCond));
+            pthread_mutex_unlock(&stereoMutex);
             return;
         }
 
         if(childFrame == NULL){
             pthread_mutex_unlock(&stereoMutex);
-            VOXL_LOG_WARNING("Child frame not received\n");
+            VOXL_LOG_WARNING("Child frame not received, assuming missing and discarding master\n");
             return;
         }
 
-        VOXL_LOG_VERBOSE("%s timestamps: %llu, %llu\n", name, imageInfo.timestamp_ns, childInfo.timestamp_ns);
-
-        //Much newer child, discard master but keep the child
-        long diff = childInfo.timestamp_ns - imageInfo.timestamp_ns;
-        if(diff > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer child than master (%llu), discarding master and trying again\n", name, diff);
-            pthread_mutex_unlock(&stereoMutex);
-            return;
-        }
+        int64_t diff = imageInfo.timestamp_ns - childInfo.timestamp_ns;
+        VOXL_LOG_VERBOSE("%s timestamps(ms): %llu, %llu, diff: %lld\n",
+            name,
+            imageInfo.timestamp_ns/1000000,
+            childInfo.timestamp_ns/1000000,
+            diff/1000000);
 
         //Much newer master, discard the child and get a new one
-        diff *= -1;
         if(diff > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer master than child (%llu), discarding child and trying again\n", name, diff);
+            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer master than child (%lld), discarding child and trying again\n",
+                name, diff/1000000);
             childFrame = NULL;
             pthread_mutex_unlock(&stereoMutex);
             pthread_cond_signal(&(otherMgr->stereoCond));
             goto NEED_CHILD;
+        }
+
+        diff *= -1;
+        //Much newer child, discard master but keep the child
+        if(diff > MAX_STEREO_DISCREPENCY_NS){
+            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer child than master (%lld), discarding master and trying again\n",
+                name, diff/1000000);
+            pthread_mutex_unlock(&stereoMutex);
+            return;
         }
 
         // Assume the earlier timestamp is correct
@@ -922,6 +926,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         otherMgr->childFrame = srcPixel;
         otherMgr->childInfo  = imageInfo;
 
+        pthread_cond_signal(&(otherMgr->stereoCond));
         pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
         pthread_mutex_unlock(&(otherMgr->stereoMutex));
     }
