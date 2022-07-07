@@ -55,7 +55,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_VIDEO_BUFFERS 16
+#define NUM_RECORD_BUFFERS 16
 #define NUM_SNAPSHOT_BUFFERS 16
 #define JPEG_DEFUALT_QUALITY        85
 
@@ -91,14 +91,14 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
     //name              (), // Maybe keep trying to make this work, just use strcpy for now
-    en_video          (pCameraInfo.en_video),
+    en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
     p_width           (pCameraInfo.p_width),
     p_height          (pCameraInfo.p_height),
     p_halFmt          (HalFmtFromType(pCameraInfo.p_format)),
-    v_width           (pCameraInfo.v_width),
-    v_height          (pCameraInfo.v_height),
-    v_halFmt          (-1),
+    r_width           (pCameraInfo.r_width),
+    r_height          (pCameraInfo.r_height),
+    r_halFmt          (-1),
     s_width           (pCameraInfo.s_width),
     s_height          (pCameraInfo.s_height),
     s_halFmt          (HAL_PIXEL_FORMAT_BLOB),
@@ -131,9 +131,9 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_video && !HAL3_is_config_supported(cameraId, v_width, v_height, v_halFmt))
+    if (en_record && !HAL3_is_config_supported(cameraId, r_width, r_height, r_halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported video config: %dx%d\n", cameraId, v_width, v_height);
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported video config: %dx%d\n", cameraId, r_width, r_height);
 
         throw -EINVAL;
     }
@@ -178,12 +178,12 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_video && bufferAllocateBuffers(v_bufferGroup,
-                                          NUM_VIDEO_BUFFERS,
-                                          v_stream.width,
-                                          v_stream.height,
-                                          v_stream.format,
-                                          v_stream.usage)) {
+    if (en_record && bufferAllocateBuffers(r_bufferGroup,
+                                          NUM_RECORD_BUFFERS,
+                                          r_stream.width,
+                                          r_stream.height,
+                                          r_stream.format,
+                                          r_stream.usage)) {
         VOXL_LOG_ERROR("ERROR: Failed to allocate video buffers for camera: %s\n", name);
 
         throw -EINVAL;
@@ -226,7 +226,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         newInfo.camId2 = -1;
 
         // These are disabled until(if) we figure out a good way to handle them
-        newInfo.en_video = false;
+        newInfo.en_record = false;
         newInfo.en_snapshot = false;
 
         otherMgr = new PerCameraMgr(newInfo);
@@ -458,7 +458,7 @@ void PerCameraMgr::Stop()
     }
 
     bufferDeleteBuffers(p_bufferGroup);
-    bufferDeleteBuffers(v_bufferGroup);
+    bufferDeleteBuffers(r_bufferGroup);
     bufferDeleteBuffers(s_bufferGroup);
 
     if (pDevice != NULL)
@@ -564,20 +564,33 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
 
     if (msg->type == CAMERA3_MSG_ERROR)
     {
-        if(msg->message.error.error_code == CAMERA3_MSG_ERROR_DEVICE){
+        switch (msg->message.error.error_code) {
 
+            case CAMERA3_MSG_ERROR_DEVICE:
+                //Another thread has already detected the fatal error, return since it has already been handled
+                if(pPerCameraMgr->EStopped) return;
 
-            //Another thread has already detected the fatal error, return since it has already been handled
-            if(pPerCameraMgr->EStopped) return;
+                VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved \"Device\" error from camera: %s\n",
+                             pPerCameraMgr->name);
+                VOXL_LOG_FATAL(  "                          Camera server will be stopped\n");
+                EStopCameraServer();
+                break;
+            case CAMERA3_MSG_ERROR_REQUEST:
+                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Request\" error from camera: %s\n",
+                             pPerCameraMgr->name);
+                break;
+            case CAMERA3_MSG_ERROR_RESULT:
+                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Result\" error from camera: %s\n",
+                             pPerCameraMgr->name);
+                break;
+            case CAMERA3_MSG_ERROR_BUFFER:
+                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Buffer\" error from camera: %s\n",
+                             pPerCameraMgr->name);
+                break;
 
-            VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved Fatal error from camera: %s\n",
-                         pPerCameraMgr->name);
-            VOXL_LOG_FATAL(  "                          Camera server will be stopped\n");
-            EStopCameraServer();
-
-        }else{
-            VOXL_LOG_ERROR("voxl-camera-server ERROR: Framenumber: %d ErrorCode: %d\n",
-                   msg->message.error.frame_number, msg->message.error.error_code);
+            default:
+                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Framenumber: %d ErrorCode: %d\n",
+                       msg->message.error.frame_number, msg->message.error.error_code);
         }
     }
 }
@@ -1000,7 +1013,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 ProcessPreviewFrame(pBufferInfo);
                 break;
 
-            case STREAM_VIDEO: // Not Ready
+            case STREAM_RECORD: // Not Ready
                 VOXL_LOG_VERBOSE("Camera: %s processing video frame\n", name);
                 //ProcessVideoFrame(pBufferInfo);
                 break;

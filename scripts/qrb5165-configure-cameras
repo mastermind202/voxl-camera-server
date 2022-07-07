@@ -180,7 +180,7 @@ case $CAM_CONFIG_ID in
     8) # Hires only
         CAM_LIST+=("hires:imx214:0")
         ;;
-     9) # TOF only
+    9) # TOF only
         echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
         exit -1
     #   HIRES_CAM_ID=-1

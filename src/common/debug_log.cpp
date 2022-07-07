@@ -35,7 +35,7 @@
 #include <cstdarg>
 #include <stdio.h>
 
-DebugLevel currentDebugLevel = DebugLevel::ERROR;
+DebugLevel currentDebugLevel = DebugLevel::WARNING;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function to print the debug messages conditionally depending on the debug level

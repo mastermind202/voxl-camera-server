@@ -89,9 +89,6 @@ enum CameraType
     CAMTYPE_OV7251,
     CAMTYPE_OV9782,
     CAMTYPE_IMX214,
-#ifdef APQ8096
-    CAMTYPE_OV7251_PAIR,
-#endif
     CAMTYPE_TOF,
     CAMTYPE_MAX_TYPES       ///< Max types
 };
@@ -126,9 +123,9 @@ struct PerCameraInfo
     int   p_width;            ///< Preview Width of the frame
     int   p_height;           ///< Preview Height of the frame
     int   p_format;           ///< Preview Frame format
-    bool  en_video;
-    int   v_width;            ///< Video Record Width of the frame
-    int   v_height;           ///< Video Record Height of the frame
+    bool  en_record;
+    int   r_width;            ///< Video Record Width of the frame
+    int   r_height;           ///< Video Record Height of the frame
     bool  en_snapshot;
     int   s_width;            ///< Snapshot Width of the frame
     int   s_height;           ///< Snapshot Height of the frame

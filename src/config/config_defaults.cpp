@@ -147,8 +147,8 @@ static const PerCameraInfo IMX214Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
-        1280,                       //< Preview Width of the frame
-        720,                        //< Preview Height of the frame
+        640,                        //< Preview Width of the frame
+        480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
         false,                      //< Enable Video Record
         1920,                       //< Video Record Width of the frame

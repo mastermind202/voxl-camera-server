@@ -1,3 +1,5 @@
+1.0.5
+    * expose preview and snapshot resolutions for imx sensor in config file
 1.0.4
     * add 9782 to camera_config.xml for voxl1
 1.0.3

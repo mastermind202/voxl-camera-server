@@ -81,17 +81,17 @@ public:
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
     char                       name[MAX_NAME_LENGTH];
-    const bool                 en_video;
+    const bool                 en_record;
     const bool                 en_snapshot;
     const int32_t              p_width;                        ///< Preview Width
     const int32_t              p_height;                       ///< Preview Height
     const int32_t              p_halFmt;                       ///< Preview HAL format
-    const int32_t              v_width;                        ///< Preview Width
-    const int32_t              v_height;                       ///< Preview Height
-    const int32_t              v_halFmt;                       ///< Preview HAL format
-    const int32_t              s_width;                        ///< Preview Width
-    const int32_t              s_height;                       ///< Preview Height
-    const int32_t              s_halFmt;                       ///< Preview HAL format
+    const int32_t              r_width;                        ///< Record Width
+    const int32_t              r_height;                       ///< Record Height
+    const int32_t              r_halFmt;                       ///< Record HAL format
+    const int32_t              s_width;                        ///< Snapshot Width
+    const int32_t              s_height;                       ///< Snapshot Height
+    const int32_t              s_halFmt;                       ///< Snapshot HAL format
     const AE_MODE              ae_mode;
 
 private:
@@ -137,7 +137,7 @@ private:
 
     enum STREAM_ID {
         STREAM_PREVIEW,
-        STREAM_VIDEO,
+        STREAM_RECORD,
         STREAM_SNAPSHOT,
         STREAM_INVALID
     };
@@ -145,8 +145,8 @@ private:
     STREAM_ID GetStreamId(camera3_stream_t *stream){
         if (stream == &p_stream) {
             return STREAM_PREVIEW;
-        } else if (stream == &v_stream) {
-            return STREAM_VIDEO;
+        } else if (stream == &r_stream) {
+            return STREAM_RECORD;
         } else if (stream == &s_stream) {
             return STREAM_SNAPSHOT;
         } else {
@@ -161,8 +161,8 @@ private:
         switch (stream){
             case STREAM_PREVIEW:
                 return &p_bufferGroup;
-            case STREAM_VIDEO:
-                return &v_bufferGroup;
+            case STREAM_RECORD:
+                return &r_bufferGroup;
             case STREAM_SNAPSHOT:
                 return &s_bufferGroup;
             default:
@@ -176,11 +176,11 @@ private:
     Camera3Callbacks                  cameraCallbacks;             ///< Camera callbacks
     camera3_device_t*                 pDevice;                     ///< HAL3 device
     camera3_stream_t                  p_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                  v_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                  r_stream;                    ///< Stream to be used for the preview request
     camera3_stream_t                  s_stream;                    ///< Stream to be used for the preview request
     android::CameraMetadata           requestMetadata;             ///< Per request metadata
     BufferGroup                       p_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                       v_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                       r_bufferGroup;               ///< Buffer manager per stream
     BufferGroup                       s_bufferGroup;               ///< Buffer manager per stream
     pthread_t                         requestThread;               ///< Request thread private data
     pthread_t                         resultThread;                ///< Result Thread private data

@@ -111,9 +111,9 @@ void PrintCameraInfo(PerCameraInfo pCameraInfo)    ///< Camera info
     printf("\t Preview Width       : %d\n", pCameraInfo.p_width);
     printf("\t Preview Height      : %d\n", pCameraInfo.p_height);
     printf("\t Preview Format      : %s\n", GetImageFmtString(pCameraInfo.p_format));
-    if(pCameraInfo.en_video){
-    printf("\t Video Record Width  : %d\n", pCameraInfo.v_width);
-    printf("\t Video Record Height : %d\n", pCameraInfo.v_height);
+    if(pCameraInfo.en_record){
+    printf("\t Video Record Width  : %d\n", pCameraInfo.r_width);
+    printf("\t Video Record Height : %d\n", pCameraInfo.r_height);
     }
     if(pCameraInfo.en_snapshot){
     printf("\t Snapshot Width      : %d\n", pCameraInfo.s_width);

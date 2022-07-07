@@ -61,8 +61,12 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonNameString         "name"                     ///< Camera name
 #define JsonFPSString          "fps"                      ///< Camera fps
 #define JsonFlipString         "flip"                     ///< Camera flip?
-//#define JsonWidthString        "width"                    ///< Frame width
-//#define JsonHeightString       "height"                   ///< Frame height
+#define JsonPWidthString       "preview_width"            ///< Preview Frame width
+#define JsonPHeightString      "preview_height"           ///< Preview Frame height
+#define JsonRWidthString       "record_width"             ///< Record Frame width
+#define JsonRHeightString      "record_height"            ///< Record Frame height
+#define JsonSWidthString       "snapshot_width"           ///< Snapshot Frame width
+#define JsonSHeightString      "snapshot_height"          ///< Snapshot Frame height
 #define JsonFpsString          "frame_rate"               ///< Fps
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
 #define JsonAEFilterAlpha      "ae_filter_alpha"          ///< Modal AE MSV Algo filter alpha
@@ -152,6 +156,14 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
         info.flip = tmp;
 
+
+        json_fetch_int_with_default  (cur, JsonPWidthString,        &info.p_width,   info.p_width);
+        json_fetch_int_with_default  (cur, JsonPHeightString,       &info.p_height,  info.p_height);
+        json_fetch_int_with_default  (cur, JsonRWidthString,        &info.r_width,   info.r_width);
+        json_fetch_int_with_default  (cur, JsonRHeightString,       &info.r_height,  info.r_height);
+        json_fetch_int_with_default  (cur, JsonSWidthString,        &info.s_width,   info.s_width);
+        json_fetch_int_with_default  (cur, JsonSHeightString,       &info.s_height,  info.s_height);
+
         json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
         json_fetch_float_with_default (cur, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
         json_fetch_float_with_default (cur, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
@@ -205,11 +217,13 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        if (
-            info.type != CAMTYPE_IMX214
-            && info.type != CAMTYPE_TOF
-            ) {
-            cJSON_AddBoolToObject   (node, JsonFlipString,           info.flip);
+        if (info.type == CAMTYPE_IMX214) {
+            cJSON_AddNumberToObject  (node, JsonPWidthString,        info.p_width);
+            cJSON_AddNumberToObject  (node, JsonPHeightString,       info.p_height);
+            //cJSON_AddNumberToObject  (node, JsonRWidthString,        info.r_width);
+            //cJSON_AddNumberToObject  (node, JsonRHeightString,       info.r_height);
+            cJSON_AddNumberToObject  (node, JsonSWidthString,        info.s_width);
+            cJSON_AddNumberToObject  (node, JsonSHeightString,       info.s_height);
         }
         
         if(info.ae_mode == AE_LME_HIST){
