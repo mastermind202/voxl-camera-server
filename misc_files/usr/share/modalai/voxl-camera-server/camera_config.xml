@@ -315,6 +315,8 @@ LensType :
       <MinFocusDistance>0.1</MinFocusDistance>
     </LensInfo>
   </CameraModuleConfig>
+
+  <!-- ov9282 camera in camera slot 0 -->
   <CameraModuleConfig>                              
     <CameraId>0</CameraId>                                                     
     <SensorName>ov9282</SensorName>                                         
@@ -389,7 +391,7 @@ LensType :
       </LensInfo>
     </SensorNode>
   </StereoConfig>
--->
+  -->
 
   <!-- ov7251 camera in camera slot 1 (left) using i2c0-->
   <CameraModuleConfig>

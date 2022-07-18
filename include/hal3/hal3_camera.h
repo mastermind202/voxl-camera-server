@@ -74,7 +74,11 @@ public:
     void EStop();
 
     int getNumClients(){
-        return pipe_server_get_num_clients(outputChannel);
+        if( partnerMode != MODE_STEREO_SLAVE ) {
+            return pipe_server_get_num_clients(outputChannel);
+        } else {
+            return pipe_server_get_num_clients(otherMgr->outputChannel);
+        }
     }
 
     const PerCameraInfo        configInfo;                     ///< Per camera config information
