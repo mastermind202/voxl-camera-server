@@ -1,5 +1,5 @@
 1.1.1
-    * Fix bug with stereo camera pipe detection
+    * Fix bug with stereo camera pipe detection with new libmodal-pipe
 1.1.0
     * fix bug in stereo state machine, quicker and more robust now
 1.0.5
