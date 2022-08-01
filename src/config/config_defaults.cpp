@@ -73,7 +73,7 @@ static const PerCameraInfo OV7251Defaults =
             8000,                   //< Exposure offset
         },
         {                           //< MSV AE Algorithm Parameters
-            54,                     //< Gain Min
+            101,                    //< Gain Min
             835,                    //< Gain Max
             20,                     //< Exposure Min
             33000,                  //< Exposure Max
@@ -84,7 +84,7 @@ static const PerCameraInfo OV7251Defaults =
             0.2,                    //< Most saturated ignore frac
             1,                      //< Exposure update period
             1,                      //< Gain update period
-            false                   //< Display Debug
+            true                   //< Display Debug
         }
     };
 static const PerCameraInfo OV9782Defaults =

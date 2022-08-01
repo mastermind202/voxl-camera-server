@@ -340,12 +340,6 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
             //requestMetadata.update(ANDROID_CONTROL_AE_ANTIBANDING_MODE, &antibanding,        1);
             //requestMetadata.update(ANDROID_CONTROL_AWB_MODE,            &awbMode,            1);
 
-            setExposure             =  5259763;
-            setGain                 =  800;
-
-            requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME,        &setExposure,        1);
-            requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,          &setGain,            1);
-
             break;
         }
 
@@ -405,6 +399,7 @@ void PerCameraMgr::Start()
     pthread_mutex_init(&resultMutex, NULL);
     pthread_mutex_init(&stereoMutex, NULL);
     pthread_mutex_init(&snapshotMutex, NULL);
+    pthread_mutex_init(&aeMutex, NULL);
     pthread_cond_init(&requestCond, &condAttr);
     pthread_cond_init(&resultCond, &condAttr);
     pthread_cond_init(&stereoCond, &condAttr);
@@ -470,6 +465,7 @@ void PerCameraMgr::Stop()
     pthread_cond_destroy(&stereoCond);
 
     pthread_mutex_destroy(&snapshotMutex);
+    pthread_mutex_destroy(&aeMutex);
 
     pipe_server_close(outputChannel);
 
@@ -772,6 +768,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         int64_t    new_exposure_ns;
         int32_t    new_gain;
 
+        pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 srcPixel,
                 p_width,
@@ -797,6 +794,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             setExposure = new_exposure_ns;
             setGain     = new_gain;
         }
+        pthread_mutex_unlock(&aeMutex);
 
     } else if (partnerMode == MODE_STEREO_MASTER){
 
@@ -880,6 +878,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         int64_t    new_exposure_ns;
         int32_t    new_gain;
 
+        pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 srcPixel,
                 p_width,
@@ -913,6 +912,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             otherMgr->setExposure = new_exposure_ns;
             otherMgr->setGain = new_gain;
         }
+        pthread_mutex_unlock(&aeMutex);
 
         //Clear the pointers and signal the child thread for cleanup
         childFrame = NULL;
@@ -1062,6 +1062,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     if(ae_mode != AE_ISP){
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
         requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
+        printf("%s, fid: %d Gain: %d\n", name, frameNumber, setGain );
     }
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
@@ -1173,10 +1174,11 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
-        if(!getNumClients() && !numNeededSnapshots){
-            pthread_cond_wait(&requestCond, &requestMutex);
-            if(stopped || EStopped) break;
-        }
+        // Always send requests now
+        // if(!getNumClients() && !numNeededSnapshots){
+        //     pthread_cond_wait(&requestCond, &requestMutex);
+        //     if(stopped || EStopped) break;
+        // }
         ProcessOneCaptureRequest(++frame_number);
     }
 
@@ -1225,7 +1227,12 @@ int PerCameraMgr::SetupPipes(){
             [](int ch, char * string, int bytes, void* context)    //Callback
                     {((PerCameraMgr*)context)->HandleControlCmd(string);},
             this);                                                 //Context
-    pipe_server_set_available_control_commands(outputChannel, "snapshot");
+
+    char cont_cmds[256];
+    snprintf(cont_cmds, 255, "%s%s%s",
+        CONTROL_COMMANDS,
+        en_snapshot ? ",snapshot" : "",
+        en_record   ? ",start_record,stop_record" : "");
 
     pipe_info_t info;
     strcpy(info.name       , name);
@@ -1235,6 +1242,8 @@ int PerCameraMgr::SetupPipes(){
 
     strcpy(info.location, info.name);
     pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
+
+    pipe_server_set_available_control_commands(outputChannel, cont_cmds);
 
     return S_OK;
 }
@@ -1249,114 +1258,165 @@ static int _exists(char* path)
 
 void PerCameraMgr::HandleControlCmd(char* cmd) {
 
-    __attribute__((unused)) const int MIN_EXP  = configInfo.ae_hist_info.exposure_min_us;
-    __attribute__((unused)) const int MAX_EXP  = configInfo.ae_hist_info.exposure_max_us;
-    __attribute__((unused)) const int MIN_GAIN = configInfo.ae_hist_info.gain_min;
-    __attribute__((unused)) const int MAX_GAIN = configInfo.ae_hist_info.gain_max;
+    const float MIN_EXP  = ((float)configInfo.ae_hist_info.exposure_min_us)/1000;
+    const float MAX_EXP  = ((float)configInfo.ae_hist_info.exposure_max_us)/1000;
+    const int MIN_GAIN = configInfo.ae_hist_info.gain_min;
+    const int MAX_GAIN = configInfo.ae_hist_info.gain_max;
 
     /**************************
      *
      * SET Exposure and Gain
      *
      */
-    // if(strncmp(cmd, CmdStrings[SET_EXP_GAIN], strlen(CmdStrings[SET_EXP_GAIN])) == 0){
+    if(strncmp(cmd, CmdStrings[SET_EXP_GAIN], strlen(CmdStrings[SET_EXP_GAIN])) == 0){
 
-    //     char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
-    //     float exp = -1.0;
-    //     int gain = -1;
+        char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
+        float exp = -1.0;
+        int gain = -1;
 
-    //     if(sscanf(cmd, "%s %f %d", buffer, &exp, &gain) == 3){
-    //         bool valid = true;
-    //         if(exp < MIN_EXP || exp > MAX_EXP){
-    //             valid = false;
-    //             VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-    //         }
-    //         if(gain < MIN_GAIN || gain > MAX_GAIN){
-    //             valid = false;
-    //             VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-    //         }
-    //         if(valid){
-    //             pCameraMgr->SetUsingAE(false);
-    //             VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", pCameraMgr->GetName(), exp, gain);
-    //             pCameraMgr->SetNextExpGain(exp*1000000, gain);
-    //         }
-    //     } else {
-    //         VOXL_LOG_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n", pCameraMgr->GetName());
-    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
-    //     }
+        if(sscanf(cmd, "%s %f %d", buffer, &exp, &gain) == 3){
+            bool valid = true;
+            if(exp < MIN_EXP || exp > MAX_EXP){
+                valid = false;
+                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+            }
+            if(gain < MIN_GAIN || gain > MAX_GAIN){
+                valid = false;
+                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+            }
+            if(valid){
+                pthread_mutex_lock(&aeMutex);
 
-    // }
-    // /**************************
-    //  *
-    //  * SET Exposure
-    //  *
-    //  */ else if(strncmp(cmd, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
+                if(ae_mode != AE_OFF) {
+                    ae_mode = AE_OFF;
+                    ConstructDefaultRequestSettings();
+                }
 
-    //     char buffer[strlen(CmdStrings[SET_EXP])+1];
-    //     float exp = -1.0;
+                VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
 
-    //     if(sscanf(cmd, "%s %f", buffer, &exp) == 2){
-    //         bool valid = true;
-    //         if(exp < MIN_EXP || exp > MAX_EXP){
-    //             valid = false;
-    //             VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-    //         }
-    //         if(valid){
-    //             pCameraMgr->SetUsingAE(false);
-    //             VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", pCameraMgr->GetName(), exp);
-    //             pCameraMgr->SetNextExpGain(exp*1000000, pCameraMgr->GetCurrentGain());
-    //         }
-    //     } else {
-    //         VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", pCameraMgr->GetName());
-    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
-    //     }
-    // }
-    // /**************************
-    //  *
-    //  * SET Gain
-    //  *
-    //  */ else if(strncmp(cmd, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
+                setExposure = exp*1000000;
+                setGain =     gain;
 
-    //     char buffer[strlen(CmdStrings[SET_GAIN])+1];
-    //     int gain = -1;
+                if(otherMgr){
+                    otherMgr->setExposure = exp*1000000;
+                    otherMgr->setGain =     gain;
+                }
 
-    //     if(sscanf(cmd, "%s %d", buffer, &gain) == 2){
-    //         bool valid = true;
-    //         if(gain < MIN_GAIN || gain > MAX_GAIN){
-    //             valid = false;
-    //             VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-    //         }
-    //         if(valid){
-    //             pCameraMgr->SetUsingAE(false);
-    //             VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", pCameraMgr->GetName(), gain);
-    //             pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), gain);
-    //         }
-    //     } else {
-    //         VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", pCameraMgr->GetName());
-    //         VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
-    //     }
-    // }
+                pthread_mutex_unlock(&aeMutex);
+            }
+        } else {
+            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n", name);
+            VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
+        }
 
-    // /**************************
-    //  *
-    //  * START Auto Exposure
-    //  *
-    //  */ else if(strncmp(cmd, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
-    //     pCameraMgr->SetUsingAE(true);
-    //     //Use this to awaken the process capture result block and avoid race conditions
-    //     pCameraMgr->SetNextExpGain(pCameraMgr->GetCurrentExposure(), pCameraMgr->GetCurrentGain());
-    //     VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", pCameraMgr->GetName());
-    // }
-    // /**************************
-    //  *
-    //  * STOP Auto Exposure
-    //  *
-    //  */ else if(strncmp(cmd, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
-    //     if(pCameraMgr->IsUsingAE()){
-    //         VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", pCameraMgr->GetName());
-    //         pCameraMgr->SetUsingAE(false);
-    //     }
-    // } else
+    }
+    /**************************
+     *
+     * SET Exposure
+     *
+     */ else if(strncmp(cmd, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
+
+        char buffer[strlen(CmdStrings[SET_EXP])+1];
+        float exp = -1.0;
+
+        if(sscanf(cmd, "%s %f", buffer, &exp) == 2){
+            bool valid = true;
+            if(exp < MIN_EXP || exp > MAX_EXP){
+                valid = false;
+                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+            }
+            if(valid){
+                pthread_mutex_lock(&aeMutex);
+
+                if(ae_mode != AE_OFF) {
+                    ae_mode = AE_OFF;
+                    ConstructDefaultRequestSettings();
+                }
+
+                VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", name, exp);
+                setExposure = exp*1000000;
+
+                if(otherMgr){
+                    otherMgr->setExposure = exp*1000000;
+                }
+
+                pthread_mutex_unlock(&aeMutex);
+            }
+        } else {
+            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", name);
+            VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
+        }
+    }
+    /**************************
+     *
+     * SET Gain
+     *
+     */ else if(strncmp(cmd, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
+
+        char buffer[strlen(CmdStrings[SET_GAIN])+1];
+        int gain = -1;
+
+        if(sscanf(cmd, "%s %d", buffer, &gain) == 2){
+            bool valid = true;
+            if(gain < MIN_GAIN || gain > MAX_GAIN){
+                valid = false;
+                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+            }
+            if(valid){
+                pthread_mutex_lock(&aeMutex);
+
+                if(ae_mode != AE_OFF) {
+                    ae_mode = AE_OFF;
+                    ConstructDefaultRequestSettings();
+                }
+
+                VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", name, gain);
+                setGain = gain;
+
+                if(otherMgr){
+                    otherMgr->setGain = gain;
+                }
+
+                pthread_mutex_unlock(&aeMutex);
+            }
+        } else {
+            VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", name);
+            VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
+        }
+    }
+
+    /**************************
+     *
+     * START Auto Exposure
+     *
+     */ else if(strncmp(cmd, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
+
+        pthread_mutex_lock(&aeMutex);
+
+        if(ae_mode != configInfo.ae_mode) {
+            ae_mode = configInfo.ae_mode;
+            ConstructDefaultRequestSettings();
+            VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", name);
+        }
+        pthread_mutex_unlock(&aeMutex);
+
+    }
+    /**************************
+     *
+     * STOP Auto Exposure
+     *
+     */ else if(strncmp(cmd, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
+
+        pthread_mutex_lock(&aeMutex);
+
+        if(ae_mode != AE_OFF) {
+            ae_mode = AE_OFF;
+            ConstructDefaultRequestSettings();
+            VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", name);
+        }
+        pthread_mutex_unlock(&aeMutex);
+
+    } else
 
     /**************************
      *

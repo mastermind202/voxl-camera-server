@@ -84,7 +84,7 @@ public:
     const PerCameraInfo        configInfo;                     ///< Per camera config information
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
-    char                       name[MAX_NAME_LENGTH];
+          char                 name[MAX_NAME_LENGTH];
     const bool                 en_record;
     const bool                 en_snapshot;
     const int32_t              p_width;                        ///< Preview Width
@@ -96,7 +96,7 @@ public:
     const int32_t              s_width;                        ///< Snapshot Width
     const int32_t              s_height;                       ///< Snapshot Height
     const int32_t              s_halFmt;                       ///< Snapshot HAL format
-    const AE_MODE              ae_mode;
+          AE_MODE              ae_mode;
 
 private:
 
@@ -174,43 +174,44 @@ private:
         }
     }
 
-    camera_module_t*                  pCameraModule;               ///< Camera module
-    ModalExposureHist                 expHistInterface;
-    ModalExposureMSV                  expMSVInterface;
-    Camera3Callbacks                  cameraCallbacks;             ///< Camera callbacks
-    camera3_device_t*                 pDevice;                     ///< HAL3 device
-    camera3_stream_t                  p_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                  r_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                  s_stream;                    ///< Stream to be used for the preview request
-    android::CameraMetadata           requestMetadata;             ///< Per request metadata
-    BufferGroup                       p_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                       r_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                       s_bufferGroup;               ///< Buffer manager per stream
-    pthread_t                         requestThread;               ///< Request thread private data
-    pthread_t                         resultThread;                ///< Result Thread private data
-    pthread_mutex_t                   requestMutex;                ///< Mutex for list access
-    pthread_cond_t                    requestCond;                 ///< Condition variable for wake up
-    pthread_mutex_t                   resultMutex;                 ///< Mutex for list access
-    pthread_cond_t                    resultCond;                  ///< Condition variable for wake up
-    bool                              is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
-    int64_t                           currentFrameNumber = 0;      ///< Frame Number
-    int64_t                           setExposure;                 ///< Exposure
-    int32_t                           setGain;                     ///< Gain
-    std::list<camera3_stream_buffer>  resultMsgQueue;
+    camera_module_t*                   pCameraModule;               ///< Camera module
+    ModalExposureHist                  expHistInterface;
+    ModalExposureMSV                   expMSVInterface;
+    Camera3Callbacks                   cameraCallbacks;             ///< Camera callbacks
+    camera3_device_t*                  pDevice;                     ///< HAL3 device
+    camera3_stream_t                   p_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                   r_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                   s_stream;                    ///< Stream to be used for the preview request
+    android::CameraMetadata            requestMetadata;             ///< Per request metadata
+    BufferGroup                        p_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                        r_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                        s_bufferGroup;               ///< Buffer manager per stream
+    pthread_t                          requestThread;               ///< Request thread private data
+    pthread_t                          resultThread;                ///< Result Thread private data
+    pthread_mutex_t                    requestMutex;                ///< Mutex for list access
+    pthread_cond_t                     requestCond;                 ///< Condition variable for wake up
+    pthread_mutex_t                    resultMutex;                 ///< Mutex for list access
+    pthread_cond_t                     resultCond;                  ///< Condition variable for wake up
+    pthread_mutex_t                    aeMutex;                     ///< Mutex for list access
+    bool                               is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
+    int64_t                            currentFrameNumber = 0;      ///< Frame Number
+    int64_t                            setExposure = 5259763;       ///< Exposure
+    int32_t                            setGain     = 800;           ///< Gain
+    std::list<camera3_stream_buffer>   resultMsgQueue;
     std::list<camera_image_metadata_t> resultMetaQueue;
-    pthread_mutex_t                   stereoMutex;                 ///< Mutex for stereo comms
-    pthread_cond_t                    stereoCond;                  ///< Condition variable for wake up
-    PerCameraMgr*                     otherMgr;                    ///< Pointer to the partner manager in a stereo pair
-    PCM_MODE                          partnerMode;                 ///< Mode for mono/stereo
-    uint8_t*                          childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
-    camera_image_metadata_t           childInfo;                   ///< Copy of the child frame info
-    bool                              stopped = false;             ///< Indication for the thread to terminate
-    bool                              EStopped = false;            ///< Emergency Stop, terminate without any cleanup
-    int                               lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
-    pthread_mutex_t                   snapshotMutex;               ///< Mutex for list access
-    std::list<char *>                 snapshotQueue;
-    int                               numNeededSnapshots = 0;
-    int                               lastSnapshotNumber = 0;
+    pthread_mutex_t                    stereoMutex;                 ///< Mutex for stereo comms
+    pthread_cond_t                     stereoCond;                  ///< Condition variable for wake up
+    PerCameraMgr*                      otherMgr;                    ///< Pointer to the partner manager in a stereo pair
+    PCM_MODE                           partnerMode;                 ///< Mode for mono/stereo
+    uint8_t*                           childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
+    camera_image_metadata_t            childInfo;                   ///< Copy of the child frame info
+    bool                               stopped = false;             ///< Indication for the thread to terminate
+    bool                               EStopped = false;            ///< Emergency Stop, terminate without any cleanup
+    int                                lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
+    pthread_mutex_t                    snapshotMutex;               ///< Mutex for list access
+    std::list<char *>                  snapshotQueue;
+    int                                numNeededSnapshots = 0;
+    int                                lastSnapshotNumber = 0;
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

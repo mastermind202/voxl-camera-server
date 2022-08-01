@@ -1,3 +1,5 @@
+1.1.2
+    * Enable old AE control commands
 1.1.1
     * Fix bug with stereo camera pipe detection with new libmodal-pipe
 1.1.0
