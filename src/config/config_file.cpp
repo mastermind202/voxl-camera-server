@@ -68,6 +68,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonSWidthString       "snapshot_width"           ///< Snapshot Frame width
 #define JsonSHeightString      "snapshot_height"          ///< Snapshot Frame height
 #define JsonFpsString          "frame_rate"               ///< Fps
+#define JsonIndExpString       "independent_exposure"     ///< Independent exposure for a stereo pair
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
 #define JsonAEFilterAlpha      "ae_filter_alpha"          ///< Modal AE MSV Algo filter alpha
 #define JsonAEIgnoreFraction   "ae_ignore_fraction"       ///< Modal AE MSV algo ignore frac for most saturated
@@ -155,7 +156,8 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         info.isEnabled = tmp;
         json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
         info.flip = tmp;
-
+        json_fetch_bool_with_default(cur, JsonIndExpString,  &tmp, false);
+        info.ind_exp = tmp;
 
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.p_width,   info.p_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.p_height,  info.p_height);
@@ -226,6 +228,8 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
             cJSON_AddNumberToObject  (node, JsonSHeightString,       info.s_height);
         }
         
+        if(info.camId2 != -1) cJSON_AddBoolToObject(node, JsonIndExpString, info.ind_exp);
+
         if(info.ae_mode == AE_LME_HIST){
             cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.ae_hist_info.desired_msv);
             cJSON_AddNumberToObject (node, JsonAEKPString ,          info.ae_hist_info.k_p_ns);

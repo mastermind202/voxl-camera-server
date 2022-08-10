@@ -891,9 +891,11 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             setExposure = new_exposure_ns;
             setGain     = new_gain;
 
-            //Pass back the new AE values to the other camera
-            otherMgr->setExposure = new_exposure_ns;
-            otherMgr->setGain = new_gain;
+            if(!configInfo.ind_exp) {
+                //Pass back the new AE values to the other camera
+                otherMgr->setExposure = new_exposure_ns;
+                otherMgr->setGain = new_gain;
+            }
         }
 
         if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
@@ -908,9 +910,11 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             setExposure = new_exposure_ns;
             setGain     = new_gain;
 
-            //Pass back the new AE values to the other camera
-            otherMgr->setExposure = new_exposure_ns;
-            otherMgr->setGain = new_gain;
+            if(!configInfo.ind_exp) {
+                //Pass back the new AE values to the other camera
+                otherMgr->setExposure = new_exposure_ns;
+                otherMgr->setGain = new_gain;
+            }
         }
         pthread_mutex_unlock(&aeMutex);
 
@@ -929,6 +933,41 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         pthread_cond_signal(&(otherMgr->stereoCond));
         pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
         pthread_mutex_unlock(&(otherMgr->stereoMutex));
+
+        if(configInfo.ind_exp) {
+            // Run Auto Exposure
+            int64_t    new_exposure_ns;
+            int32_t    new_gain;
+
+            pthread_mutex_lock(&aeMutex);
+            if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
+                    srcPixel,
+                    p_width,
+                    p_height,
+                    imageInfo.exposure_ns,
+                    imageInfo.gain,
+                    &new_exposure_ns,
+                    &new_gain)){
+
+                setExposure = new_exposure_ns;
+                setGain     = new_gain;
+            }
+
+            if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
+                    srcPixel,
+                    p_width,
+                    p_height,
+                    imageInfo.exposure_ns,
+                    imageInfo.gain,
+                    &new_exposure_ns,
+                    &new_gain)){
+
+                setExposure = new_exposure_ns;
+                setGain     = new_gain;
+            }
+
+        }
+
     }
 
 }

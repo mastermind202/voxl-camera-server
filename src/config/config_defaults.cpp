@@ -56,6 +56,7 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
+        false,                      //< Independent Exposure
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -106,6 +107,7 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
+        false,                      //< Independent Exposure
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             54,                     //< Gain Min
@@ -157,6 +159,7 @@ static const PerCameraInfo IMX214Defaults =
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
+        false,                      //< Independent Exposure
         AE_ISP,                     //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -193,7 +196,8 @@ static const PerCameraInfo TOFDefaults =
         false,                      //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
-        false,                      //Flip
+        false,                      //< Flip
+        false,                      //< Independent Exposure
         AE_OFF,                     //< AE Mode
     };
 
@@ -216,6 +220,7 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
+        false,                      //< Independent Exposure
         AE_OFF,                     //< AE Mode
     };
 
