@@ -1329,6 +1329,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                 if(ae_mode != AE_OFF) {
                     ae_mode = AE_OFF;
                     ConstructDefaultRequestSettings();
+
+                    if(otherMgr){
+                        otherMgr->ae_mode = AE_OFF;
+                        otherMgr->ConstructDefaultRequestSettings();
+                    }
                 }
 
                 VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
@@ -1370,6 +1375,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                 if(ae_mode != AE_OFF) {
                     ae_mode = AE_OFF;
                     ConstructDefaultRequestSettings();
+
+                    if(otherMgr){
+                        otherMgr->ae_mode = AE_OFF;
+                        otherMgr->ConstructDefaultRequestSettings();
+                    }
                 }
 
                 VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", name, exp);
@@ -1407,6 +1417,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
                 if(ae_mode != AE_OFF) {
                     ae_mode = AE_OFF;
                     ConstructDefaultRequestSettings();
+
+                    if(otherMgr){
+                        otherMgr->ae_mode = AE_OFF;
+                        otherMgr->ConstructDefaultRequestSettings();
+                    }
                 }
 
                 VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", name, gain);
@@ -1435,6 +1450,12 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
         if(ae_mode != configInfo.ae_mode) {
             ae_mode = configInfo.ae_mode;
             ConstructDefaultRequestSettings();
+
+            if(otherMgr){
+                otherMgr->ae_mode = configInfo.ae_mode;
+                otherMgr->ConstructDefaultRequestSettings();
+            }
+
             VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", name);
         }
         pthread_mutex_unlock(&aeMutex);
@@ -1451,6 +1472,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
         if(ae_mode != AE_OFF) {
             ae_mode = AE_OFF;
             ConstructDefaultRequestSettings();
+            
+            if(otherMgr){
+                otherMgr->ae_mode = AE_OFF;
+                otherMgr->ConstructDefaultRequestSettings();
+            }
             VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", name);
         }
         pthread_mutex_unlock(&aeMutex);
