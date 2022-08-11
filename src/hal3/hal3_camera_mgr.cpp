@@ -1103,7 +1103,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     if(ae_mode != AE_ISP){
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
         requestMetadata.update(ANDROID_SENSOR_SENSITIVITY,   &setGain, 1);
-        printf("%s, fid: %d Gain: %d\n", name, frameNumber, setGain );
     }
 
     std::vector<camera3_stream_buffer_t> streamBufferList;
