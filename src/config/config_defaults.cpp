@@ -85,7 +85,7 @@ static const PerCameraInfo OV7251Defaults =
             0.2,                    //< Most saturated ignore frac
             1,                      //< Exposure update period
             1,                      //< Gain update period
-            true                   //< Display Debug
+            false                   //< Display Debug
         }
     };
 static const PerCameraInfo OV9782Defaults =

@@ -966,6 +966,8 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
                 setGain     = new_gain;
             }
 
+            pthread_mutex_unlock(&aeMutex);
+
         }
 
     }
