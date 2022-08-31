@@ -76,6 +76,7 @@ enum ImageFormat
     FMT_RAW10,          ///< RAW10
     FMT_NV12,           ///< NV12
     FMT_NV21,           ///< NV21
+    FMT_TOF,            ///< TOF (camera manager will translate to proper HAL)
     FMT_MAXTYPES        ///< Max Types
 };
 const char* GetImageFmtString(int fmt);
@@ -119,18 +120,19 @@ struct PerCameraInfo
     int           camId2;                ///< id of second camera (if stereo)
     bool          isEnabled;             ///< Is the camera enabled/disabled
 
-    int   fps;                ///< Frame rate - number of frames per second
-    int   p_width;            ///< Preview Width of the frame
-    int   p_height;           ///< Preview Height of the frame
-    int   p_format;           ///< Preview Frame format
-    bool  en_record;
-    int   r_width;            ///< Video Record Width of the frame
-    int   r_height;           ///< Video Record Height of the frame
-    bool  en_snapshot;
-    int   s_width;            ///< Snapshot Width of the frame
-    int   s_height;           ///< Snapshot Height of the frame
-    bool  flip;               ///< Flip?
-    bool  ind_exp;            ///< For stereo pairs, run exposure independently?
+    int     fps;                ///< Frame rate - number of frames per second
+    int     p_width;            ///< Preview Width of the frame
+    int     p_height;           ///< Preview Height of the frame
+    int     p_format;           ///< Preview Frame format
+    bool    en_record;
+    int     r_width;            ///< Video Record Width of the frame
+    int     r_height;           ///< Video Record Height of the frame
+    bool    en_snapshot;
+    int     s_width;            ///< Snapshot Width of the frame
+    int     s_height;           ///< Snapshot Height of the frame
+    bool    flip;               ///< Flip?
+    bool    ind_exp;            ///< For stereo pairs, run exposure independently?
+    uint8_t tof_mode;
 
     AE_MODE ae_mode;
     modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)

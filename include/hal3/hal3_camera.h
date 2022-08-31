@@ -46,6 +46,7 @@
 #include "common_defs.h"
 #include "exposure-hist.h"
 #include "exposure-msv.h"
+#include "tof_interface.hpp"
 
 #define NUM_MODULE_OPEN_ATTEMPTS 10
 
@@ -61,11 +62,14 @@ class PerCameraMgr;
 //------------------------------------------------------------------------------------------------------------------------------
 // Everything needed to handle a single camera
 //------------------------------------------------------------------------------------------------------------------------------
-class PerCameraMgr
+class PerCameraMgr : public IRoyaleDataListener
 {
 public:
+    PerCameraMgr() ;
     PerCameraMgr(PerCameraInfo perCameraInfo);
     ~PerCameraMgr();
+
+    bool royaleDataDone(void* pData, uint32_t size, int64_t timestamp, RoyaleListenerType dataType);
 
     // Start the camera so that it starts streaming frames
     void Start();
@@ -108,7 +112,7 @@ private:
     // Initialize the MPA pipes
     int  SetupPipes();
     void HandleControlCmd(char* cmd);
-    void addClient();
+    int  ValidateTofParams();
 
     // Call the camera module to get the default camera settings
     int ConstructDefaultRequestSettings();
@@ -188,8 +192,6 @@ private:
     BufferGroup                        s_bufferGroup;               ///< Buffer manager per stream
     pthread_t                          requestThread;               ///< Request thread private data
     pthread_t                          resultThread;                ///< Result Thread private data
-    pthread_mutex_t                    requestMutex;                ///< Mutex for list access
-    pthread_cond_t                     requestCond;                 ///< Condition variable for wake up
     pthread_mutex_t                    resultMutex;                 ///< Mutex for list access
     pthread_cond_t                     resultCond;                  ///< Condition variable for wake up
     pthread_mutex_t                    aeMutex;                     ///< Mutex for list access
@@ -212,6 +214,22 @@ private:
     std::list<char *>                  snapshotQueue;
     int                                numNeededSnapshots = 0;
     int                                lastSnapshotNumber = 0;
+
+    ///< TOF Specific members
+    uint32_t                           TOFFrameNumber = 0;
+    uint8_t                            IROutputChannel;
+    uint8_t                            DepthOutputChannel;
+    uint8_t                            ConfOutputChannel;
+    uint8_t                            NoiseOutputChannel;
+    uint8_t                            PCOutputChannel;
+    uint8_t                            FullOutputChannel;
+    void*                              TOFInterface;                ///< TOF interface to process the TOF camera raw data
+
+    // Callback function for the TOF bridge to provide the post processed TOF data
+    // bool royaleDataDone(void*                   pData,
+    //                     uint32_t                size,
+    //                     int64_t                 timestamp,
+    //                     RoyaleListenerType      dataType);
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

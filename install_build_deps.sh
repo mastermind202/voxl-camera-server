@@ -12,6 +12,7 @@ DEPS_QRB5165=( "
 libmodal-pipe
 libmodal-json
 libmodal-exposure
+libvoxl-cci-direct
 libvoxl-cutils
 qrb5165-proprietary" )
 
@@ -19,6 +20,7 @@ DEPS_APQ8096=( "
 libmodal-pipe
 libmodal-json
 libmodal-exposure
+libvoxl-cci-direct
 libvoxl-cutils
 /data/offline_ipk_packages/apq8096-proprietary*.ipk" )
 

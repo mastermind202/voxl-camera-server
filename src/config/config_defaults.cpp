@@ -57,6 +57,7 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
+        0,                          //< TOF Mode
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -108,6 +109,7 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
+        0,                          //< TOF Mode
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             54,                     //< Gain Min
@@ -160,6 +162,7 @@ static const PerCameraInfo IMX214Defaults =
         2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
+        0,                          //< TOF Mode
         AE_ISP,                     //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -181,7 +184,31 @@ static const PerCameraInfo IMX214Defaults =
 static const PerCameraInfo TOFDefaults =
     {
         "",                         //Name
-        CAMTYPE_TOF,                //Type
+        CAMTYPE_TOF,                //< Type
+        true,                       //< Is mono?
+        -1,                         //< ID
+        -1,                         //< ID2
+        true,                       //< Enabled?
+        5,                          //< Framerate
+        224,                        //< Preview Width of the frame
+        1557,                       //< Preview Height of the frame
+        FMT_TOF,                    //< Preview Frame format
+        false,                      //< Enable Video Record
+        -1,                         //< Video Record Width of the frame
+        -1,                         //< Video Record Height of the frame
+        false,                      //< Enable Snapshot mode?
+        -1,                         //< Snapshot Width of the frame
+        -1,                         //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Independent Exposure
+        9,                          //< TOF Mode
+        AE_OFF,                     //< AE Mode
+    };
+
+static const PerCameraInfo emptyDefaults =
+    {
+        "",                         //< Name
+        CAMTYPE_INVALID,            //Type
         true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
@@ -198,29 +225,7 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        AE_OFF,                     //< AE Mode
-    };
-
-static const PerCameraInfo emptyDefaults =
-    {
-        "",                         //< Name
-        CAMTYPE_INVALID,            //< Type
-        false,                      //< Is mono?
-        -1,                         //< ID
-        -1,                         //< ID2
-        false,                      //< Enabled?
-        -1,                         //< Framerate
-        -1,                         //< Preview Width of the frame
-        -1,                         //< Preview Height of the frame
-        FMT_INVALID,                //< Preview Frame format
-        false,                      //< Enable Video Record
-        -1,                         //< Video Record Width of the frame
-        -1,                         //< Video Record Height of the frame
-        false,                      //< Enable Snapshot mode?
-        -1,                         //< Snapshot Width of the frame
-        -1,                         //< Snapshot Height of the frame
-        false,                      //< Flip
-        false,                      //< Independent Exposure
+        0,                          //< TOF Mode
         AE_OFF,                     //< AE Mode
     };
 

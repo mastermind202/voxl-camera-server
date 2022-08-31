@@ -417,7 +417,7 @@ LensType :
       <MinFocusDistance>0.1</MinFocusDistance>
     </LensInfo>
   </CameraModuleConfig>
-  <!-- ov7251 camera in camera slot 1 (right) using i2c1-->
+  <!-- ov7251 camera in camera slot 3 (right) using i2c1-->
   <CameraModuleConfig>
     <CameraId>3</CameraId>
     <SensorName>ov7251_stereo</SensorName>
@@ -444,7 +444,7 @@ LensType :
 
   <!-- ov9782 stereo pair in camera slot 1 -->
   <!-- ov9782 stereo can only work in slot 1 -->
-  <!-- ov9782 camera in camera slot 1 (right) using i2c0-->
+  <!-- ov9782 camera in camera slot 1 (left) using i2c0-->
   <CameraModuleConfig>
     <CameraId>1</CameraId>
     <SensorName>ov9782</SensorName>
@@ -468,7 +468,7 @@ LensType :
       <MinFocusDistance>0.1</MinFocusDistance>
     </LensInfo>
   </CameraModuleConfig>
-  <!-- ov9782 camera in camera slot 1 (right) using i2c1-->
+  <!-- ov9782 camera in camera slot 3 (right) using i2c1-->
   <CameraModuleConfig>
     <CameraId>3</CameraId>
     <SensorName>ov9782</SensorName>

@@ -36,12 +36,6 @@ set -e
 
 . /home/root/.profile.d/modal_bash_formatting.sh
 
-## voxl-utils has a new copy of this config file so we can modify it separately
-## from the system image. System image one is saved as the backup file
-CONFIG_XML="/system/etc/camera/camera_config.xml"
-CONFIG_XML_BAK="/system/etc/camera/camera_config.xml.BAK"
-CONFIG_XML_NEW="/usr/share/modalai/voxl-camera-server/camera_config.xml"
-
 ## different dirvers for the 7251 based on settings
 FILE_OV7251_10BIT_ORIGINAL="/usr/lib/libmmcamera_ov7251.so"
 FILE_OV7251_8BIT="/usr/lib/libmmcamera_ov7251_8bit.so"
@@ -71,8 +65,8 @@ print_configurations () {
     echo -e "8  Hires Only"
     echo -e "9  TOF Only"
     echo -e "10 Stereo(OV7251) only"
-    echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo Pairs${RESET_ALL}"
-    echo -e "${SET_STRIKETHROUGH}12 Stereo(OV9782) only${RESET_ALL}"
+    echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo(OV7251) Pairs${RESET_ALL}"
+    echo -e "12 Stereo(OV9782) only"
     echo -e "13 Hires + Stereo(OV7251)"
 
 }
@@ -221,8 +215,7 @@ case $CAM_CONFIG_ID in
         exit -1
         ;;
     12) # Stereo 9782 only
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the APQ8096 Platform yet"
-        exit -1
+        CAM_LIST+=("stereo:ov9782:0:1")
         ;;
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")
@@ -241,13 +234,6 @@ esac
 camera-server-config-helper ${CAM_LIST[@]}
 ## in system images newer than 3.3.0, set up the 7251 drivers
 if [ -f ${FILE_OV7251_8BIT} ]; then
-
-    ## backup and replace camera config XML
-    if [ ! -f ${CONFIG_XML_BAK} ]; then
-        echo "making new backup of ${CONFIG_XML}"
-        mv ${CONFIG_XML} ${CONFIG_XML_BAK}
-    fi
-    cp -f ${CONFIG_XML_NEW} ${CONFIG_XML}
 
     ## create correct symlinks for tracking and stereo cameras
     if [ "${ROTATE_TRACKING}" == "0" ]; then

@@ -53,7 +53,7 @@ print_configurations () {
     echo -e "8  Hires Only"
     echo -e "${SET_STRIKETHROUGH}9  TOF Only${RESET_ALL}"
     echo -e "10 Stereo(OV7251) only"
-    echo -e "11 Tracking + Hires + Dual Stereo Pairs"
+    echo -e "11 Tracking + Hires + Dual Stereo(OV7251) Pairs"
     echo -e "12 Stereo(OV9782) only"
     echo -e "13 Hires + Stereo(OV7251)"
 }
@@ -198,7 +198,7 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("stereo_rear:ov7251:5:4")
         ;;
     12) # Stereo 9782 only
-        CAM_LIST+=("stereo_front:ov9782:0:1")
+        CAM_LIST+=("stereo:ov9782:0:1")
         ;;
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")

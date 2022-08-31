@@ -46,6 +46,8 @@
 #include <hardware/camera_common.h>
 #include <algorithm>
 #include <voxl_cutils.h>
+#include <royale/DepthData.hpp>
+#include <tof_interface.hpp>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
@@ -81,6 +83,31 @@ static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 static int32_t HalFmtFromType(int fmt);
+
+
+// PerCameraMgr::PerCameraMgr() :
+//     configInfo        (0),
+//     outputChannel     (0),
+//     cameraId          (0),
+//     //name              (), // Maybe keep trying to make this work, just use strcpy for now
+//     en_record         (0),
+//     en_snapshot       (0),
+//     p_width           (0),
+//     p_height          (0),
+//     p_halFmt          (0),
+//     r_width           (0),
+//     r_height          (0),
+//     r_halFmt          (0),
+//     s_width           (0),
+//     s_height          (0),
+//     s_halFmt          (0),
+//     ae_mode           (0),
+//     pCameraModule     (0),
+//     expHistInterface  (NULL),
+//     expMSVInterface   (NULL)
+// {
+//     throw -EINVAL;
+// }
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor
@@ -118,6 +145,11 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         throw -EINVAL;
     }
 
+    if(configInfo.type == CAMTYPE_TOF && ValidateTofParams()){
+        VOXL_LOG_ERROR("ERROR: Camera %d failed to setup tof parameters\n", cameraId);
+
+        throw -EINVAL;
+    }
 
     if(currentDebugLevel == DebugLevel::VERBOSE)
         HAL3_print_camera_resolutions(cameraId);
@@ -207,13 +239,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
     }
 
-    if (ConstructDefaultRequestSettings()){
-
-        VOXL_LOG_ERROR("ERROR: Failed to construct request settings for camera: %s\n", name);
-
-        throw -EINVAL;
-    }
-
     if(configInfo.camId2 == -1){
         partnerMode = MODE_MONO;
     } else {
@@ -263,7 +288,11 @@ int PerCameraMgr::ConfigureStreams()
     p_stream.height      = p_height;
     p_stream.format      = p_halFmt;
     p_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-    p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+    if(configInfo.type == CAMTYPE_TOF){
+        p_stream.usage = GRALLOC_USAGE_SW_READ_OFTEN;
+    } else {
+        p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+    }
     p_stream.rotation    = ROTATION_MODE;
     p_stream.max_buffers = NUM_PREVIEW_BUFFERS;
     p_stream.priv        = 0;
@@ -374,8 +403,70 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
+    if(configInfo.type == CAMTYPE_TOF) {
+        // uint8_t data = (uint8_t) modalai::RoyaleListenerType::LISTENER_DEPTH_DATA;
+
+        // requestMetadata.update(ANDROID_TOF_DATA_OUTPUT, &data, 1);
+
+        if (! (TOFInterface = TOFCreateInterface())) return -1;
+
+        VOXL_LOG_INFO("\nSUCCESS: TOF interface created!\n");
+
+        RoyaleListenerType dataType = RoyaleListenerType::LISTENER_DEPTH_DATA;
+
+        TOFInitializationData initializationData = { 0 };
+
+        initializationData.pTOFInterface = TOFInterface;
+        initializationData.pDataTypes    = &dataType;
+        initializationData.numDataTypes  = 1;
+        initializationData.pListener     = this;
+        initializationData.frameRate     = configInfo.fps;
+        switch(configInfo.tof_mode){
+            case 5:
+                initializationData.range = RoyaleDistanceRange::SHORT_RANGE;
+                break;
+            case 9:
+                initializationData.range = RoyaleDistanceRange::LONG_RANGE;
+                break;
+            default:
+                VOXL_LOG_ERROR("------ voxl-camera-server ERROR: TOF mode :%d not supported\n", configInfo.tof_mode);
+                VOXL_LOG_ERROR("\t\tSupported modes are: 5 and 9\n");
+
+        }
+
+        if(TOFInitialize(&initializationData)) return -1;
+
+    }
+
     return 0;
 
+}
+
+int PerCameraMgr::ValidateTofParams()
+{
+    //Supported framerates (terminate with -1 for easier parseability)
+    const static int tof5Framerates[] = {15, 30, 45, 60, -1};
+    const static int tof9Framerates[] = {5, 10, 15, 20, 30, -1};
+    const int *rates;
+
+    switch (configInfo.tof_mode){
+        case 5:
+            rates = tof5Framerates;
+            break;
+        case 9:
+            rates = tof9Framerates;
+            break;
+        default:
+            VOXL_LOG_ERROR("ERROR: Unsupported TOF mode: %d\n", configInfo.tof_mode);
+            return -1;
+    }
+
+    for(int i = 0; rates[i] != -1; i++){
+        if(rates[i] == configInfo.fps) return 0;
+    }
+
+    VOXL_LOG_ERROR("ERROR: Unsupported TOF framerate: %d\n", configInfo.fps);
+    return -1;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -395,12 +486,10 @@ void PerCameraMgr::Start()
     pthread_condattr_t condAttr;
     pthread_condattr_init(&condAttr);
     pthread_condattr_setclock(&condAttr, CLOCK_MONOTONIC);
-    pthread_mutex_init(&requestMutex, NULL);
     pthread_mutex_init(&resultMutex, NULL);
     pthread_mutex_init(&stereoMutex, NULL);
     pthread_mutex_init(&snapshotMutex, NULL);
     pthread_mutex_init(&aeMutex, NULL);
-    pthread_cond_init(&requestCond, &condAttr);
     pthread_cond_init(&resultCond, &condAttr);
     pthread_cond_init(&stereoCond, &condAttr);
     pthread_condattr_destroy(&condAttr);
@@ -432,12 +521,7 @@ void PerCameraMgr::Stop()
         otherMgr->stopped = true;
     }
 
-    pthread_cond_broadcast(&requestCond);
     pthread_join(requestThread, NULL);
-    pthread_cond_signal(&requestCond);
-    pthread_mutex_unlock(&requestMutex);
-    pthread_mutex_destroy(&requestMutex);
-    pthread_cond_destroy(&requestCond);
 
     pthread_cond_broadcast(&stereoCond);
     pthread_cond_broadcast(&resultCond);
@@ -636,7 +720,8 @@ static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixel
     return false;
 }
 
-static void reverse(uint8_t *mem, int size){
+static void reverse(uint8_t *mem, int size)
+{
 
     uint8_t buffer;
 
@@ -650,7 +735,8 @@ static void reverse(uint8_t *mem, int size){
 }
 
 // Given a file path, create all constituent directories if missing
-static void CreateParentDirs(const char *file_path) {
+static void CreateParentDirs(const char *file_path)
+{
   char *dir_path = (char *) malloc(strlen(file_path) + 1);
   const char *next_sep = strchr(file_path, '/');
   while (next_sep != NULL) {
@@ -708,27 +794,25 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     {
 
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-        if(imageInfo.frame_id == 1){
+        // if(imageInfo.frame_id == 1){
+        //     VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
-            VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
-
-            if((is10bit = Check10bit(srcPixel, p_width, p_height))){
-                VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
-            } else {
-                VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
-            }
-
-        }
+        //     if((is10bit = Check10bit(srcPixel, p_width, p_height))){
+        //         VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
+        //     } else {
+        //         VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
+        //     }
+        // }
 
         imageInfo.format     = IMAGE_FORMAT_RAW8;
         imageInfo.size_bytes = p_width * p_height;
         imageInfo.stride     = p_width;
 
-        if(is10bit){
-            ConvertTo8bitRaw(srcPixel,
-                             p_width,
-                             p_height);
-        }
+        // if(is10bit){
+        //     ConvertTo8bitRaw(srcPixel,
+        //                      p_width,
+        //                      p_height);
+        // }
     }
     else if (p_halFmt == HAL3_FMT_YUV)
     {
@@ -750,17 +834,18 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
         }
 
-        if(configInfo.flip){
-            if(imageInfo.frame_id == 0){
-                VOXL_LOG_ERROR("Flipping not currently supported for YUV images, writing as-is\n");
-            }
-        }
     } else {
         VOXL_LOG_ERROR("Camera: %s received invalid preview format, stopping\n", name);
         EStopCameraServer();
     }
 
-    if(partnerMode == MODE_MONO){
+    //Tof is different from the rest, pass the data off to spectre then send it out
+    if(configInfo.type == CAMTYPE_TOF) {
+        TOFProcessRAW16(TOFInterface,
+            (uint16_t*)srcPixel,
+            imageInfo.timestamp_ns);
+
+    } else if (partnerMode == MODE_MONO){
         // Ship the frame out of the camera server
         pipe_server_write_camera_frame(outputChannel, imageInfo, srcPixel);
         VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
@@ -863,11 +948,6 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         // Assume the earlier timestamp is correct
         if(imageInfo.timestamp_ns > childInfo.timestamp_ns){
             imageInfo.timestamp_ns = childInfo.timestamp_ns;
-        }
-
-        if(configInfo.flip){
-            reverse(srcPixel, imageInfo.size_bytes/2);
-            reverse(childFrame, imageInfo.size_bytes/2);
         }
 
         // Ship the frame out of the camera server
@@ -992,6 +1072,134 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
+// The TOF library calls this function when it receives data from the Royale PMD libs
+// -----------------------------------------------------------------------------------------------------------------------------
+bool PerCameraMgr::royaleDataDone(void*                pData,
+                                  uint32_t             size,
+                                  int64_t              timestamp,
+                                  RoyaleListenerType   dataType)
+{
+
+    constexpr int MAX_IR_VALUE_IN  = 2895;
+    constexpr int MAX_IR_VALUE_OUT = (1<<8);
+
+    const royale::DepthData* pDepthData               = static_cast<const royale::DepthData *> (pData);
+    const royale::Vector<royale::DepthPoint>& pointIn = pDepthData->points;
+    int numPoints = (int)pointIn.size();
+
+    uint64_t timediff_ns =  VCU_time_realtime_ns() - VCU_time_monotonic_ns();
+
+    camera_image_metadata_t IRMeta, DepthMeta, ConfMeta, NoiseMeta;
+    point_cloud_metadata_t PCMeta;
+
+    IRMeta.timestamp_ns = (pDepthData->timeStamp.count() )-timediff_ns;
+    IRMeta.gain         = 0;
+    IRMeta.exposure_ns  = 0;
+    IRMeta.frame_id     = ++TOFFrameNumber;
+    IRMeta.width        = pDepthData->width;
+    IRMeta.height       = pDepthData->height;
+
+    DepthMeta = IRMeta;
+    ConfMeta  = IRMeta;
+    NoiseMeta = IRMeta;
+
+    if(pipe_server_get_num_clients(IROutputChannel)){
+
+        IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
+        IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
+        IRMeta.format         = IMAGE_FORMAT_RAW8;
+        uint8_t IRData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            uint32_t longval = point.grayValue;
+            longval *= MAX_IR_VALUE_OUT;
+            longval /= MAX_IR_VALUE_IN;
+            IRData[i]    = longval;
+        }
+        pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
+    }
+
+    if(pipe_server_get_num_clients(DepthOutputChannel)){
+
+        DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
+        DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
+        DepthMeta.format      = IMAGE_FORMAT_RAW8;
+        uint8_t DepthData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            DepthData[i] = (uint8_t)(pointIn[i].z * 255);
+        }
+        pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
+    }
+
+    if(pipe_server_get_num_clients(ConfOutputChannel)){
+
+        ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
+        ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
+        ConfMeta.format       = IMAGE_FORMAT_RAW8;
+        uint8_t ConfData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            ConfData[i] = point.depthConfidence;
+        }
+        pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
+    }
+
+    if(pipe_server_get_num_clients(NoiseOutputChannel)){
+
+        NoiseMeta.stride      = NoiseMeta.width * sizeof(uint8_t);
+        NoiseMeta.size_bytes  = NoiseMeta.stride * NoiseMeta.height;
+        NoiseMeta.format      = IMAGE_FORMAT_RAW8;
+        uint8_t NoiseData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            NoiseData[i] = (uint8_t)(pointIn[i].noise * 255);
+        }
+        pipe_server_write_camera_frame(NoiseOutputChannel, NoiseMeta, NoiseData);
+    }
+
+    if(pipe_server_get_num_clients(PCOutputChannel)){
+
+        PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
+        PCMeta.n_points       = numPoints;
+        float PointCloud[numPoints*3];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            PointCloud[(i*3)]   = point.x;
+            PointCloud[(i*3)+1] = point.y;
+            PointCloud[(i*3)+2] = point.z;
+        }
+        pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
+    }
+
+    if(pipe_server_get_num_clients(FullOutputChannel)){
+        tof_data_t FullData;
+
+        FullData.magic_number = TOF_MAGIC_NUMBER;
+        FullData.timestamp_ns = IRMeta.timestamp_ns;
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            FullData.points     [i][0] = point.x;
+            FullData.points     [i][1] = point.y;
+            FullData.points     [i][2] = point.z;
+            FullData.noises     [i]    = point.noise;
+            uint32_t longval = point.grayValue;
+            longval *= MAX_IR_VALUE_OUT;
+            longval /= MAX_IR_VALUE_IN;
+            FullData.grayValues [i]    = longval;
+            FullData.confidences[i]    = point.depthConfidence;
+        }
+        pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
+    }
+
+    return true;
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------
 // PerCameraMgr::CameraModuleCaptureResult(..) is the entry callback that is registered with the camera module to be called when
 // the camera module has frame result available to be processed by this application. We do not want to do much processing in
 // that function since it is being called in the context of the camera module. So we do the bare minimum processing and leave
@@ -1075,6 +1283,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
         }
         pthread_mutex_unlock(&resultMutex);
 
+        // Tof processing is asynchronous, we may need to let
+        //     the royale callback return the buffer (test this)
+        // if(configInfo.type != CAMTYPE_TOF)
         bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
 
     }
@@ -1197,28 +1408,22 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 void* PerCameraMgr::ThreadIssueCaptureRequests()
 {
 
+    uint32_t frame_number = 0;
     char buf[16];
     sprintf(buf, "cam%d-request", cameraId);
     pthread_setname_np(pthread_self(), buf);
 
     VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
 
-    // Set thread priority
-    pid_t tid = syscall(SYS_gettid);
-    int which = PRIO_PROCESS;
-    int nice  = -10;
+    if (ConstructDefaultRequestSettings()){
 
-    int frame_number = 0;
+        VOXL_LOG_ERROR("ERROR: Failed to construct request settings for camera: %s\n", name);
 
-    setpriority(which, tid, nice);
+        EStopCameraServer();
+    }
 
     while (!stopped && !EStopped)
     {
-        // Always send requests now
-        // if(!getNumClients() && !numNeededSnapshots){
-        //     pthread_cond_wait(&requestCond, &requestMutex);
-        //     if(stopped || EStopped) break;
-        // }
         ProcessOneCaptureRequest(++frame_number);
     }
 
@@ -1244,7 +1449,8 @@ enum AECommandVals {
     STOP_AE,
     SNAPSHOT
 };
-static const char* CmdStrings[] = {
+static const char* CmdStrings[] =
+{
     "set_exp_gain",
     "set_exp",
     "set_gain",
@@ -1253,38 +1459,84 @@ static const char* CmdStrings[] = {
     "snapshot"
 };
 
-int PerCameraMgr::SetupPipes(){
+int PerCameraMgr::SetupPipes()
+{
+    if(configInfo.type != CAMTYPE_TOF){
+        //Set up the control callback (wrapped in a lambda because it's a member function)
+        pipe_server_set_control_cb(
+                outputChannel,                                         //Channel
+                [](int ch, char * string, int bytes, void* context)    //Callback
+                        {((PerCameraMgr*)context)->HandleControlCmd(string);},
+                this);                                                 //Context
 
-    //Set up the connect callback (wrapped in a lambda because it's a member function)
-    pipe_server_set_connect_cb(
-            outputChannel,                                         //Channel
-            [](int ch, int client_id, char* name, void* context)   //Callback
-                    {((PerCameraMgr*)context)->addClient();},
-            this);
-    //Set up the control callback (wrapped in a lambda because it's a member function)
-    pipe_server_set_control_cb(
-            outputChannel,                                         //Channel
-            [](int ch, char * string, int bytes, void* context)    //Callback
-                    {((PerCameraMgr*)context)->HandleControlCmd(string);},
-            this);                                                 //Context
+        char cont_cmds[256];
+        snprintf(cont_cmds, 255, "%s%s%s",
+            CONTROL_COMMANDS,
+            en_snapshot ? ",snapshot" : "",
+            en_record   ? ",start_record,stop_record" : "");
 
-    char cont_cmds[256];
-    snprintf(cont_cmds, 255, "%s%s%s",
-        CONTROL_COMMANDS,
-        en_snapshot ? ",snapshot" : "",
-        en_record   ? ",start_record,stop_record" : "");
+        pipe_info_t info;
+        strcpy(info.name       , name);
+        strcpy(info.type       , "camera_image_metadata_t");
+        strcpy(info.server_name, PROCESS_NAME);
+        info.size_bytes = 64*1024*1024;
 
-    pipe_info_t info;
-    strcpy(info.name       , name);
-    strcpy(info.type       , "camera_image_metadata_t");
-    strcpy(info.server_name, PROCESS_NAME);
-    info.size_bytes = 64*1024*1024;
+        pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
 
-    strcpy(info.location, info.name);
-    pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
+        pipe_server_set_available_control_commands(outputChannel, cont_cmds);
 
-    pipe_server_set_available_control_commands(outputChannel, cont_cmds);
+    } else {
 
+        IROutputChannel    = outputChannel;
+        DepthOutputChannel = pipe_server_get_next_available_channel();
+        ConfOutputChannel  = pipe_server_get_next_available_channel();
+        NoiseOutputChannel = pipe_server_get_next_available_channel();
+        PCOutputChannel    = pipe_server_get_next_available_channel();
+        FullOutputChannel  = pipe_server_get_next_available_channel();
+
+        pipe_info_t IRInfo;
+        pipe_info_t DepthInfo;
+        pipe_info_t ConfInfo;
+        pipe_info_t NoiseInfo;
+        pipe_info_t PCInfo;
+        pipe_info_t FullInfo;
+
+        sprintf(IRInfo.name,    "%s%s", name, "_ir");
+        sprintf(DepthInfo.name, "%s%s", name, "_depth");
+        sprintf(ConfInfo.name,  "%s%s", name, "_conf");
+        sprintf(NoiseInfo.name, "%s%s", name, "_noise");
+        sprintf(PCInfo.name,    "%s%s", name, "_pc");
+        sprintf(FullInfo.name,  "%s%s", name, "");
+
+        strcpy(IRInfo.type,     "camera_image_metadata_t");
+        strcpy(DepthInfo.type,  "camera_image_metadata_t");
+        strcpy(ConfInfo.type,   "camera_image_metadata_t");
+        strcpy(NoiseInfo.type,  "camera_image_metadata_t");
+        strcpy(PCInfo.type,     "point_cloud_metadata_t");
+        strcpy(FullInfo.type,   "tof_data_t");
+
+        strcpy(IRInfo.server_name,    PROCESS_NAME);
+        strcpy(DepthInfo.server_name, PROCESS_NAME);
+        strcpy(ConfInfo.server_name,  PROCESS_NAME);
+        strcpy(NoiseInfo.server_name, PROCESS_NAME);
+        strcpy(PCInfo.server_name,    PROCESS_NAME);
+        strcpy(FullInfo.server_name,  PROCESS_NAME);
+
+        IRInfo.size_bytes    = 64*1024*1024;
+        DepthInfo.size_bytes = 64*1024*1024;
+        ConfInfo.size_bytes  = 64*1024*1024;
+        NoiseInfo.size_bytes = 64*1024*1024;
+        PCInfo.size_bytes    = 64*1024*1024;
+        FullInfo.size_bytes  = 256*1024*1024;
+
+        pipe_server_create(IROutputChannel,    IRInfo,    0);
+        pipe_server_create(DepthOutputChannel, DepthInfo, 0);
+        pipe_server_create(ConfOutputChannel,  ConfInfo,  0);
+        pipe_server_create(NoiseOutputChannel, NoiseInfo, 0);
+        pipe_server_create(PCOutputChannel,    PCInfo,    0);
+        pipe_server_create(FullOutputChannel,  FullInfo,  0);
+
+    }
     return S_OK;
 }
 
@@ -1296,7 +1548,8 @@ static int _exists(char* path)
     return 0;
 }
 
-void PerCameraMgr::HandleControlCmd(char* cmd) {
+void PerCameraMgr::HandleControlCmd(char* cmd)
+{
 
     const float MIN_EXP  = ((float)configInfo.ae_hist_info.exposure_min_us)/1000;
     const float MAX_EXP  = ((float)configInfo.ae_hist_info.exposure_max_us)/1000;
@@ -1513,7 +1766,6 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
             pthread_mutex_lock(&snapshotMutex);
             snapshotQueue.push_back(filename);
             numNeededSnapshots++;
-            pthread_cond_signal(&requestCond);
             pthread_mutex_unlock(&snapshotMutex);
 
         } else {
@@ -1522,33 +1774,18 @@ void PerCameraMgr::HandleControlCmd(char* cmd) {
     } else {
         VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", name, cmd);
     }
-
-}
-
-
-void PerCameraMgr::addClient(){
-
-    VOXL_LOG_VERBOSE("Client connected to camera %s\n", name);
-
-    pthread_cond_signal(&requestCond);
-
-    if(partnerMode == MODE_STEREO_MASTER){
-        otherMgr->addClient();
-    }
 }
 
 void PerCameraMgr::EStop(){
 
     EStopped = true;
     stopped = true;
-    pthread_cond_broadcast(&requestCond);
     pthread_cond_broadcast(&stereoCond);
     pthread_cond_broadcast(&resultCond);
 
     if(partnerMode == MODE_STEREO_MASTER){
         otherMgr->EStop();
     }
-
 }
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height)
@@ -1572,21 +1809,22 @@ static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint
     return jpegBufferSize;
 }
 
-static int32_t HalFmtFromType(int fmt){
-    //Always request raw10 frames to make sure we have a buffer for either,
-    // post processing thread will figure out what the driver is giving us
-    if (fmt == FMT_RAW10 ||
-        fmt == FMT_RAW8)
-    {
-        return HAL_PIXEL_FORMAT_RAW10;
-    }
-    else if ((fmt == FMT_NV21) ||
-             (fmt == FMT_NV12))
-    {
-        return HAL3_FMT_YUV;
-    } else {
-        VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
+static int32_t HalFmtFromType(int fmt)
+{
+    switch (fmt) {
+        case FMT_RAW10:
+        case FMT_RAW8:
+            return HAL_PIXEL_FORMAT_RAW10;
 
-        throw -EINVAL;
+        case FMT_NV21:
+        case FMT_NV12:
+            return HAL3_FMT_YUV;
+
+        case FMT_TOF:
+            return HAL_PIXEL_FORMAT_BLOB;
+
+        default:
+            VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
+            throw -EINVAL;
     }
 }

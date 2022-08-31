@@ -4,4 +4,39 @@
 # Copyright (c) 2020 ModalAI, Inc. All rights reserved.
 ################################################################################
 
+if [[ "$(voxl-chip)" -eq "APQ8096" ]] ; then
+    ## camera server has a new copy of this config file so we can modify it separately
+    ## from the system image. System image one is saved as the backup file
+    CONFIG_XML="/system/etc/camera/camera_config.xml"
+    CONFIG_XML_BAK="/system/etc/camera/camera_config.xml.BAK"
+    CONFIG_XML_NEW="/usr/share/modalai/voxl-camera-server/camera_config.xml"
+
+    ## different dirvers for the 7251 based on settings
+    FILE_OV7251_10BIT_ORIGINAL="/usr/lib/libmmcamera_ov7251.so"
+    FILE_OV7251_8BIT="/usr/lib/libmmcamera_ov7251_8bit.so"
+    FILE_OV7251_8BIT_HFLIP="/usr/lib/libmmcamera_ov7251_hflip_8bit.so"
+    FILE_OV7251_8BIT_VFLIP="/usr/lib/libmmcamera_ov7251_vflip_8bit.so"
+    FILE_OV7251_8BIT_ROT="/usr/lib/libmmcamera_ov7251_rot180_8bit.so"
+
+    FILE_OV7251_TRACKING="/usr/lib/libmmcamera_ov7251_tracking.so"
+    FILE_OV7251_STEREO="/usr/lib/libmmcamera_ov7251_stereo.so"
+
+    ## backup and replace system image camera config XML
+    if [ ! -f ${CONFIG_XML_BAK} ]; then
+        mv ${CONFIG_XML} ${CONFIG_XML_BAK}
+    fi
+    cp -f ${CONFIG_XML_NEW} ${CONFIG_XML}
+
+    # make sure these links exist, we dont't want to override them if they're
+    # already there but mmcamera needs them to exist
+
+    if [ ! -f ${FILE_OV7251_TRACKING} ] ; then
+        ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_TRACKING}
+    fi
+
+    if [ ! -f ${FILE_OV7251_STEREO} ] ; then
+        ln -sf ${FILE_OV7251_8BIT} ${FILE_OV7251_STEREO}
+    fi
+fi
+
 systemctl daemon-reload

@@ -66,6 +66,8 @@ include_directories(
 	include/hal3/
 	include/config/
 	include/common/
+    include/tof-interface/
+    /usr/include/royale/
 )
 
 target_link_libraries(${SERVERNAME}
@@ -75,11 +77,15 @@ target_link_libraries(${SERVERNAME}
     voxl_cutils
     camera_metadata
     hardware
+    spectre3
+    platform
+    voxl_cci_direct
 )
 
 if(PLATFORM MATCHES APQ8096)
 
     target_link_libraries(${SERVERNAME}
+        log
         camera_client
     )
 else()
