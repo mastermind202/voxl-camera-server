@@ -79,6 +79,7 @@ enum ImageFormat
     FMT_TOF,            ///< TOF (camera manager will translate to proper HAL)
     FMT_MAXTYPES        ///< Max Types
 };
+int32_t HalFmtFromType(int fmt);
 const char* GetImageFmtString(int fmt);
 
 //------------------------------------------------------------------------------------------------------------------------------

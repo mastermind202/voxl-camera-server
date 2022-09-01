@@ -36,17 +36,49 @@
 #include <modal_pipe_interfaces.h>
 
 #include "common_defs.h"
+#include "buffer_manager.h" // HAL_PIXEL_FORMATS
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Supported preview formats
 // -----------------------------------------------------------------------------------------------------------------------------
-const char* GetImageFmtString(int fmt){
+const char* GetImageFmtString(int fmt)
+{
     switch ((ImageFormat)fmt){
         case FMT_RAW8:  return "raw8";
         case FMT_RAW10: return "raw10";
         case FMT_NV12:  return "nv12";
         case FMT_NV21:  return "nv21";
         default:        return "Invalid";
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+// Convert local format type to HAL3 format type
+//------------------------------------------------------------------------------------------------------------------------------
+int32_t HalFmtFromType(int fmt)
+{
+    switch (fmt){
+        case FMT_RAW10:
+        case FMT_RAW8:
+            return HAL_PIXEL_FORMAT_RAW10;
+
+        case FMT_NV21:
+        case FMT_NV12:
+            return HAL3_FMT_YUV;
+
+        case FMT_TOF:
+
+#ifdef APQ8096
+            return HAL_PIXEL_FORMAT_BLOB;
+#elif QRB5165
+            return HAL_PIXEL_FORMAT_RAW12;
+#else
+    #error "Platform invalid"
+#endif
+        default:
+            VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
+            throw -EINVAL;
     }
 }
 

@@ -10,3 +10,4 @@ pkg/data
 *.core
 .vscode
 proprietary
+.gitconfig

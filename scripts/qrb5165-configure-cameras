@@ -170,8 +170,9 @@ case $CAM_CONFIG_ID in
     #   TOF_CAM_ID=1
         ;;
     7) # TOF + Stereo + Tracking
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
+        CAM_LIST+=("tof:pmd-tof:0")
+        CAM_LIST+=("tracking:ov7251:1")
+        CAM_LIST+=("stereo:ov7251:2:3")
     #   HIRES_CAM_ID=-1
     #   TRACKING_CAM_ID=0
     #   STEREO_CAM_ID=1

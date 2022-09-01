@@ -1,9 +1,9 @@
 Package: voxl-camera-server
-Version: 1.2.0
+Version: 1.2.1
 Section: base
 Priority: optional
 Architecture: arm64
-Depends: libmodal-pipe(>=2.3.0),libmodal-json,libmodal-exposure(>=0.0.4), libvoxl-cutils, libvoxl-cci-direct
+Depends: libmodal-pipe(>=2.4.2),libmodal-json,libmodal-exposure(>=0.0.4), libvoxl-cutils, libvoxl-cci-direct
 Conflicts: qrb5165-camera-server, apq8096-camera-server, voxl-utils(<=1.0.2)
 Provides: qrb5165-camera-server(=1.0.0), apq8096-camera-server(=1.0.0)
 Replaces: qrb5165-camera-server, apq8096-camera-server
