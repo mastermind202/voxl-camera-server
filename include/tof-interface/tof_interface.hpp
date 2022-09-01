@@ -545,6 +545,7 @@ struct TOFInitializationData {
     IRoyaleDataListener*  pListener;            ///< Class object of type IRoyaleDataListener
     uint32_t              frameRate;            ///< TOF camera Frame rate
     RoyaleDistanceRange   range;                ///< TOF mode (5, 9)
+    uint32_t              cameraId;
 };
 
 class TOFInterface {

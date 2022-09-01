@@ -1250,9 +1250,9 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     IRoyaleDataListener*        pListener    = pTOFInitializationData->pListener;
     uint32_t                    frameRateDes = pTOFInitializationData->frameRate;  //desired frame rate and range
     RoyaleDistanceRange         rangeDes     = pTOFInitializationData->range;
+    int32_t                     cameraID     = pTOFInitializationData->cameraId;
 
     int                         status       = 0;
-    // void*                       pHandle      = NULL;
     std::vector<uint8_t>        list_short;
     std::vector<uint8_t>        list_long;
     uint8_t                     range;
@@ -1261,8 +1261,7 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     uint32_t                    exp_time;
     std::pair<int64_t, int64_t> exp_time_limits;
 
-    // TODO: need to pass in CamId
-    m_pI2cAccess = new I2cAccess(0);
+    m_pI2cAccess = new I2cAccess(cameraID);
     if (m_pI2cAccess != NULL) {
         TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
 

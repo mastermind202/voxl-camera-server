@@ -82,7 +82,6 @@
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
-static int32_t HalFmtFromType(int fmt);
 
 
 // PerCameraMgr::PerCameraMgr() :
@@ -288,11 +287,7 @@ int PerCameraMgr::ConfigureStreams()
     p_stream.height      = p_height;
     p_stream.format      = p_halFmt;
     p_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-    if(configInfo.type == CAMTYPE_TOF){
-        p_stream.usage = GRALLOC_USAGE_SW_READ_OFTEN;
-    } else {
-        p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    }
+    p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
     p_stream.rotation    = ROTATION_MODE;
     p_stream.max_buffers = NUM_PREVIEW_BUFFERS;
     p_stream.priv        = 0;
@@ -421,6 +416,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
         initializationData.numDataTypes  = 1;
         initializationData.pListener     = this;
         initializationData.frameRate     = configInfo.fps;
+        initializationData.cameraId      = cameraId;
         switch(configInfo.tof_mode){
             case 5:
                 initializationData.range = RoyaleDistanceRange::SHORT_RANGE;
@@ -779,6 +775,22 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     fclose(file_descriptor);
 }
 
+static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint16_t *raw16Buf) 
+{
+    // Convert image buffer from MIPI RAW12 to RAW16 format
+    // ToF MIPI RAW12 is stored in the format of:
+    // P1[11:4] P2[11:4] P2[3:0] P1[3:0]
+    // 2 pixels occupy 3 bytes, no padding needed
+
+    // ToF data is 12bit held in an 8bit format, use seperate counter to track 1.5x difference in data size
+    int buf8Idx, buf16Idx;
+    for (buf8Idx = 0, buf16Idx = 0; buf16Idx < meta.size_bytes / 2; buf8Idx += 3, buf16Idx++){
+        raw16Buf[(buf16Idx*2)]   = (raw12Buf[buf8Idx] << 4) + (raw12Buf[buf8Idx + 2] & 0x0F);
+        raw16Buf[(buf16Idx*2)+1] = (raw12Buf[buf8Idx + 1] << 4) + ((raw12Buf[buf8Idx + 2] & 0xF0) >> 4);
+    }
+
+}
+
 
 void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
@@ -789,6 +801,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     imageInfo.height       = p_height;
 
     uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
+    uint16_t srcPixel16[p_width * p_height] = {0};
 
     if (p_halFmt == HAL_PIXEL_FORMAT_RAW10)
     {
@@ -813,6 +826,18 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         //                      p_width,
         //                      p_height);
         // }
+    }
+    else if (p_halFmt == HAL_PIXEL_FORMAT_RAW12) {
+        // Should only be ToF on 865 that uses this function, if in the future
+        // there is another sensor that requires raw12, make this if ToF specific
+
+        imageInfo.format     = IMAGE_FORMAT_RAW8; 
+        imageInfo.size_bytes = p_width * p_height;
+        imageInfo.stride     = p_width;
+
+        // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
+        Mipi12ToRaw16(imageInfo, (uint8_t *)srcPixel, srcPixel16);
+
     }
     else if (p_halFmt == HAL3_FMT_YUV)
     {
@@ -842,7 +867,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     //Tof is different from the rest, pass the data off to spectre then send it out
     if(configInfo.type == CAMTYPE_TOF) {
         TOFProcessRAW16(TOFInterface,
-            (uint16_t*)srcPixel,
+            (uint16_t*)srcPixel16,
             imageInfo.timestamp_ns);
 
     } else if (partnerMode == MODE_MONO){
@@ -1494,6 +1519,8 @@ int PerCameraMgr::SetupPipes()
         PCOutputChannel    = pipe_server_get_next_available_channel();
         FullOutputChannel  = pipe_server_get_next_available_channel();
 
+        printf("Testing %d %d %d %d %d\n", IROutputChannel, DepthOutputChannel, ConfOutputChannel, NoiseOutputChannel, PCOutputChannel);
+
         pipe_info_t IRInfo;
         pipe_info_t DepthInfo;
         pipe_info_t ConfInfo;
@@ -1807,24 +1834,4 @@ static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint
     int jpegBufferSize = minJpegBufferSize + (maxJpegBufferSize - minJpegBufferSize) * scaleFactor;
 
     return jpegBufferSize;
-}
-
-static int32_t HalFmtFromType(int fmt)
-{
-    switch (fmt) {
-        case FMT_RAW10:
-        case FMT_RAW8:
-            return HAL_PIXEL_FORMAT_RAW10;
-
-        case FMT_NV21:
-        case FMT_NV12:
-            return HAL3_FMT_YUV;
-
-        case FMT_TOF:
-            return HAL_PIXEL_FORMAT_BLOB;
-
-        default:
-            VOXL_LOG_ERROR("ERROR: Invalid Preview Format!\n");
-            throw -EINVAL;
-    }
 }
