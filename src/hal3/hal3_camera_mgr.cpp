@@ -42,7 +42,6 @@
 #include <vector>
 #include <string.h>
 #include <camera/CameraMetadata.h>
-#include <camera/VendorTagDescriptor.h>
 #include <hardware/camera_common.h>
 #include <algorithm>
 #include <voxl_cutils.h>

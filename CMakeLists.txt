@@ -85,7 +85,6 @@ target_link_libraries(${SERVERNAME}
 if(PLATFORM MATCHES APQ8096)
 
     target_link_libraries(${SERVERNAME}
-        log
         camera_client
     )
 else()
