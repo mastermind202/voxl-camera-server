@@ -85,29 +85,6 @@ static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint
 static int32_t HalFmtFromType(int fmt);
 
 
-// PerCameraMgr::PerCameraMgr() :
-//     configInfo        (0),
-//     outputChannel     (0),
-//     cameraId          (0),
-//     //name              (), // Maybe keep trying to make this work, just use strcpy for now
-//     en_record         (0),
-//     en_snapshot       (0),
-//     p_width           (0),
-//     p_height          (0),
-//     p_halFmt          (0),
-//     r_width           (0),
-//     r_height          (0),
-//     r_halFmt          (0),
-//     s_width           (0),
-//     s_height          (0),
-//     s_halFmt          (0),
-//     ae_mode           (0),
-//     pCameraModule     (0),
-//     expHistInterface  (NULL),
-//     expMSVInterface   (NULL)
-// {
-//     throw -EINVAL;
-// }
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor
