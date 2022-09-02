@@ -133,7 +133,6 @@ struct PerCameraInfo
     int     s_height;           ///< Snapshot Height of the frame
     bool    flip;               ///< Flip?
     bool    ind_exp;            ///< For stereo pairs, run exposure independently?
-    uint8_t tof_mode;
 
     AE_MODE ae_mode;
     modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)

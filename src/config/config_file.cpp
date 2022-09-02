@@ -81,7 +81,6 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonCameraIdString     "camera_id"                ///< Camera id
 #define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
-#define JsonTofModeString      "tof_mode"                 ///< Is camera enabled
 
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
 
@@ -227,10 +226,6 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
             //cJSON_AddNumberToObject  (node, JsonRHeightString,       info.r_height);
             cJSON_AddNumberToObject  (node, JsonSWidthString,        info.s_width);
             cJSON_AddNumberToObject  (node, JsonSHeightString,       info.s_height);
-        }
-        
-        if (info.type == CAMTYPE_TOF){
-            cJSON_AddNumberToObject  (node, JsonTofModeString,       info.tof_mode);
         }
 
         if(info.camId2 != -1) cJSON_AddBoolToObject(node, JsonIndExpString, info.ind_exp);

@@ -91,7 +91,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
-    //name              (), // Maybe keep trying to make this work, just use strcpy for now
     en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
     p_width           (pCameraInfo.p_width),
@@ -116,12 +115,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     if(pCameraModule == NULL ){
         VOXL_LOG_ERROR("ERROR: Failed to get HAL module!\n");
-
-        throw -EINVAL;
-    }
-
-    if(configInfo.type == CAMTYPE_TOF && ValidateTofParams()){
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to setup tof parameters\n", cameraId);
 
         throw -EINVAL;
     }
@@ -375,70 +368,29 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
     if(configInfo.type == CAMTYPE_TOF) {
-        // uint8_t data = (uint8_t) modalai::RoyaleListenerType::LISTENER_DEPTH_DATA;
 
-        // requestMetadata.update(ANDROID_TOF_DATA_OUTPUT, &data, 1);
-
-        if (! (TOFInterface = TOFCreateInterface())) return -1;
-
-        VOXL_LOG_INFO("\nSUCCESS: TOF interface created!\n");
+        if(configInfo.fps != 5 && configInfo.fps != 15) {
+            VOXL_LOG_ERROR("ERROR: Invalid TOF framerate: %d, must be either 5 or 15\n", configInfo.fps);
+            return -1;
+        }
 
         RoyaleListenerType dataType = RoyaleListenerType::LISTENER_DEPTH_DATA;
 
         TOFInitializationData initializationData = { 0 };
 
-        initializationData.pTOFInterface = TOFInterface;
         initializationData.pDataTypes    = &dataType;
         initializationData.numDataTypes  = 1;
         initializationData.pListener     = this;
         initializationData.frameRate     = configInfo.fps;
         initializationData.cameraId      = cameraId;
-        
-        switch(configInfo.tof_mode){
-            case 5:
-                initializationData.range = RoyaleDistanceRange::SHORT_RANGE;
-                break;
-            case 9:
-                initializationData.range = RoyaleDistanceRange::LONG_RANGE;
-                break;
-            default:
-                VOXL_LOG_ERROR("------ voxl-camera-server ERROR: TOF mode :%d not supported\n", configInfo.tof_mode);
-                VOXL_LOG_ERROR("\t\tSupported modes are: 5 and 9\n");
+        initializationData.range         = RoyaleDistanceRange::LONG_RANGE;
 
-        }
-
-        if(TOFInitialize(&initializationData)) return -1;
+        tof_interface = new TOFInterface(&initializationData);
+        VOXL_LOG_INFO("\nSUCCESS: TOF interface created!\n");
     }
 
     return 0;
 
-}
-
-int PerCameraMgr::ValidateTofParams()
-{
-    //Supported framerates (terminate with -1 for easier parseability)
-    const static int tof5Framerates[] = {15, 30, 45, 60, -1};
-    const static int tof9Framerates[] = {5, 10, 15, 20, 30, -1};
-    const int *rates;
-
-    switch (configInfo.tof_mode){
-        case 5:
-            rates = tof5Framerates;
-            break;
-        case 9:
-            rates = tof9Framerates;
-            break;
-        default:
-            VOXL_LOG_ERROR("ERROR: Unsupported TOF mode: %d\n", configInfo.tof_mode);
-            return -1;
-    }
-
-    for(int i = 0; rates[i] != -1; i++){
-        if(rates[i] == configInfo.fps) return 0;
-    }
-
-    VOXL_LOG_ERROR("ERROR: Unsupported TOF framerate: %d\n", configInfo.fps);
-    return -1;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -781,25 +733,25 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     {
 
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-        // if(imageInfo.frame_id == 1){
-        //     VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
+        if(imageInfo.frame_id == 1){
+            VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
-        //     if((is10bit = Check10bit(srcPixel, p_width, p_height))){
-        //         VOXL_LOG_INFO("Frame was actually 10 bit, proceeding with conversions\n");
-        //     } else {
-        //         VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
-        //     }
-        // }
+            if((is10bit = Check10bit(srcPixel, p_width, p_height))){
+                VOXL_LOG_WARNING("WARNING: Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
+            } else {
+                VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
+            }
+        }
 
         imageInfo.format     = IMAGE_FORMAT_RAW8;
         imageInfo.size_bytes = p_width * p_height;
         imageInfo.stride     = p_width;
 
-        // if(is10bit){
-        //     ConvertTo8bitRaw(srcPixel,
-        //                      p_width,
-        //                      p_height);
-        // }
+        if(is10bit){
+            ConvertTo8bitRaw(srcPixel,
+                             p_width,
+                             p_height);
+        }
     }
     else if (p_halFmt == HAL_PIXEL_FORMAT_RAW12) {
         // Should only be ToF on 865 that uses this function, if in the future
@@ -840,9 +792,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
     //Tof is different from the rest, pass the data off to spectre then send it out
     if(configInfo.type == CAMTYPE_TOF) {
-        TOFProcessRAW16(TOFInterface,
-            (uint16_t*)srcPixel16,
-            imageInfo.timestamp_ns);
+        tof_interface->ProcessRAW16(srcPixel16, imageInfo.timestamp_ns);
 
     } else if (partnerMode == MODE_MONO){
         // Ship the frame out of the camera server

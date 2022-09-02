@@ -413,74 +413,6 @@ uint32_t BridgeImager::crc32(uint32_t crc, const uint8_t *buf, size_t size) {
     return crc ^ ~0U;
 }
 
-
-
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// Extern functions
-// -----------------------------------------------------------------------------------------------------------------------------
-
-void* TOFCreateInterface() {
-    return new TOFInterface();
-}
-
-int TOFInitialize(TOFInitializationData* pTOFInitializeData) {
-    int status = -EINVAL;
-    TOFInterface* pTofInterface = (TOFInterface*)pTOFInitializeData->pTOFInterface;
-
-    if ((pTOFInitializeData != NULL) && (pTofInterface != NULL)) {
-        status = pTofInterface->Initialize(pTOFInitializeData);
-    }
-
-    return status;
-}
-
-void TOFProcessRAW16(void* pTOFInterface, uint16_t* pRaw16PixelData, uint64_t timestamp) {
-    TOFInterface* pTofInterface = (TOFInterface*)pTOFInterface;
-
-    if (pTofInterface != NULL) {
-        pTofInterface->ProcessTOFRAW16(pRaw16PixelData, timestamp);
-    }
-}
-
-void TOFDestroyInterface(void* pTOFInterface) {
-    TOFInterface* pTofInterface = (TOFInterface*)pTOFInterface;
-
-    if (pTofInterface != NULL) {
-        delete pTofInterface;
-    }
-}
-
-int TOFIsTofCam(int32_t width, int32_t height) {
-    return (int)TOFBridge::isTOFCam(width,height);
-}
-
-int TOFGetFrameSize(RoyaleDistanceRange range, int32_t & width, int32_t & height) {
-    width  = 0;
-    height = 0;
-
-    if (range == RoyaleDistanceRange::SHORT_RANGE) {
-        width  = TOF_5PHASE_WIDTH;
-        height = TOF_5PHASE_HEIGHT;
-        return 0;
-    }
-
-    if (range == RoyaleDistanceRange::LONG_RANGE) {
-        width  = TOF_9PHASE_WIDTH;
-        height = TOF_9PHASE_HEIGHT;
-        return 0;
-    }
-
-    if (range == RoyaleDistanceRange::EXTRA_LONG_RANGE) {
-        width  = TOF_11PHASE_WIDTH;
-        height = TOF_11PHASE_HEIGHT;
-        return 0;
-    }
-
-    return -1;
-}
-
-
 // -----------------------------------------------------------------------------------------------------------------------------
 // I2CAccess class implemenatation
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -1176,7 +1108,7 @@ std::vector <uint32_t> TOFBridge::mShortRangeFramerates;
 std::vector <uint32_t> TOFBridge::mLongRangeFramerates;
 std::vector <uint32_t> TOFBridge::mExtraLongRangeFramerates;
 
-int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
+TOFInterface::TOFInterface(TOFInitializationData* pTOFInitializationData) {
     uint32_t                    numDataTypes = pTOFInitializationData->numDataTypes;
     RoyaleListenerType*         pDataTypes   = pTOFInitializationData->pDataTypes;
     IRoyaleDataListener*        pListener    = pTOFInitializationData->pListener;
@@ -1184,7 +1116,6 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     RoyaleDistanceRange         rangeDes     = pTOFInitializationData->range;
     int32_t                     cameraId     = pTOFInitializationData->cameraId;
 
-    int                         status       = 0;
     std::vector<uint8_t>        list_short;
     std::vector<uint8_t>        list_long;
     uint8_t                     range;
@@ -1196,39 +1127,28 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
 
     TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
 
-    m_pTofBridge = new TOFBridge();
-    m_pTofBridge->cameraId = cameraId; 
-
-    m_pTofBridge->addRoyaleDataListener(pListener);
-    if (!m_pTofBridge) {
-        status = -EINVAL;
+    if (! (m_pTofBridge = new TOFBridge())) {
         fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
+        throw -EINVAL;
     }
 
-    if (status == 0) {
-        if (m_pTofBridge->setup()) {
-            status = -EINVAL;
-            fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
-            return -1;
-        }
+    m_pTofBridge->cameraId = cameraId;
+    m_pTofBridge->addRoyaleDataListener(pListener);
+
+    if (m_pTofBridge->setup()) {
+        fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
+        throw -EINVAL;
     }
 
     // printf("\nSetting use case: mode=%d, fps = %d\n",(int)rangeDes,frameRateDes);
     if (m_pTofBridge->setUseCase(rangeDes,frameRateDes)) {
-        status = -EINVAL;
         fprintf(stderr, "[ERROR] TOFInterfaceImpl-ERROR: Could not set TOF use case!\n");
+        throw -EINVAL;
     }  
-    if (status == 0) { 
-        for (uint32_t i = 0; i < numDataTypes; i++) {
-            m_pTofBridge->setInitDataOutput(RoyaleListenerType(pDataTypes[i]));
-        }
-        m_pTofBridge->startCapture();
-    }
-    else {
-        status = -EINVAL;
-        fprintf(stderr, "[ERROR] ToF bridge initialization failed\n");
-    }
 
-    return status;
+    for (uint32_t i = 0; i < numDataTypes; i++) {
+        m_pTofBridge->setInitDataOutput(RoyaleListenerType(pDataTypes[i]));
+    }
+    m_pTofBridge->startCapture();
 
 }

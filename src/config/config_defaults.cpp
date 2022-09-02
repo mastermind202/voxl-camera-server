@@ -57,7 +57,6 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        0,                          //< TOF Mode
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -109,7 +108,6 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        0,                          //< TOF Mode
         AE_LME_MSV,                 //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             54,                     //< Gain Min
@@ -162,7 +160,6 @@ static const PerCameraInfo IMX214Defaults =
         2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        0,                          //< TOF Mode
         AE_ISP,                     //< AE Mode
         {                           //< Hist AE Algorithm Parameters
             100,                    //< Gain Min
@@ -201,7 +198,6 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        9,                          //< TOF Mode
         AE_OFF,                     //< AE Mode
     };
 
@@ -225,7 +221,6 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
-        0,                          //< TOF Mode
         AE_OFF,                     //< AE Mode
     };
 

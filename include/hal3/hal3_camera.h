@@ -113,7 +113,6 @@ private:
     // Initialize the MPA pipes
     int  SetupPipes();
     void HandleControlCmd(char* cmd);
-    int  ValidateTofParams();
 
     // Call the camera module to get the default camera settings
     int ConstructDefaultRequestSettings();
@@ -216,6 +215,7 @@ private:
     int                                lastSnapshotNumber = 0;
 
     ///< TOF Specific members
+    TOFInterface*                      tof_interface;                ///< TOF interface to process the TOF camera raw data
     uint32_t                           TOFFrameNumber = 0;
     uint8_t                            IROutputChannel;
     uint8_t                            DepthOutputChannel;
@@ -223,13 +223,6 @@ private:
     uint8_t                            NoiseOutputChannel;
     uint8_t                            PCOutputChannel;
     uint8_t                            FullOutputChannel;
-    void*                              TOFInterface;                ///< TOF interface to process the TOF camera raw data
-
-    // Callback function for the TOF bridge to provide the post processed TOF data
-    // bool royaleDataDone(void*                   pData,
-    //                     uint32_t                size,
-    //                     int64_t                 timestamp,
-    //                     RoyaleListenerType      dataType);
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

@@ -460,7 +460,6 @@ class TOFBridge {
 // TOF interface
 // -----------------------------------------------------------------------------------------------------------------------------
 struct TOFInitializationData {
-    void*                 pTOFInterface;        ///< TOF Interface pointer
     uint32_t              numDataTypes;         ///< Type of listener types
     RoyaleListenerType*   pDataTypes;           ///< RoyaleListenerType
     IRoyaleDataListener*  pListener;            ///< Class object of type IRoyaleDataListener
@@ -471,34 +470,16 @@ struct TOFInitializationData {
 
 class TOFInterface {
     public:
-        TOFInterface() { }
+        TOFInterface(TOFInitializationData* pTOFInitializeData);
         ~TOFInterface() { }
 
-        static TOFInterface* CreateInstance() { 
-            return new TOFInterface(); 
-        }
-
-        int Initialize(TOFInitializationData* pTOFInitializeData);
-        void ProcessTOFRAW16(uint16_t* pRaw16PixelData, uint64_t timestamp) {
-            return m_pTofBridge->dataCallback(pRaw16PixelData, timestamp);
+        void ProcessRAW16(uint16_t* pRaw16PixelData, uint64_t timestamp) {
+            m_pTofBridge->dataCallback(pRaw16PixelData, timestamp);
         }
 
     private:
         I2cAccess*        m_pI2cAccess;     ///< I2CAccess HAL
         TOFBridge*        m_pTofBridge;      ///< TOF Bridge
 };
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// Main interfaces for the TOF Bridge Library
-// -----------------------------------------------------------------------------------------------------------------------------
-extern "C" {
-void* TOFCreateInterface();
-int   TOFInitialize(TOFInitializationData* pTOFInitializationData);
-void  TOFProcessRAW16(void* p, uint16_t* pRaw16PixelData, uint64_t timestamp);
-void  TOFDestroyInterface(void* pTOFInterface);
-int   TOFIsTofCam(int32_t width, int32_t height);  //returns 1 if width and height matches one of the TOF sensor resolutions
-int   TOFGetFrameSize(RoyaleDistanceRange range, int32_t & width, int32_t & height);
-}
-
 
 #endif // TOF_BRIDGE_H
