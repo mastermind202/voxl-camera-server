@@ -250,7 +250,6 @@ typedef union {
     uint8_t data[67];
 } calDataHeaderv7_t;
 
-
 //----------------------------------------------------------------------------------------
 // Bridge interface for controlling sensor hardware
 //----------------------------------------------------------------------------------------
@@ -263,7 +262,7 @@ typedef union {
 
 class BridgeImager : public royale::hal::IBridgeImager {
   public:
-    BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) {m_i2cAccess = i2cAccess;}
+    BridgeImager(std::shared_ptr<I2cAccess> i2cAccess);
     ~BridgeImager() { }
 
     int setupEeprom();
@@ -280,26 +279,27 @@ class BridgeImager : public royale::hal::IBridgeImager {
     // Not implemented, dummy virtual definition
     void setImagerReset(bool state) { };
 
+    // std::string getCalDataPath() { return calDataPath; }
+
     static const uint8_t imagerSlave = 0x7A; // 0x3D << 1
 
+    void dumpLensParameters (std::pair<float, float> principalPoint, std::pair<float, float> focalLength,
+                             std::pair<float, float> distortionTangential, std::vector<float> &  distortionRadial);
 
   private:
 
-    void getEepromHeader();
+    bool calFileExist();
+    bool calDataParse();
     void calEepromRead();
-
-    int calFileExist();
+    void getEepromHeader();
     void calStringCreate();
-    
+    bool getEepromHeaderVersion(int16_t& version);
+
     void calFileDump();
     void calEepromDumpToFile();
 
-    // TODO: figure out if we want to remove these
-    // bool getEepromHeaderVersion(int16_t& version);
-    bool calDataParse();
 
-    // Functions for validating EEPROM data for different header versions
-    int calDataValidatev7();
+    bool calDataValidatev7(std::vector<uint8_t> &data);
 
     uint32_t crc32(uint32_t crc, const uint8_t *buf, size_t size);
 
@@ -312,16 +312,15 @@ class BridgeImager : public royale::hal::IBridgeImager {
 
     // calibration data storage
     std::vector<uint8_t> calEepromData;
+    std::vector<uint8_t> calEepromHeader;
     std::vector<uint8_t> calDataUnknown;
-    std::vector<uint8_t> calDataLens;
-    std::vector<uint8_t> calDataEfficiency;
 
     // calibration files strings
-    std::string calEepromFileNamePrivate;
-    std::string calEepromFileNameTango;
-    std::string calEepromFileNameModule;
-    std::string calEepromFileNameDump;
+    std::string calEepromFileNamePrivate; 
+    std::string calEepromFileNameDump; 
+    std::string calLensParams;   
 };
+
 
 
 // -----------------------------------------------------------------------------------------------------------------------------

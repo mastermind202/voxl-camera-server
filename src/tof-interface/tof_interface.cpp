@@ -124,15 +124,61 @@ static uint32_t crc32Tab[] = {
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
+
 // -----------------------------------------------------------------------------------------------------------------------------
-// Utility functions
+// BridgeImager class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
+BridgeImager::BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) {
+    m_i2cAccess = i2cAccess;
+}
+
+int BridgeImager::setupEeprom() {
+    getEepromHeader();
+    calStringCreate();
+    
+    if (!calFileExist()) {
+        calEepromRead();
+        calEepromDumpToFile();
+
+        if (calDataParse()) {
+            calFileDump();
+        }
+    }
+
+    return 0;
+}
+
+void BridgeImager::getEepromHeader() {
+    const int HEADER_SIZE = 67;
+    std::vector<uint8_t> eepromHeader;
+
+    // read header data
+    eepromHeader.resize(HEADER_SIZE);
+    m_i2cAccess->readI2cSeq(EEPROM_1ST_PAGE_ADDR << 1, 0, I2cAddressMode::I2C_16BIT, eepromHeader, TOF_I2C_DATA_TYPE_BYTE);
+
+    // Copy data to eeprom struct
+    calEepromHeader.insert(calEepromHeader.end(), eepromHeader.begin(), eepromHeader.end());
+}
+
+void BridgeImager::calStringCreate() {
+    // Get header to extract serial number
+    calDataHeaderv7_t header;
+    std::copy(calEepromHeader.begin(), calEepromHeader.begin()+sizeof(header), header.data);
+
+    const std::string camPath = "/data/misc/camera/";
+
+    // Create cal file paths
+    calFilePath              = camPath + std::string(header.serial_number, 19) + "/";
+    calEepromFileNamePrivate = calFilePath + "pmd.spc";
+    calEepromFileNameDump    = calFilePath + "tof_cal_eeprom.bin";
+    calLensParams            = calFilePath + "irs10x0c_lens.cal";
+}
 
 // dump royale lense params
-void dumpLensParameters (std::pair<float, float> principalPoint, std::pair<float, float> focalLength,
+void BridgeImager::dumpLensParameters (std::pair<float, float> principalPoint, std::pair<float, float> focalLength,
                         std::pair<float, float> distortionTangential, std::vector<float> &  distortionRadial) {
 
-    const char *lensParamsFilePath = "/data/misc/camera/irs10x0c_lens.cal";
+    const char *lensParamsFilePath = calLensParams.c_str();
 
     std::ofstream ofs;
     ofs.open(lensParamsFilePath, std::ofstream::out | std::ofstream::trunc);
@@ -155,222 +201,6 @@ void dumpLensParameters (std::pair<float, float> principalPoint, std::pair<float
     }
 }
 
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// BridgeImager class implementation
-// -----------------------------------------------------------------------------------------------------------------------------
-int BridgeImager::setupEeprom() {
-    int ret;
-
-    getEepromHeader(); // obtain eeprom header
-    ret = calDataValidatev7();
-    if (!ret) {
-        printf("[ERROR] calibration data is not valid");
-        return -1;
-    }
-
-    // Generate paths for cal files
-    calStringCreate();
-    ret = calFileExist();
-    if (!ret) {
-        // Cal files don't exist, get from eeprom and dump
-        calEepromRead();
-        calEepromDumpToFile();
-        calFileDump();
-    }
-
-    // Currently we do not reset camera
-    // int32_t tofCameraPort = atoi(value);
-    // m_ResetGpioPin = -1;
-    // switch (tofCameraPort){
-    //     case 0:  m_ResetGpioPin = 63; break;
-    //     case 1:  m_ResetGpioPin = 30; break;
-    //     case 2:  m_ResetGpioPin = 23; break;
-    //     default: m_ResetGpioPin = -1; break;
-    // }
-
-    return 0;
-}
-
-void BridgeImager::calStringCreate() {
-    // Get header to extract serial number
-    calDataHeaderv7_t header;
-    std::copy(calEepromData.begin(), calEepromData.begin()+sizeof(header), header.data);
-
-
-    const std::string calFilePath = "/data/misc/camera/";
-    std::string serialNum         = std::string(header.serial_number);
-
-    // Create cal file paths
-    calEepromFileNamePrivate = calFilePath + serialNum + "/pmd.spc";
-    calEepromFileNameTango   = calFilePath + serialNum + "/tango.bin";
-    calEepromFileNameModule  = calFilePath + serialNum + "/scale.spc";
-    calEepromFileNameDump    = calFilePath + serialNum + "/tof_cal_eeprom.bin";
-}
-
-void BridgeImager::getEepromHeader() {
-    const int HEADER_SIZE = 67;
-    std::vector<uint8_t> eepromHeader;
-
-    // read header data
-    eepromHeader.resize(HEADER_SIZE);
-    m_i2cAccess->readI2cSeq(EEPROM_1ST_PAGE_ADDR << 1, 0, I2cAddressMode::I2C_16BIT, eepromHeader, TOF_I2C_DATA_TYPE_BYTE);
-
-    // Copy data to eeprom struct
-    calEepromData.insert(calEepromData.end(), eepromHeader.begin(), eepromHeader.end());
-}
-
-// Check for preexisting cal files
-int BridgeImager::calFileExist() {
-    struct stat buf;
-
-    // check if file with "Private" calibration data is present
-    const char *name = calEepromFileNamePrivate.c_str();
-    bool exist = (stat(name, &buf) == 0);
-
-    // check if file with "Tango" calibration data is present
-    name = calEepromFileNameTango.c_str();
-    exist &= (stat(name, &buf) == 0);
-
-    // check if file with "Module" calibration data is present
-    name = calEepromFileNameModule.c_str();
-    exist &= (stat(name, &buf) == 0);
-
-    return exist;
-}
-
-// Parse header data by format, V7 or older
-bool BridgeImager::calDataParse() {
-    // Check header version
-    int16_t headerVersion = 0;
-    // if (!getEepromHeaderVersion(headerVersion)) {
-    //     fprintf(stderr, "[Error] Failed to get EEPROM header version\n");
-    //     return false;
-    // }
-
-    // Parse and validate header data
-    if (headerVersion == 0x07) { // V7 header validation method
-        calDataHeaderv7_t headerv7;
-        std::copy(calEepromData.begin(), calEepromData.begin()+16, headerv7.data);
-        auto unknownBegin = calEepromData.begin() + sizeof(headerv7);
-        auto unknownEnd = unknownBegin + headerv7.data_size;
-        calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
-
-        calDataHeaderv7_t header;
-        std::copy(calEepromData.begin(), calEepromData.begin()+67, header.data);
-        unknownBegin = calEepromData.begin() + sizeof(header);
-        unknownEnd = unknownBegin + header.data_size;
-        calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
-    }
-    return true;
-}
-
-// I2C seq read to extract all EEPROM data
-void BridgeImager::calEepromRead() {
-    std::vector<uint8_t> page;
-
-    // iterate through all EEPROM pages
-    for (uint8_t i = 0; i < EEPROM_PAGE_NUM; i++) {
-        page.clear();
-        page.resize(EEPROM_PAGE_SIZE);
-
-        // read single page
-        m_i2cAccess->readI2cSeq((EEPROM_1ST_PAGE_ADDR+i) << 1, 0, I2cAddressMode::I2C_16BIT, page, TOF_I2C_DATA_TYPE_BYTE);
-
-        // collect all data in single array
-        calEepromData.insert(calEepromData.end(), page.begin(), page.end());
-    }
-}
-
-// TODO: make this for version 7 only
-// bool BridgeImager::getEepromHeaderVersion(int16_t& version) {
-
-//     calDataHeader_t header;
-
-//     // check for original header, since the version info is in the same location for v7
-//     std::copy(calEepromData.begin(), calEepromData.begin() + sizeof(header), header.data);
-
-//     // check Magic string, same location as v7
-//     std::string magic="PMDTEC";
-//     size_t len = magic.size();
-
-//     if ( magic.compare(0, len, header.magic, len) == 0 ) {
-//         version = header.version;
-//         return true;
-//     }
-
-//     return false;
-// }
-
-// dump parsed data from EEPROM file
-void BridgeImager::calFileDump() {
-    // dump "Private" calibration file
-    const char *name = calEepromFileNamePrivate.c_str();
-    std::ofstream f (name, std::ios_base::out | std::ios_base::binary);
-    if (!f.is_open()) {
-        fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
-        return;
-    }
-
-    f.write((char *)&calDataUnknown[0], calDataUnknown.size());
-    f.close();
-
-    // dump "Tango" calibration file
-    name = calEepromFileNameTango.c_str();
-    std::ofstream g (name, std::ios_base::out | std::ios_base::binary);
-    if (!g.is_open()) {
-        fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
-        return;
-    }
-    g.write((char *)&calDataLens[0], calDataLens.size());
-    g.close();
-
-    // dump "Module" calibration file
-    name = calEepromFileNameModule.c_str();
-    std::ofstream h (name, std::ios_base::out | std::ios_base::binary);
-    if (!h.is_open()) {
-        fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
-        return;
-    }
-    h.write((char *)&calDataEfficiency[0], calDataEfficiency.size());
-    h.close();
-}
-
-// Dump EEPROM data read directly from sensor
-void BridgeImager::calEepromDumpToFile() {
-    struct stat buf;
-    const char *name = calEepromFileNameDump.c_str();
-    bool fileExists = ( stat(name, &buf) == 0 );
-
-    if ( !fileExists ) {
-        std::ofstream f (name, std::ios_base::out | std::ios_base::binary);
-        if (!f.is_open()) {
-            fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
-            return;
-        }
-
-        f.write((char *)&calEepromData[0], calEepromData.size());
-        f.close();
-    }
-}
-
-// validates V7 header
-int BridgeImager::calDataValidatev7() {
-    calDataHeaderv7_t header;
-    std::copy(calEepromData.begin(), calEepromData.begin()+sizeof(header), header.data);
-
-    // check Magic string
-    std::string magic="PMDTEC";
-    size_t len = magic.size();
-    int rc = (magic.compare(0, len, header.magic, len) == 0);
-
-    // check CRC
-    uint8_t *block = calEepromData.data() + sizeof(header);
-    uint32_t crc = crc32(0, block, header.data_size);
-    rc &= (crc == header.data_crc32);
-
-    return rc;
-}
 
 // Single CCI read
 void BridgeImager::readImagerRegister(uint16_t regAddr, uint16_t &value) {
@@ -419,9 +249,155 @@ void BridgeImager::writeImagerBurst(uint16_t firstRegAddr, const std::vector<uin
 
 }
 
-// Utility used by royale
+// used by royale
 void BridgeImager::sleepFor(std::chrono::microseconds sleepDuration) {
     std::this_thread::sleep_for(sleepDuration);
+}
+
+// Check for preexisting cal files
+bool BridgeImager::calFileExist() {
+    struct stat buf;
+
+    // check if file with "Private" calibration data is present
+    const char *name = calEepromFileNamePrivate.c_str();
+    bool exist = (stat(name, &buf) == 0);
+
+    return exist;
+}
+
+// Parse header data by format, V7 or older
+bool BridgeImager::calDataParse() {
+    // Check header version
+    int16_t headerVersion = 0;
+    if (!getEepromHeaderVersion(headerVersion)) {
+        fprintf(stderr, "[Error] Failed to get EEPROM header version\n");
+        return false;
+    }
+
+    // Parse and validate header data
+    if (headerVersion == 0x07) { // V7 header validation method
+        bool calIsValid = calDataValidatev7(calEepromData);
+        if (!calIsValid) {
+            printf("[ERROR] calibration data is not valid");
+            return false;
+        }
+
+        calDataHeaderv7_t headerv7;
+        std::copy(calEepromData.begin(), calEepromData.begin()+16, headerv7.data);
+        auto unknownBegin = calEepromData.begin() + sizeof(headerv7);
+        auto unknownEnd = unknownBegin + headerv7.data_size;
+        calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
+
+        calDataHeaderv7_t header;
+        std::copy(calEepromData.begin(), calEepromData.begin()+67, header.data);
+        unknownBegin = calEepromData.begin() + sizeof(header);
+        unknownEnd = unknownBegin + header.data_size;
+        calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
+    }
+    else { // not V7 use old header validation method
+        fprintf(stderr, "[ERROR] Invalid header version\n");
+        return false;
+    }
+
+    return true;
+}
+
+// I2C seq read to extract all EEPROM data
+void BridgeImager::calEepromRead() {
+    std::vector<uint8_t> page;
+
+    // iterate through all EEPROM pages
+    for (uint8_t i = 0; i < EEPROM_PAGE_NUM; i++) {
+        page.clear();
+        page.resize(EEPROM_PAGE_SIZE);
+
+        // read single page
+        m_i2cAccess->readI2cSeq((EEPROM_1ST_PAGE_ADDR+i) << 1, 0, I2cAddressMode::I2C_16BIT, page, TOF_I2C_DATA_TYPE_BYTE);
+
+        // collect all data in single array
+        calEepromData.insert(calEepromData.end(), page.begin(), page.end());
+    }
+}
+
+// Obtain header version
+bool BridgeImager::getEepromHeaderVersion(int16_t& version) {
+
+    calDataHeaderv7_t header;
+
+    // check for original header, since the version info is in the same location for v7
+    std::copy(calEepromData.begin(), calEepromData.begin() + sizeof(header), header.data);
+
+    // check Magic string, same location as v7
+    std::string magic="PMDTEC";
+    size_t len = magic.size();
+
+    if ( magic.compare(0, len, header.magic, len) == 0 ) {
+        version = header.version;
+        return true;
+    }
+
+    return false;
+}
+
+// dump parsed data from EEPROM file
+void BridgeImager::calFileDump() {
+    // dump "Private" calibration file
+    const char *name = calEepromFileNamePrivate.c_str();
+    std::ofstream f (name, std::ios_base::out | std::ios_base::binary);
+    if (!f.is_open()) {
+        fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
+        return;
+    }
+
+    f.write((char *)&calDataUnknown[0], calDataUnknown.size());
+    f.close();
+}
+
+// Dump EEPROM data read directly from sensor
+void BridgeImager::calEepromDumpToFile() {
+    int ret;
+    struct stat buf;
+
+    const char *folderName = calFilePath.c_str();
+    const char *eepromCalName = calEepromFileNameDump.c_str();
+
+    if ( !(stat(folderName, &buf) == 0) ) {
+        // directory doesn't exist, create it
+        ret = mkdir(folderName, 0777);
+        if (ret < 0) {
+            fprintf(stderr, "[ERROR]: Failed to create directory \"%s\"", folderName);
+            return;
+        }
+    }
+
+    if ( !(stat(eepromCalName, &buf) == 0) ) {
+        std::ofstream f (eepromCalName, std::ios_base::out | std::ios_base::binary);
+        if (!f.is_open()) {
+            fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", eepromCalName);
+            return;
+        }
+
+        f.write((char *)&calEepromData[0], calEepromData.size());
+        f.close();
+    }
+}
+
+// validates V7 header
+bool BridgeImager::calDataValidatev7(std::vector<uint8_t> &data) {
+    calDataHeaderv7_t header;
+    std::copy(data.begin(), data.begin()+sizeof(header), header.data);
+
+    // check Magic string
+    std::string magic="PMDTEC";
+    size_t len = magic.size();
+    bool rc = (magic.compare(0, len, header.magic, len) == 0);
+
+    // check CRC
+    uint8_t *block = data.data() + sizeof(header);
+    uint32_t crc = crc32(0, block, header.data_size);
+    rc &= (crc == header.data_crc32);
+
+    return rc;
 }
 
 // Utility function for validating ToF EEPROM data
@@ -436,6 +412,8 @@ uint32_t BridgeImager::crc32(uint32_t crc, const uint8_t *buf, size_t size) {
 
     return crc ^ ~0U;
 }
+
+
 
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -904,7 +882,7 @@ status_t TOFBridge::setup() {
 
     CameraStatus ret = royaleCamera->initialize();
     if (CameraStatus::SUCCESS != ret) {
-        VOXL_LOG_ERROR("JGF ROYALE: Error in device initialize! ret: 0x%08x(%d)\n", ret,ret);
+        VOXL_LOG_ERROR("ROYALE: Error in device initialize! ret: 0x%08x(%d)\n", ret,ret);
         return BAD_VALUE;
     }
 
@@ -920,13 +898,10 @@ status_t TOFBridge::setup() {
             radial.push_back(theLensParams.distortionRadial.at(i));
         }
 
-        dumpLensParameters(std::make_pair(theLensParams.principalPoint.first,
-                                               theLensParams.principalPoint.second),
-                                std::make_pair(theLensParams.focalLength.first,
-                                               theLensParams.focalLength.second),
-                                std::make_pair(theLensParams.distortionTangential.first,
-                                               theLensParams.distortionTangential.second),
-                                radial);
+        bridgeImager->dumpLensParameters(std::make_pair(theLensParams.principalPoint.first, theLensParams.principalPoint.second),
+                                         std::make_pair(theLensParams.focalLength.first, theLensParams.focalLength.second),
+                                         std::make_pair(theLensParams.distortionTangential.first, theLensParams.distortionTangential.second),
+                                         radial);
     }
 
     royale::CameraAccessLevel accessLevel;
