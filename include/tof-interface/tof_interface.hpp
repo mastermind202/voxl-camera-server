@@ -441,7 +441,7 @@ class TOFBridge {
 
     class DepthDataListener : public royale::IDepthDataListener {
         public:
-        DepthDataListener(TOFBridge* tofBridge) { mTOFBridge = tofBridge; printf("I MADE IT HEREEREE\n\n\n\n");}
+        DepthDataListener(TOFBridge* tofBridge) { mTOFBridge = tofBridge; }
         ~DepthDataListener() {}
 
         void onNewData (const royale::DepthData *data);
@@ -500,6 +500,8 @@ class TOFBridge {
         static std::vector <uint32_t> mExtraLongRangeFramerates;
 
         int setUseCase(RoyaleDistanceRange range, uint8_t frameRate);
+
+        uint32_t cameraId;
     
     private:
 

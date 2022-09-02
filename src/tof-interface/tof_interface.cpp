@@ -63,8 +63,6 @@ using namespace royale;
 using namespace royale::hal;
 using namespace royale::pal;
 
-#define CAM_ID 0
-
 std::vector <uint32_t> mShortRangeFramerates;
 std::vector <uint32_t> mLongRangeFramerates;
 std::vector <uint32_t> mExtraLongRangeFramerates;
@@ -188,7 +186,6 @@ BridgeImager::BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) : m_i2cAccess(i
 }
 
 // Single CCI read
-// TODO: make sure 16bit conversion is done in I2C R function
 void BridgeImager::readImagerRegister(uint16_t regAddr, uint16_t &value) {
     std::vector<uint8_t> buffer;
     m_i2cAccess->readI2c(BridgeImager::imagerSlave,
@@ -203,6 +200,7 @@ void BridgeImager::readImagerRegister(uint16_t regAddr, uint16_t &value) {
 void BridgeImager::writeImagerRegister(uint16_t regAddr, uint16_t value) {
     std::vector<uint8_t> buffer;
     buffer.resize(2);
+
     // \todo take care about HTOL conversion here!
     std::memcpy(buffer.data(), &value, 2);
 
@@ -561,7 +559,8 @@ void I2cAccess::readI2cSeq(uint8_t devAddr, uint16_t regAddr, I2cAddressMode add
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciDataType = (dataType == TOF_I2C_DATA_TYPE_BYTE) ? CCI_8BIT : CCI_16BIT;
@@ -585,7 +584,8 @@ void I2cAccess::readI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regAd
     buffer.resize(2);
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -602,7 +602,8 @@ void I2cAccess::writeI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regA
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -619,7 +620,8 @@ void I2cAccess::writeI2cArray(uint8_t devAddr, I2cAddressMode addrMode, const st
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -652,7 +654,7 @@ int I2cAccess::setGPIO(uint16_t gpio, uint16_t data) {
 
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// BridgeDataReceiver class implementation // TODO: validate
+// BridgeDataReceiver class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
 void BridgeDataReceiver::setBufferCaptureListener (IBufferCaptureListener *collector) {
     std::lock_guard<std::mutex> guard (m_changeListenerLock);
@@ -721,7 +723,6 @@ void BridgeDataReceiver::setEventListener (royale::IEventListener *listener) {
 // TOFBridge friend classes implementations // TODO: validate
 // -----------------------------------------------------------------------------------------------------------------------------
 
-// TODO: find  abetter home for this function and implement
 status_t TOFBridge::onRoyaleDepthData(const void *data, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) {
     if (!mDepthChannel) {
         printf("%s No DepthChannel provided!", __func__);
@@ -761,7 +762,7 @@ void TOFBridge::DepthDataListener::onNewData (const royale::DepthData *data) {
 
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// TOFBridge class implementation // TODO: Validate
+// TOFBridge class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
 
 TOFBridge::TOFBridge() {
@@ -819,8 +820,6 @@ std::pair<uint32_t, uint32_t> TOFBridge::getExposureLimits() {
 }
 
 royale::usecase::UseCaseDefinition *TOFBridge::getUseCaseDef (royale::String useCaseName) {
-    printf("%s@%d: E(useCaseName= \"%s\")\n",
-        __PRETTY_FUNCTION__, __LINE__, useCaseName.c_str());
 
     using namespace royale;
     using namespace royale::config;
@@ -837,10 +836,8 @@ royale::usecase::UseCaseDefinition *TOFBridge::getUseCaseDef (royale::String use
             continue;
         }
         royale::usecase::UseCaseDefinition *def = useCase.getDefinition();
-        printf("%s@%d: X(useCase is found)", __PRETTY_FUNCTION__, __LINE__);
         return def;
     }
-    printf("%s@%d: X(useCase is NOT found)", __PRETTY_FUNCTION__, __LINE__);
     return NULL;
 }
 
@@ -908,7 +905,7 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
 
 status_t TOFBridge::setup() {
 
-    i2cAccess = std::make_shared<I2cAccess>(CAM_ID);
+    i2cAccess = std::make_shared<I2cAccess>(cameraId);
     i2cAccess->setup();
 
     bridgeImager = std::make_shared<BridgeImager>(i2cAccess);
@@ -1059,8 +1056,6 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
 }
 
 void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) { 
-    printf("%s@%d: E, dataOutput 0x%x\n", __PRETTY_FUNCTION__, __LINE__, _dataOutput);
-
     // this func is supposed to be called after setup(),  but before startCapture()
     if (!royaleCamera) {
         printf("ERROR! %s: Royale not initialized. Check if setup() is called first\n", __func__);
@@ -1084,28 +1079,24 @@ void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) {
 
     if (dataOutput & LISTENER_IR_IMAGE)
     {
-        printf("LISTENERS: %s register IRImage Listener\n", __func__);
         listeners.irImage = new IRImageListener(this);
         royaleCamera->registerIRImageListener(listeners.irImage);
     }
 
     if (dataOutput & LISTENER_DEPTH_IMAGE)
     {
-        printf("LISTENERS: %s register DepthImage Listener", __func__);
         listeners.depthImage = new DepthImageListener(this);
         royaleCamera->registerDepthImageListener(listeners.depthImage);
     }
 
     if (dataOutput & LISTENER_SPARSE_POINT_CLOUD)
     {
-        printf("LISTENERS: %s register SparsePointCloud Listener", __func__);
         listeners.sparsePointCloud = new SparsePointCloudListener(this);
         royaleCamera->registerSparsePointCloudListener(listeners.sparsePointCloud);
     }
 
     if (dataOutput & LISTENER_DEPTH_DATA)
     {
-        printf("LISTENERS: %s register DepthData Listener", __func__);
         listeners.depthData = new DepthDataListener(this);
         royaleCamera->registerDataListener(listeners.depthData);
     }
@@ -1127,7 +1118,6 @@ status_t TOFBridge::startCapture() {
 }
 
 status_t TOFBridge::stopCapture() {
-    printf("%s E\n", __func__);
     if (royaleCamera) {
         royale::CameraStatus cret = royaleCamera->stopCapture();
         if (royale::CameraStatus::SUCCESS != cret) {
@@ -1135,7 +1125,6 @@ status_t TOFBridge::stopCapture() {
             return BAD_VALUE;
         }
     }
-    printf("%s X\n", __func__);
     return NO_ERROR;
 }
 
@@ -1144,9 +1133,6 @@ void TOFBridge::getFrameRateListShortRange(std::vector<uint8_t> &list) {
 
     list.clear();
     list.insert(list.end(), shortRange->begin(), shortRange->end());
-    for (uint8_t i=0; i<list.size(); ++i) {
-        printf("%s@%d: [%d]= %d\n", __PRETTY_FUNCTION__, __LINE__, i, list[i]);
-    }
 }
 
 void TOFBridge::getFrameRateListLongRange(std::vector<uint8_t> &list) {
@@ -1154,9 +1140,6 @@ void TOFBridge::getFrameRateListLongRange(std::vector<uint8_t> &list) {
 
     list.clear();
     list.insert(list.end(), longRange->begin(), longRange->end());
-    for (uint8_t i=0; i<list.size(); ++i) {
-        printf("%s@%d: [%d]= %d\n", __PRETTY_FUNCTION__, __LINE__, i, list[i]);
-    }
 }
 
 void TOFBridge::setFrameRate(uint8_t frameRate) {
@@ -1168,7 +1151,6 @@ void TOFBridge::setFrameRate(uint8_t frameRate) {
 
 uint8_t TOFBridge::getFrameRate() {
     uint8_t frameRate = mFrameRate;
-    printf("%s@%d: X(frameRate= %d)\n", __PRETTY_FUNCTION__, __LINE__, frameRate);
     return frameRate;
 }
 
@@ -1235,8 +1217,6 @@ void TOFBridge::clearChange(RoyaleParamChange param) {
     paramChange &= ~mask;
 }
 
-
-// TODO: this needs cleanup
 // -----------------------------------------------------------------------------------------------------------------------------
 // TofInterface class implementation 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -1250,7 +1230,7 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     IRoyaleDataListener*        pListener    = pTOFInitializationData->pListener;
     uint32_t                    frameRateDes = pTOFInitializationData->frameRate;  //desired frame rate and range
     RoyaleDistanceRange         rangeDes     = pTOFInitializationData->range;
-    int32_t                     cameraID     = pTOFInitializationData->cameraId;
+    int32_t                     cameraId     = pTOFInitializationData->cameraId;
 
     int                         status       = 0;
     std::vector<uint8_t>        list_short;
@@ -1261,23 +1241,23 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     uint32_t                    exp_time;
     std::pair<int64_t, int64_t> exp_time_limits;
 
-    m_pI2cAccess = new I2cAccess(cameraID);
-    if (m_pI2cAccess != NULL) {
-        TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
 
-        m_pTofBridge = new TOFBridge();
-        m_pTofBridge->addRoyaleDataListener(pListener);
-        if (!m_pTofBridge) {
+    TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
+
+    m_pTofBridge = new TOFBridge();
+    m_pTofBridge->cameraId = cameraId; 
+
+    m_pTofBridge->addRoyaleDataListener(pListener);
+    if (!m_pTofBridge) {
+        status = -EINVAL;
+        fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
+    }
+
+    if (status == 0) {
+        if (m_pTofBridge->setup()) {
             status = -EINVAL;
-            fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
-        }
-
-        if (status == 0) {
-            if (m_pTofBridge->setup()) {
-                status = -EINVAL;
-                fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
-                return -1;
-            }
+            fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
+            return -1;
         }
     }
 
