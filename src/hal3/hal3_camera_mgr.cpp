@@ -42,7 +42,6 @@
 #include <vector>
 #include <string.h>
 #include <camera/CameraMetadata.h>
-#include <camera/VendorTagDescriptor.h>
 #include <hardware/camera_common.h>
 #include <algorithm>
 #include <voxl_cutils.h>
@@ -84,29 +83,6 @@ static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
 
-// PerCameraMgr::PerCameraMgr() :
-//     configInfo        (0),
-//     outputChannel     (0),
-//     cameraId          (0),
-//     //name              (), // Maybe keep trying to make this work, just use strcpy for now
-//     en_record         (0),
-//     en_snapshot       (0),
-//     p_width           (0),
-//     p_height          (0),
-//     p_halFmt          (0),
-//     r_width           (0),
-//     r_height          (0),
-//     r_halFmt          (0),
-//     s_width           (0),
-//     s_height          (0),
-//     s_halFmt          (0),
-//     ae_mode           (0),
-//     pCameraModule     (0),
-//     expHistInterface  (NULL),
-//     expMSVInterface   (NULL)
-// {
-//     throw -EINVAL;
-// }
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor

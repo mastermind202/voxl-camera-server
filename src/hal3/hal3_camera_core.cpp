@@ -63,7 +63,7 @@ camera_module_t* HAL3_get_camera_module()
 
     int i;
     for (i = 0;
-         i <= NUM_MODULE_OPEN_ATTEMPTS && hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&cameraModule);
+         i < NUM_MODULE_OPEN_ATTEMPTS && hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&cameraModule);
          i++)
     {
 
@@ -73,7 +73,7 @@ camera_module_t* HAL3_get_camera_module()
     }
 
     if(cameraModule == NULL){
-        VOXL_LOG_FATAL("ERROR: Camera module not opened after %d attempts", NUM_MODULE_OPEN_ATTEMPTS);
+        VOXL_LOG_FATAL("ERROR: Camera module not opened after %d attempts\n", NUM_MODULE_OPEN_ATTEMPTS);
         return NULL;
     }
 
