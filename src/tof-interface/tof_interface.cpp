@@ -419,14 +419,9 @@ uint32_t BridgeImager::crc32(uint32_t crc, const uint8_t *buf, size_t size) {
 // -----------------------------------------------------------------------------------------------------------------------------
 // Extern functions
 // -----------------------------------------------------------------------------------------------------------------------------
-TOFInterface *g_pTOFInterface = NULL;
 
 void* TOFCreateInterface() {
-    if (g_pTOFInterface == NULL) {
-        g_pTOFInterface = new TOFInterface();
-    }
-
-    return g_pTOFInterface;
+    return new TOFInterface();
 }
 
 int TOFInitialize(TOFInitializationData* pTOFInitializeData) {
