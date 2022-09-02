@@ -4,7 +4,7 @@
 # Copyright (c) 2020 ModalAI, Inc. All rights reserved.
 ################################################################################
 
-if [[ "$(voxl-chip)" -eq "APQ8096" ]] ; then
+if [ "$(voxl-chip)" = "APQ8096" ] ; then
     ## camera server has a new copy of this config file so we can modify it separately
     ## from the system image. System image one is saved as the backup file
     CONFIG_XML="/system/etc/camera/camera_config.xml"
