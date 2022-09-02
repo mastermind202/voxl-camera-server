@@ -14,7 +14,6 @@
 #include <linux/ion.h>
 #include <linux/msm_ion.h>
 #include <camera/CameraMetadata.h>
-#include <camera/VendorTagDescriptor.h>
 
 #include "buffer_manager.h"
 #include "common_defs.h"

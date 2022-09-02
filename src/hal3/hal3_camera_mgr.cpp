@@ -460,7 +460,6 @@ void PerCameraMgr::Start()
     pthread_condattr_setclock(&condAttr, CLOCK_MONOTONIC);
     pthread_mutex_init(&resultMutex, NULL);
     pthread_mutex_init(&stereoMutex, NULL);
-    pthread_mutex_init(&snapshotMutex, NULL);
     pthread_mutex_init(&aeMutex, NULL);
     pthread_cond_init(&resultCond, &condAttr);
     pthread_cond_init(&stereoCond, &condAttr);
@@ -520,7 +519,6 @@ void PerCameraMgr::Stop()
     pthread_mutex_destroy(&stereoMutex);
     pthread_cond_destroy(&stereoCond);
 
-    pthread_mutex_destroy(&snapshotMutex);
     pthread_mutex_destroy(&aeMutex);
 
     pipe_server_close(outputChannel);
@@ -1059,10 +1057,7 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
-
-        pthread_mutex_lock(&snapshotMutex);
         snapshotQueue.pop_front();
-        pthread_mutex_unlock(&snapshotMutex);
 
         VOXL_LOG_FATAL("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
         WriteSnapshot(bufferBlockInfo, s_halFmt, filename);
@@ -1330,7 +1325,9 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.num_output_buffers ++;
     streamBufferList.push_back(pstreamBuffer);
 
-    if(en_snapshot && numNeededSnapshots != 0){
+    if(en_snapshot && numNeededSnapshots > 0){
+        numNeededSnapshots --;
+
         camera3_stream_buffer_t sstreamBuffer;
         sstreamBuffer.buffer        = (const native_handle_t**)bufferPop(s_bufferGroup);
         sstreamBuffer.stream        = &s_stream;
@@ -1340,10 +1337,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         request.num_output_buffers ++;
         streamBufferList.push_back(sstreamBuffer);
-
-        pthread_mutex_lock(&snapshotMutex);
-        numNeededSnapshots --;
-        pthread_mutex_unlock(&snapshotMutex);
 
     }
 
@@ -1610,12 +1603,13 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
         }
 
-    }
+    } else
     /**************************
      *
      * SET Exposure
      *
-     */ else if(strncmp(cmd, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
+     */
+    if(strncmp(cmd, CmdStrings[SET_EXP], strlen(CmdStrings[SET_EXP])) == 0){
 
         char buffer[strlen(CmdStrings[SET_EXP])+1];
         float exp = -1.0;
@@ -1652,12 +1646,13 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", name);
             VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
         }
-    }
+    } else
     /**************************
      *
      * SET Gain
      *
-     */ else if(strncmp(cmd, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
+     */
+    if(strncmp(cmd, CmdStrings[SET_GAIN], strlen(CmdStrings[SET_GAIN])) == 0){
 
         char buffer[strlen(CmdStrings[SET_GAIN])+1];
         int gain = -1;
@@ -1694,13 +1689,13 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", name);
             VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
         }
-    }
-
+    } else
     /**************************
      *
      * START Auto Exposure
      *
-     */ else if(strncmp(cmd, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
+     */
+    if(strncmp(cmd, CmdStrings[START_AE], strlen(CmdStrings[START_AE])) == 0){
 
         pthread_mutex_lock(&aeMutex);
 
@@ -1717,12 +1712,13 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         }
         pthread_mutex_unlock(&aeMutex);
 
-    }
+    } else
     /**************************
      *
      * STOP Auto Exposure
      *
-     */ else if(strncmp(cmd, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
+     */
+    if(strncmp(cmd, CmdStrings[STOP_AE], strlen(CmdStrings[STOP_AE])) == 0){
 
         pthread_mutex_lock(&aeMutex);
 
@@ -1739,7 +1735,6 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         pthread_mutex_unlock(&aeMutex);
 
     } else
-
     /**************************
      *
      * Take snapshot
@@ -1766,10 +1761,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
 
             VOXL_LOG_ERROR("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
-            pthread_mutex_lock(&snapshotMutex);
             snapshotQueue.push_back(filename);
             numNeededSnapshots++;
-            pthread_mutex_unlock(&snapshotMutex);
 
         } else {
             VOXL_LOG_ERROR("Camera: %s failed to take snapshot, mode not enabled\n", name);

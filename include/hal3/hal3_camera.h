@@ -41,6 +41,7 @@
 #include <modal_pipe.h>
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
@@ -210,9 +211,8 @@ private:
     bool                               stopped = false;             ///< Indication for the thread to terminate
     bool                               EStopped = false;            ///< Emergency Stop, terminate without any cleanup
     int                                lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
-    pthread_mutex_t                    snapshotMutex;               ///< Mutex for list access
-    std::list<char *>                  snapshotQueue;
-    int                                numNeededSnapshots = 0;
+    list<char *>                       snapshotQueue;
+    atomic_int                         numNeededSnapshots {0};
     int                                lastSnapshotNumber = 0;
 
     ///< TOF Specific members
