@@ -116,98 +116,26 @@ typedef enum {
     LISTENER_IR_IMAGE           = 0x8
 } RoyaleListenerType;
 
-enum I2C_REG_ADDR_TYPE
-{
-    TOF_I2C_ADDR_TYPE_BYTE,
-    TOF_I2C_ADDR_TYPE_WORD,
-    TOF_I2C_ADDR_TYPE_3B
-};
 enum I2C_DATA_TYPE
 {
     TOF_I2C_DATA_TYPE_BYTE,
     TOF_I2C_DATA_TYPE_WORD,
     TOF_I2C_DATA_TYPE_DWORD
 };
-struct I2CRegArray
-{
-    unsigned short regAddr;
-    unsigned short regData;
-    unsigned int delay;
-};
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // This is the listener client that the TOF bridge library will call when it has post processed data from the Royale PMD libs
 // -----------------------------------------------------------------------------------------------------------------------------
 class IRoyaleDataListener {
     public:
-
-        // int dumpDepthFrames();
-        // TODO: figure out why this interace was causing an abstract issue
         virtual bool royaleDataDone(void* pData, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) = 0;
 };
 
+
 // -----------------------------------------------------------------------------------------------------------------------------
-// 
+// Interface for sensor IO that utilizes CCI direct backend
 // -----------------------------------------------------------------------------------------------------------------------------
-#define MAX_ALLOWED_CAMERAS        6
-#define MAX_CAMERAS                (5)  // 0-5
-#define CAM_ID_INVALID             (255)
-#define SUBDEV_CAM_SENSOR_DRIVER   "cam-sensor-driver"
-
-enum camera_sensor_i2c_type {
-    CAMERA_SENSOR_I2C_TYPE_INVALID,
-    CAMERA_SENSOR_I2C_TYPE_BYTE,
-    CAMERA_SENSOR_I2C_TYPE_WORD,
-    CAMERA_SENSOR_I2C_TYPE_3B,
-    CAMERA_SENSOR_I2C_TYPE_DWORD,
-    CAMERA_SENSOR_I2C_TYPE_MAX,
-};
-
-struct cam_sensor_i2c_reg_array {
-    uint32_t reg_addr;
-    uint32_t reg_data;
-    uint32_t delay;
-    uint32_t data_mask;
-};
-
-struct cam_sensor_i2c_reg_setting {
-    struct cam_sensor_i2c_reg_array *reg_setting;
-    uint32_t size;
-    enum camera_sensor_i2c_type addr_type;
-    enum camera_sensor_i2c_type data_type;
-    unsigned short delay;
-    uint8_t *read_buff;
-    uint32_t read_buff_len;
-};
-
-struct cam_sensor_cci_direct_read_setting {
-	struct cam_sensor_i2c_reg_array *reg_setting;
-	uint32_t size;
-	enum camera_sensor_i2c_type addr_type;
-	enum camera_sensor_i2c_type data_type;
-	unsigned short delay;
-	uint32_t *read_buff;
-	uint32_t read_buff_len;
-};
-
-// TODO: include cam_sensor_cmn_header.h in system image
-struct cam_cci_direct_reg_setting {
-	uint32_t dev_addr;
-	struct cam_sensor_i2c_reg_array *reg_setting;
-	uint32_t size;
-	enum camera_sensor_i2c_type addr_type;
-	enum camera_sensor_i2c_type data_type;
-	unsigned short delay;
-	uint32_t *read_buff;
-};
-
-
-// enum class I2cAddressMode {
-//     I2C_NO_ADDRESS,
-//     I2C_8BIT,
-//     I2C_16BIT
-// };
-
 class I2cAccess : public royale::pal::II2cBusAccess {
     public:
         I2cAccess(int cameraId) {m_cameraId = cameraId;}
@@ -255,8 +183,7 @@ class CapturedBuffer : public royale::hal::ICapturedBuffer {
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Bridge interface functions for reading from main data-capture source
-// TODO: we might potentially not need this is we're using hal3 in order to do
-// all the reading
+// Interface doesn't need much implementation since we use hal3
 // -----------------------------------------------------------------------------------------------------------------------------
 class BridgeDataReceiver : public royale::hal::IBridgeDataReceiver {
     public:
@@ -325,20 +252,6 @@ typedef union {
 
 
 //----------------------------------------------------------------------------------------
-// Old header
-//----------------------------------------------------------------------------------------
-typedef union {
-    struct {
-        char magic[6];
-        uint16_t version;
-        uint32_t checksum;
-        uint32_t size;
-    };
-    uint8_t data[16];
-} calDataHeader_t;
-
-
-//----------------------------------------------------------------------------------------
 // Bridge interface for controlling sensor hardware
 //----------------------------------------------------------------------------------------
 #define CALIBRATION_LENS_SIZE 44
@@ -350,8 +263,10 @@ typedef union {
 
 class BridgeImager : public royale::hal::IBridgeImager {
   public:
-    BridgeImager(std::shared_ptr<I2cAccess> i2cAccess);
-    ~BridgeImager() { };
+    BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) {m_i2cAccess = i2cAccess;}
+    ~BridgeImager() { }
+
+    int setupEeprom();
 
     // R/W functions used by royale IBridgeImager to communicate with ToF
     void readImagerRegister(uint16_t regAddr, uint16_t &value);
@@ -367,19 +282,24 @@ class BridgeImager : public royale::hal::IBridgeImager {
 
     static const uint8_t imagerSlave = 0x7A; // 0x3D << 1
 
+
   private:
 
-    bool calFileExist();
-    bool calDataParse();
+    void getEepromHeader();
     void calEepromRead();
-    bool getEepromHeaderVersion(int16_t& version);
 
+    int calFileExist();
+    void calStringCreate();
+    
     void calFileDump();
     void calEepromDumpToFile();
 
+    // TODO: figure out if we want to remove these
+    // bool getEepromHeaderVersion(int16_t& version);
+    bool calDataParse();
+
     // Functions for validating EEPROM data for different header versions
-    bool calDataValidate(std::vector<uint8_t> &data);
-    bool calDataValidatev7(std::vector<uint8_t> &data);
+    int calDataValidatev7();
 
     uint32_t crc32(uint32_t crc, const uint8_t *buf, size_t size);
 
@@ -397,10 +317,10 @@ class BridgeImager : public royale::hal::IBridgeImager {
     std::vector<uint8_t> calDataEfficiency;
 
     // calibration files strings
-    const std::string calEepromFileNamePrivate = "/data/misc/camera/pmd.spc";
-    const std::string calEepromFileNameTango   = "/data/misc/camera/tango.bin";
-    const std::string calEepromFileNameModule  = "/data/misc/camera/scale.spc";
-    const std::string calEepromFileNameDump    = "/data/misc/camera/tof_cal_eeprom.bin";
+    std::string calEepromFileNamePrivate;
+    std::string calEepromFileNameTango;
+    std::string calEepromFileNameModule;
+    std::string calEepromFileNameDump;
 };
 
 
@@ -484,7 +404,7 @@ class TOFBridge {
         bool getChange(RoyaleParamChange param);
         void clearChange(RoyaleParamChange param);
 
-        // // set _and_ initialize the required depth data listener
+        // set and initialize the required depth data listener
         void setInitDataOutput(RoyaleListenerType _dataOutput);
 
         void addRoyaleDataListener(IRoyaleDataListener * ptrChannel) {
@@ -507,7 +427,7 @@ class TOFBridge {
 
         I2cAccess *mPtrI2CHAL;
         std::shared_ptr<I2cAccess> i2cAccess;
-        std::shared_ptr<royale::hal::IBridgeImager> bridgeImager;
+        std::shared_ptr<BridgeImager> bridgeImager;
         std::shared_ptr<BridgeDataReceiver> bridgeReceiver;
         std::unique_ptr<royale::ICameraDevice> royaleCamera;
         std::shared_ptr<royale::config::ModuleConfig> moduleConfig;
