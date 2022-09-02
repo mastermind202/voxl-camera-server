@@ -32,17 +32,15 @@
  ******************************************************************************/
 
 #include <fcntl.h>
-//#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // strerror
-#include <algorithm> // std::find
+#include <string.h>  // strerror
+#include <algorithm> // find
 #include <unistd.h>
 #include <thread>
 extern "C" {
 #include <sys/stat.h>
 }
-// #include <cam_sensor_cmn_header.h>
 
 #include <sys/resource.h>
 #include <sys/syscall.h>
@@ -50,9 +48,9 @@ extern "C" {
 #include <sys/ioctl.h>
 
 // local includes
-#include "tof_interface.hpp"
-#include "cci_direct.h"
 #include "debug_log.h"
+#include "cci_direct.h"
+#include "tof_interface.hpp"
 
 // royale includes
 #include "common/MakeUnique.hpp"
@@ -63,8 +61,6 @@ using namespace royale;
 using namespace royale::hal;
 using namespace royale::pal;
 
-#define CAM_ID 0
-
 std::vector <uint32_t> mShortRangeFramerates;
 std::vector <uint32_t> mLongRangeFramerates;
 std::vector <uint32_t> mExtraLongRangeFramerates;
@@ -73,7 +69,6 @@ std::vector <uint32_t> mExtraLongRangeFramerates;
 // -----------------------------------------------------------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------------------------------------------------------
-std::shared_ptr<I2cAccess> g_i2cAccess;
 static const RoyaleListenerType RoyaleListenerTypes[] = {LISTENER_DEPTH_DATA,
                                                          LISTENER_SPARSE_POINT_CLOUD,
                                                          LISTENER_DEPTH_IMAGE,
@@ -164,16 +159,24 @@ void dumpLensParameters (std::pair<float, float> principalPoint, std::pair<float
 // -----------------------------------------------------------------------------------------------------------------------------
 // BridgeImager class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
-BridgeImager::BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) : m_i2cAccess(i2cAccess) {
-    g_i2cAccess = i2cAccess;
+int BridgeImager::setupEeprom() {
+    int ret;
 
-    if (!calFileExist()) {
+    getEepromHeader(); // obtain eeprom header
+    ret = calDataValidatev7();
+    if (!ret) {
+        printf("[ERROR] calibration data is not valid");
+        return -1;
+    }
+
+    // Generate paths for cal files
+    calStringCreate();
+    ret = calFileExist();
+    if (!ret) {
+        // Cal files don't exist, get from eeprom and dump
         calEepromRead();
         calEepromDumpToFile();
-
-        if (calDataParse()) {
-            calFileDump();
-        }
+        calFileDump();
     }
 
     // Currently we do not reset camera
@@ -185,62 +188,40 @@ BridgeImager::BridgeImager(std::shared_ptr<I2cAccess> i2cAccess) : m_i2cAccess(i
     //     case 2:  m_ResetGpioPin = 23; break;
     //     default: m_ResetGpioPin = -1; break;
     // }
+
+    return 0;
 }
 
-// Single CCI read
-// TODO: make sure 16bit conversion is done in I2C R function
-void BridgeImager::readImagerRegister(uint16_t regAddr, uint16_t &value) {
-    std::vector<uint8_t> buffer;
-    m_i2cAccess->readI2c(BridgeImager::imagerSlave,
-                        I2cAddressMode::I2C_16BIT,
-                        regAddr,
-                        buffer);
+void BridgeImager::calStringCreate() {
+    // Get header to extract serial number
+    calDataHeaderv7_t header;
+    std::copy(calEepromData.begin(), calEepromData.begin()+sizeof(header), header.data);
 
-    value = (((buffer[0] << 8) & 0xff00) | buffer[1]);
+
+    const std::string calFilePath = "/data/misc/camera/";
+    std::string serialNum         = std::string(header.serial_number);
+
+    // Create cal file paths
+    calEepromFileNamePrivate = calFilePath + serialNum + "/pmd.spc";
+    calEepromFileNameTango   = calFilePath + serialNum + "/tango.bin";
+    calEepromFileNameModule  = calFilePath + serialNum + "/scale.spc";
+    calEepromFileNameDump    = calFilePath + serialNum + "/tof_cal_eeprom.bin";
 }
 
-// Single CCI write
-void BridgeImager::writeImagerRegister(uint16_t regAddr, uint16_t value) {
-    std::vector<uint8_t> buffer;
-    buffer.resize(2);
-    // \todo take care about HTOL conversion here!
-    std::memcpy(buffer.data(), &value, 2);
+void BridgeImager::getEepromHeader() {
+    const int HEADER_SIZE = 67;
+    std::vector<uint8_t> eepromHeader;
 
-    m_i2cAccess->writeI2c(BridgeImager::imagerSlave, I2cAddressMode::I2C_16BIT, regAddr, buffer);
-}
+    // read header data
+    eepromHeader.resize(HEADER_SIZE);
+    m_i2cAccess->readI2cSeq(EEPROM_1ST_PAGE_ADDR << 1, 0, I2cAddressMode::I2C_16BIT, eepromHeader, TOF_I2C_DATA_TYPE_BYTE);
 
-// Burst CCI direct read
-void BridgeImager::readImagerBurst(uint16_t firstRegAddr, std::vector<uint16_t> &values) {
-    uint16_t addr = firstRegAddr;
-
-    for (uint32_t k = 0; k < values.size(); k++) {
-        readImagerRegister(addr, values[k]);
-        addr++;
-    }
-}
-
-// Burst CCI direct write
-void BridgeImager::writeImagerBurst(uint16_t firstRegAddr, const std::vector<uint16_t> &values) {
-    uint16_t addr;
-    size_t i, size = values.size();
-    std::map<uint16_t, uint16_t> data;
-
-    for (i=0,addr=firstRegAddr; i<size; i++,addr++) {
-        std::pair<std::map<uint16_t,uint16_t>::iterator,bool> ret;
-        ret = data.insert(std::pair<uint16_t,uint16_t>(addr, values[i]));
-    }
-
-    m_i2cAccess->writeI2cArray(BridgeImager::imagerSlave, I2cAddressMode::I2C_16BIT, data);
-
-}
-
-// used by royale
-void BridgeImager::sleepFor(std::chrono::microseconds sleepDuration) {
-    std::this_thread::sleep_for(sleepDuration);
+    // Copy data to eeprom struct
+    calEepromData.insert(calEepromData.end(), eepromHeader.begin(), eepromHeader.end());
 }
 
 // Check for preexisting cal files
-bool BridgeImager::calFileExist() {
+int BridgeImager::calFileExist() {
     struct stat buf;
 
     // check if file with "Private" calibration data is present
@@ -262,19 +243,13 @@ bool BridgeImager::calFileExist() {
 bool BridgeImager::calDataParse() {
     // Check header version
     int16_t headerVersion = 0;
-    if (!getEepromHeaderVersion(headerVersion)) {
-        fprintf(stderr, "[Error] Failed to get EEPROM header version\n");
-        return false;
-    }
+    // if (!getEepromHeaderVersion(headerVersion)) {
+    //     fprintf(stderr, "[Error] Failed to get EEPROM header version\n");
+    //     return false;
+    // }
 
     // Parse and validate header data
     if (headerVersion == 0x07) { // V7 header validation method
-        bool calIsValid = calDataValidatev7(calEepromData);
-        if (!calIsValid) {
-            printf("[ERROR] calibration data is not valid");
-            return false;
-        }
-
         calDataHeaderv7_t headerv7;
         std::copy(calEepromData.begin(), calEepromData.begin()+16, headerv7.data);
         auto unknownBegin = calEepromData.begin() + sizeof(headerv7);
@@ -287,43 +262,6 @@ bool BridgeImager::calDataParse() {
         unknownEnd = unknownBegin + header.data_size;
         calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
     }
-    else { // not V7 use old header validation method
-        bool calIsValid = calDataValidate(calEepromData);
-        if (!calIsValid) {
-            printf("%s@%d: Calibration data is NOT valid", __PRETTY_FUNCTION__, __LINE__);
-            return false;
-        }
-
-        calDataHeader_t header;
-        std::copy(calEepromData.begin(), calEepromData.begin()+16, header.data);
-        auto unknownBegin = calEepromData.begin() + sizeof(header);
-        auto unknownEnd = unknownBegin + header.size;
-        calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
-
-        auto lensEffBegin = unknownEnd;
-        auto lensEffEnd = calEepromData.end();
-        std::vector<uint8_t> calDataLensAndEfficiency(lensEffBegin, lensEffEnd);
-
-        bool calDataLensAndEfficiencyIsValid = false;
-        calDataLensAndEfficiencyIsValid = calDataValidate(calDataLensAndEfficiency);
-        if (!calDataLensAndEfficiencyIsValid) {
-            printf("%s@%d: Calibration data is NOT valide", __PRETTY_FUNCTION__, __LINE__);
-            return false;
-        }
-        calDataHeader_t headerTwo;
-        std::copy(lensEffBegin, lensEffBegin + sizeof(headerTwo), headerTwo.data);
-
-        // store Lens calibration data
-        auto lensBegin = lensEffBegin + sizeof(headerTwo);
-        auto lensEnd = lensBegin + CALIBRATION_LENS_SIZE;
-        calDataLens.insert(calDataLens.end(), lensBegin, lensEnd);
-
-        // store Efficiency calibration data
-        auto effBegin = lensEnd;
-        auto effEnd = effBegin + CALIBRATION_EFFICIENCY_SIZE;
-        calDataEfficiency.insert(calDataEfficiency.end(), effBegin, effEnd);
-    }
-
     return true;
 }
 
@@ -344,25 +282,25 @@ void BridgeImager::calEepromRead() {
     }
 }
 
-// Obtain header version
-bool BridgeImager::getEepromHeaderVersion(int16_t& version) {
+// TODO: make this for version 7 only
+// bool BridgeImager::getEepromHeaderVersion(int16_t& version) {
 
-    calDataHeader_t header;
+//     calDataHeader_t header;
 
-    // check for original header, since the version info is in the same location for v7
-    std::copy(calEepromData.begin(), calEepromData.begin() + sizeof(header), header.data);
+//     // check for original header, since the version info is in the same location for v7
+//     std::copy(calEepromData.begin(), calEepromData.begin() + sizeof(header), header.data);
 
-    // check Magic string, same location as v7
-    std::string magic="PMDTEC";
-    size_t len = magic.size();
+//     // check Magic string, same location as v7
+//     std::string magic="PMDTEC";
+//     size_t len = magic.size();
 
-    if ( magic.compare(0, len, header.magic, len) == 0 ) {
-        version = header.version;
-        return true;
-    }
+//     if ( magic.compare(0, len, header.magic, len) == 0 ) {
+//         version = header.version;
+//         return true;
+//     }
 
-    return false;
-}
+//     return false;
+// }
 
 // dump parsed data from EEPROM file
 void BridgeImager::calFileDump() {
@@ -416,40 +354,74 @@ void BridgeImager::calEepromDumpToFile() {
     }
 }
 
-// validates old header format
-bool BridgeImager::calDataValidate(std::vector<uint8_t> &data) {
-    calDataHeader_t header;
-    std::copy(data.begin(), data.begin()+sizeof(header), header.data);
-
-    // check Magic string
-    std::string magic="PMDTEC";
-    size_t len = magic.size();
-    bool rc = (magic.compare(0, len, header.magic, len) == 0);
-
-    // check CRC
-    uint8_t *block = data.data() + sizeof(header);
-    uint32_t crc = crc32(0, block, header.size);
-    rc &= (crc == header.checksum);
-
-    return rc;
-}
-
 // validates V7 header
-bool BridgeImager::calDataValidatev7(std::vector<uint8_t> &data) {
+int BridgeImager::calDataValidatev7() {
     calDataHeaderv7_t header;
-    std::copy(data.begin(), data.begin()+sizeof(header), header.data);
+    std::copy(calEepromData.begin(), calEepromData.begin()+sizeof(header), header.data);
 
     // check Magic string
     std::string magic="PMDTEC";
     size_t len = magic.size();
-    bool rc = (magic.compare(0, len, header.magic, len) == 0);
+    int rc = (magic.compare(0, len, header.magic, len) == 0);
 
     // check CRC
-    uint8_t *block = data.data() + sizeof(header);
+    uint8_t *block = calEepromData.data() + sizeof(header);
     uint32_t crc = crc32(0, block, header.data_size);
     rc &= (crc == header.data_crc32);
 
     return rc;
+}
+
+// Single CCI read
+void BridgeImager::readImagerRegister(uint16_t regAddr, uint16_t &value) {
+    std::vector<uint8_t> buffer;
+    m_i2cAccess->readI2c(BridgeImager::imagerSlave,
+                        I2cAddressMode::I2C_16BIT,
+                        regAddr,
+                        buffer);
+
+    value = (((buffer[0] << 8) & 0xff00) | buffer[1]);
+}
+
+// Single CCI write
+void BridgeImager::writeImagerRegister(uint16_t regAddr, uint16_t value) {
+    std::vector<uint8_t> buffer;
+    buffer.resize(2);
+
+    // \todo take care about HTOL conversion here!
+    std::memcpy(buffer.data(), &value, 2);
+
+    m_i2cAccess->writeI2c(BridgeImager::imagerSlave, I2cAddressMode::I2C_16BIT, regAddr, buffer);
+}
+
+// Burst CCI direct read
+void BridgeImager::readImagerBurst(uint16_t firstRegAddr, std::vector<uint16_t> &values) {
+    uint16_t addr = firstRegAddr;
+
+    for (uint32_t k = 0; k < values.size(); k++) {
+        readImagerRegister(addr, values[k]);
+        addr++;
+    }
+}
+
+// Burst CCI direct write
+void BridgeImager::writeImagerBurst(uint16_t firstRegAddr, const std::vector<uint16_t> &values) {
+    uint16_t addr;
+    size_t i, size = values.size();
+    std::map<uint16_t, uint16_t> data;
+
+    for (i=0,addr=firstRegAddr; i<size; i++,addr++) {
+        std::pair<std::map<uint16_t,uint16_t>::iterator,bool> ret;
+        ret = data.insert(std::pair<uint16_t,uint16_t>(addr, values[i]));
+    }
+
+    m_i2cAccess->writeI2cArray(BridgeImager::imagerSlave, I2cAddressMode::I2C_16BIT, data);
+
+}
+
+// Utility used by royale
+void BridgeImager::sleepFor(std::chrono::microseconds sleepDuration) {
+    std::this_thread::sleep_for(sleepDuration);
 }
 
 // Utility function for validating ToF EEPROM data
@@ -561,7 +533,8 @@ void I2cAccess::readI2cSeq(uint8_t devAddr, uint16_t regAddr, I2cAddressMode add
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciDataType = (dataType == TOF_I2C_DATA_TYPE_BYTE) ? CCI_8BIT : CCI_16BIT;
@@ -585,7 +558,8 @@ void I2cAccess::readI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regAd
     buffer.resize(2);
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -602,7 +576,8 @@ void I2cAccess::writeI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regA
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -619,7 +594,8 @@ void I2cAccess::writeI2cArray(uint8_t devAddr, I2cAddressMode addrMode, const st
     int ret;
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
-        fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // TODO: figure out no address mode
+        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -652,7 +628,7 @@ int I2cAccess::setGPIO(uint16_t gpio, uint16_t data) {
 
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// BridgeDataReceiver class implementation // TODO: validate
+// BridgeDataReceiver class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
 void BridgeDataReceiver::setBufferCaptureListener (IBufferCaptureListener *collector) {
     std::lock_guard<std::mutex> guard (m_changeListenerLock);
@@ -721,7 +697,6 @@ void BridgeDataReceiver::setEventListener (royale::IEventListener *listener) {
 // TOFBridge friend classes implementations // TODO: validate
 // -----------------------------------------------------------------------------------------------------------------------------
 
-// TODO: find  abetter home for this function and implement
 status_t TOFBridge::onRoyaleDepthData(const void *data, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) {
     if (!mDepthChannel) {
         printf("%s No DepthChannel provided!", __func__);
@@ -761,7 +736,7 @@ void TOFBridge::DepthDataListener::onNewData (const royale::DepthData *data) {
 
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// TOFBridge class implementation // TODO: Validate
+// TOFBridge class implementation
 // -----------------------------------------------------------------------------------------------------------------------------
 
 TOFBridge::TOFBridge() {
@@ -819,8 +794,6 @@ std::pair<uint32_t, uint32_t> TOFBridge::getExposureLimits() {
 }
 
 royale::usecase::UseCaseDefinition *TOFBridge::getUseCaseDef (royale::String useCaseName) {
-    printf("%s@%d: E(useCaseName= \"%s\")\n",
-        __PRETTY_FUNCTION__, __LINE__, useCaseName.c_str());
 
     using namespace royale;
     using namespace royale::config;
@@ -837,10 +810,8 @@ royale::usecase::UseCaseDefinition *TOFBridge::getUseCaseDef (royale::String use
             continue;
         }
         royale::usecase::UseCaseDefinition *def = useCase.getDefinition();
-        printf("%s@%d: X(useCase is found)", __PRETTY_FUNCTION__, __LINE__);
         return def;
     }
-    printf("%s@%d: X(useCase is NOT found)", __PRETTY_FUNCTION__, __LINE__);
     return NULL;
 }
 
@@ -855,10 +826,6 @@ uint32_t TOFBridge::getExposureTime(royale::String useCaseName) {
     //const royale::Vector<royale::usecase::ExposureGroup> exposureGroups = def->getExposureGroups();
     const royale::Vector<uint32_t> expTimes = def->getExposureTimes();
     expTime = expTimes[expTimes.size() - 1];
-
-    // for (size_t i = 0; i  < expTimes.size(); i++) {
-        // printf("%s@%d: X( usecase %s expTime[%d]= %dusec)", __PRETTY_FUNCTION__, __LINE__, useCaseName.c_str(), i, expTimes[i]);
-    // }
 
     return expTime;
 }
@@ -907,11 +874,23 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
 }
 
 status_t TOFBridge::setup() {
+    int interfaceRet;
 
-    i2cAccess = std::make_shared<I2cAccess>(CAM_ID);
-    i2cAccess->setup();
+    // Create I2C interface
+    i2cAccess = std::make_shared<I2cAccess>(cameraId);
+    interfaceRet = i2cAccess->setup();
+    if (interfaceRet < 0) {
+        fprintf(stderr, "[ERROR] Failed to initialize I2cAccess\n");
+        return BAD_VALUE;
+    }
 
+    // Create Bridge Imager interface
     bridgeImager = std::make_shared<BridgeImager>(i2cAccess);
+    bridgeImager->setupEeprom();
+    if (interfaceRet < 0) {
+        fprintf(stderr, "[ERROR] Failed to initialize Bridge Imager\n");
+        return BAD_VALUE;
+    }
 
     // create an IBridgeDataReceiver implementation in order to receive the data
     bridgeReceiver = std::make_shared<BridgeDataReceiver>();
@@ -1059,8 +1038,6 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
 }
 
 void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) { 
-    printf("%s@%d: E, dataOutput 0x%x\n", __PRETTY_FUNCTION__, __LINE__, _dataOutput);
-
     // this func is supposed to be called after setup(),  but before startCapture()
     if (!royaleCamera) {
         printf("ERROR! %s: Royale not initialized. Check if setup() is called first\n", __func__);
@@ -1084,28 +1061,24 @@ void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) {
 
     if (dataOutput & LISTENER_IR_IMAGE)
     {
-        printf("LISTENERS: %s register IRImage Listener\n", __func__);
         listeners.irImage = new IRImageListener(this);
         royaleCamera->registerIRImageListener(listeners.irImage);
     }
 
     if (dataOutput & LISTENER_DEPTH_IMAGE)
     {
-        printf("LISTENERS: %s register DepthImage Listener", __func__);
         listeners.depthImage = new DepthImageListener(this);
         royaleCamera->registerDepthImageListener(listeners.depthImage);
     }
 
     if (dataOutput & LISTENER_SPARSE_POINT_CLOUD)
     {
-        printf("LISTENERS: %s register SparsePointCloud Listener", __func__);
         listeners.sparsePointCloud = new SparsePointCloudListener(this);
         royaleCamera->registerSparsePointCloudListener(listeners.sparsePointCloud);
     }
 
     if (dataOutput & LISTENER_DEPTH_DATA)
     {
-        printf("LISTENERS: %s register DepthData Listener", __func__);
         listeners.depthData = new DepthDataListener(this);
         royaleCamera->registerDataListener(listeners.depthData);
     }
@@ -1127,7 +1100,6 @@ status_t TOFBridge::startCapture() {
 }
 
 status_t TOFBridge::stopCapture() {
-    printf("%s E\n", __func__);
     if (royaleCamera) {
         royale::CameraStatus cret = royaleCamera->stopCapture();
         if (royale::CameraStatus::SUCCESS != cret) {
@@ -1135,7 +1107,6 @@ status_t TOFBridge::stopCapture() {
             return BAD_VALUE;
         }
     }
-    printf("%s X\n", __func__);
     return NO_ERROR;
 }
 
@@ -1144,9 +1115,6 @@ void TOFBridge::getFrameRateListShortRange(std::vector<uint8_t> &list) {
 
     list.clear();
     list.insert(list.end(), shortRange->begin(), shortRange->end());
-    for (uint8_t i=0; i<list.size(); ++i) {
-        printf("%s@%d: [%d]= %d\n", __PRETTY_FUNCTION__, __LINE__, i, list[i]);
-    }
 }
 
 void TOFBridge::getFrameRateListLongRange(std::vector<uint8_t> &list) {
@@ -1154,9 +1122,6 @@ void TOFBridge::getFrameRateListLongRange(std::vector<uint8_t> &list) {
 
     list.clear();
     list.insert(list.end(), longRange->begin(), longRange->end());
-    for (uint8_t i=0; i<list.size(); ++i) {
-        printf("%s@%d: [%d]= %d\n", __PRETTY_FUNCTION__, __LINE__, i, list[i]);
-    }
 }
 
 void TOFBridge::setFrameRate(uint8_t frameRate) {
@@ -1168,7 +1133,6 @@ void TOFBridge::setFrameRate(uint8_t frameRate) {
 
 uint8_t TOFBridge::getFrameRate() {
     uint8_t frameRate = mFrameRate;
-    printf("%s@%d: X(frameRate= %d)\n", __PRETTY_FUNCTION__, __LINE__, frameRate);
     return frameRate;
 }
 
@@ -1235,8 +1199,6 @@ void TOFBridge::clearChange(RoyaleParamChange param) {
     paramChange &= ~mask;
 }
 
-
-// TODO: this needs cleanup
 // -----------------------------------------------------------------------------------------------------------------------------
 // TofInterface class implementation 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -1250,7 +1212,7 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     IRoyaleDataListener*        pListener    = pTOFInitializationData->pListener;
     uint32_t                    frameRateDes = pTOFInitializationData->frameRate;  //desired frame rate and range
     RoyaleDistanceRange         rangeDes     = pTOFInitializationData->range;
-    int32_t                     cameraID     = pTOFInitializationData->cameraId;
+    int32_t                     cameraId     = pTOFInitializationData->cameraId;
 
     int                         status       = 0;
     std::vector<uint8_t>        list_short;
@@ -1261,23 +1223,23 @@ int TOFInterface::Initialize(TOFInitializationData* pTOFInitializationData) {
     uint32_t                    exp_time;
     std::pair<int64_t, int64_t> exp_time_limits;
 
-    m_pI2cAccess = new I2cAccess(cameraID);
-    if (m_pI2cAccess != NULL) {
-        TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
 
-        m_pTofBridge = new TOFBridge();
-        m_pTofBridge->addRoyaleDataListener(pListener);
-        if (!m_pTofBridge) {
+    TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
+
+    m_pTofBridge = new TOFBridge();
+    m_pTofBridge->cameraId = cameraId; 
+
+    m_pTofBridge->addRoyaleDataListener(pListener);
+    if (!m_pTofBridge) {
+        status = -EINVAL;
+        fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
+    }
+
+    if (status == 0) {
+        if (m_pTofBridge->setup()) {
             status = -EINVAL;
-            fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
-        }
-
-        if (status == 0) {
-            if (m_pTofBridge->setup()) {
-                status = -EINVAL;
-                fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
-                return -1;
-            }
+            fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
+            return -1;
         }
     }
 

@@ -393,6 +393,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
         initializationData.pListener     = this;
         initializationData.frameRate     = configInfo.fps;
         initializationData.cameraId      = cameraId;
+        
         switch(configInfo.tof_mode){
             case 5:
                 initializationData.range = RoyaleDistanceRange::SHORT_RANGE;
@@ -407,7 +408,6 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
         }
 
         if(TOFInitialize(&initializationData)) return -1;
-
     }
 
     return 0;
@@ -1487,8 +1487,6 @@ int PerCameraMgr::SetupPipes()
         NoiseOutputChannel = pipe_server_get_next_available_channel();
         PCOutputChannel    = pipe_server_get_next_available_channel();
         FullOutputChannel  = pipe_server_get_next_available_channel();
-
-        printf("Testing %d %d %d %d %d\n", IROutputChannel, DepthOutputChannel, ConfOutputChannel, NoiseOutputChannel, PCOutputChannel);
 
         pipe_info_t IRInfo;
         pipe_info_t DepthInfo;
