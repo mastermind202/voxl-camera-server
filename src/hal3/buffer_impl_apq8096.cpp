@@ -73,6 +73,14 @@ int allocateOneBuffer(
         buffer_handle_t*   pBuffer)
 {
 
+    // For the TOF camera we have to send the BLOB format buffers to the camera module but these are not jpg images. So we  
+    // cant really compute the size for a jpeg image hence just make it twice the size of the (width * height)  
+    if (format == HAL_PIXEL_FORMAT_BLOB)
+    {   
+        width  = width * height * 2;    
+        height = 1; 
+    }
+
     //Fail if it's not already open and we fail to open
     if(grallocDevice == NULL && SetupGrallocInterface()) return -1;
 
@@ -101,7 +109,7 @@ int allocateOneBuffer(
                              &bufferGroup.bufferBlocks[index].vaddress);
 
         bufferGroup.bufferBlocks[index].size =
-                bufferGroup.bufferBlocks[index].stride * height;
+        bufferGroup.bufferBlocks[index].stride * height;
 
     } else if (format == HAL3_FMT_YUV)
     {
@@ -146,6 +154,8 @@ int allocateOneBuffer(
         bufferGroup.bufferBlocks[index].height         = height;
     } else
     {
+    printf("Here %d\n", __LINE__);
+
         VOXL_LOG_FATAL("voxl-camera-server ERROR: Unknown pixel format!\n");
         return -1;
     }

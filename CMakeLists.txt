@@ -77,8 +77,8 @@ target_link_libraries(${SERVERNAME}
     voxl_cutils
     camera_metadata
     hardware
-    spectre3
-    platform
+    spectre4_7
+    platform3_31
     voxl_cci_direct
 )
 

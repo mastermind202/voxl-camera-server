@@ -780,7 +780,7 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
 
 status_t TOFBridge::setup() {
     int interfaceRet;
-
+printf("HERE %d\n", __LINE__);
     // Create I2C interface
     i2cAccess = std::make_shared<I2cAccess>(cameraId);
     interfaceRet = i2cAccess->setup();

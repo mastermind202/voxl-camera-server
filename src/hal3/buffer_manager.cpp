@@ -56,7 +56,7 @@ int bufferAllocateBuffers(
     unsigned int format,
     unsigned long int consumerFlags)
 {
-
+    
     for (uint32_t i = 0; i < totalBuffers; i++) {
 
         if(allocateOneBuffer(bufferGroup, i, width, height, format, consumerFlags, &bufferGroup.buffers[i])) return -1;
