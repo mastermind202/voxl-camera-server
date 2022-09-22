@@ -39,7 +39,7 @@
 #include "config_file.h"
 #include "config_defaults.h"
 #include "common_defs.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 #include "voxl_camera_server.h"
 
 // -----------------------------------------------------------------------------------------------------------------------------

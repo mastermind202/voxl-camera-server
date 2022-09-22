@@ -48,7 +48,7 @@
 #include "hal3_camera.h"
 #include "common_defs.h"
 #include "config_file.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 #include "hal3_camera.h"
 #include "voxl_camera_server.h"
 
@@ -90,7 +90,7 @@ int main(int argc, char* const argv[])
 
     // start signal handler so we can exit cleanly
     if(enable_signal_handler()==-1){
-        fprintf(stderr,"ERROR: failed to start signal handler\n");
+        M_ERROR("Failed to start signal handler\n");
         return -1;
     }
 
@@ -107,16 +107,16 @@ int main(int argc, char* const argv[])
     list<PerCameraInfo> cameraInfo;
 
     if(ReadConfigFile(cameraInfo)){
-        VOXL_LOG_FATAL("ERROR: Failed to read config file\n");
+        M_ERROR("Failed to read config file\n");
         return -1;
     }
 
-    VOXL_LOG_FATAL("------ voxl-camera-server: Starting camera server\n");
+    M_DEBUG("------ voxl-camera-server: Starting camera server\n");
 
     for(PerCameraInfo info : cameraInfo){
 
         if(!info.isEnabled) {
-            VOXL_LOG_VERBOSE("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
+            M_VERBOSE("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
             continue;
         }
 
@@ -125,28 +125,28 @@ int main(int argc, char* const argv[])
             mgr->Start();
             mgrs.push_back(mgr);
         } catch(int) {
-            VOXL_LOG_FATAL("Encountered error starting camera: %s, exiting\n", info.name);
+            M_ERROR("Failed to start camera: %s, exiting\n", info.name);
             cleanManagers();
             cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
             return -1;
         }
 
-        VOXL_LOG_WARNING("\tStarted Camera: %s\n", info.name);
+        M_DEBUG("\tStarted Camera: %s\n", info.name);
 
     }
     cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
 
-    VOXL_LOG_FATAL("\n------ voxl-camera-server: Camera server is now running\n");
+    M_PRINT("\n------ voxl-camera-server: Camera server is now running\n");
 
     while (main_running)
     {
         usleep(500000);
     }
 
-    VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server is now stopping\n");
+    M_PRINT("\n------ voxl-camera-server INFO: Camera server is now stopping\n");
     cleanManagers();
 
-    VOXL_LOG_FATAL("\n------ voxl-camera-server INFO: Camera server exited gracefully\n\n");
+    M_PRINT("\n------ voxl-camera-server INFO: Camera server exited gracefully\n\n");
 
     return 0;
 }
@@ -155,7 +155,7 @@ static void cleanManagers(){
     for(PerCameraMgr *mgr : mgrs){
         mgr->Stop();
         delete mgr;
-        VOXL_LOG_WARNING("\tStopped Camera: %s\n",
+        M_DEBUG("\tStopped Camera: %s\n",
                          mgr->name);
     }
 
@@ -187,19 +187,17 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 int debugLevel;
                 if (sscanf(optarg, "%d", &debugLevel) != 1)
                 {
-                    printf("ERROR: failed to parse debug level specified after -d flag\n");
+                    M_ERROR("Failed to parse debug level specified after -d flag\n");
                     return -1;
                 }
 
-                if (debugLevel >= DebugLevel::MAX_DEBUG_LEVELS || debugLevel < DebugLevel::VERBOSE)
+                if (debugLevel >= PRINT || debugLevel < VERBOSE)
                 {
-                    VOXL_LOG_FATAL("ERROR: Invalid debug level specified: %d\n", debugLevel);
-                    VOXL_LOG_FATAL("-----  Max debug level: %d\n", ((int)DebugLevel::MAX_DEBUG_LEVELS - 1));
-                    VOXL_LOG_FATAL("-----  Min debug level: %d\n", ((int)DebugLevel::VERBOSE));
+                    M_ERROR("Invalid debug level specified: %d\n", debugLevel);
                     return -1;
                 }
 
-                currentDebugLevel = (DebugLevel)debugLevel;
+                M_JournalSetLevel((M_JournalLevel) debugLevel);
                 break;
 
             case 'l':
@@ -210,11 +208,11 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 return -1;
 
             case ':':
-            	printf("ERROR: Missing argument for %s\n", argv[optopt]);
+            	M_ERROR("Missing argument for %s\n", argv[optopt]);
 				return -1;
             // Unknown argument
             case '?':
-                printf("ERROR: Invalid argument passed: %s\n", argv[optopt]);
+                M_ERROR("Invalid argument passed: %s\n", argv[optopt]);
                 return -1;
         }
     }
@@ -227,14 +225,14 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
 // -----------------------------------------------------------------------------------------------------------------------------
 static void PrintHelpMessage()
 {
-    printf("\n\nCommand line arguments are as follows:\n");
-    printf("\n-d, --debug-level       : debug level (Default 2)");
-    printf("\n                      0 : Print verbose logs");
-    printf("\n                      1 : Print >= info logs");
-    printf("\n                      2 : Print >= warning logs");
-    printf("\n                      3 : Print only fatal logs");
-    printf("\n-h, --help              : Print this help message");
-    printf("\n\n");
+    M_PRINT("\n\nCommand line arguments are as follows:\n");
+    M_PRINT("\n-d, --debug-level       : debug level (Default 2)");
+    M_PRINT("\n                      0 : Print verbose logs");
+    M_PRINT("\n                      1 : Print >= info logs");
+    M_PRINT("\n                      2 : Print >= warning logs");
+    M_PRINT("\n                      3 : Print only fatal logs");
+    M_PRINT("\n-h, --help              : Print this help message");
+    M_PRINT("\n\n");
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------

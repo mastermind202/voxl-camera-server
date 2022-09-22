@@ -34,8 +34,14 @@
 #ifndef TOF_BRIDGE_H
 #define TOF_BRIDGE_H
 
+#ifdef APQ8096
+
+// Pull from filesystem for apq
+#include "TOFInterface.h"
+
+#elif QRB5165
+
 #include <fstream>
-#include <iostream>
 #include <map>
 #include <mutex>
 #include <vector>
@@ -138,7 +144,7 @@ class IRoyaleDataListener {
 // -----------------------------------------------------------------------------------------------------------------------------
 class I2cAccess : public royale::pal::II2cBusAccess {
     public:
-        I2cAccess(int cameraId) {m_cameraId = cameraId;}
+        I2cAccess(int cameraId) { m_cameraId = cameraId; }
         ~I2cAccess();
 
         int setup();
@@ -166,9 +172,7 @@ class I2cAccess : public royale::pal::II2cBusAccess {
 class CapturedBuffer : public royale::hal::ICapturedBuffer {
     public:
         CapturedBuffer (uint16_t *buffer, uint64_t timeStamp)
-            : mDataBuffer(buffer), mTimestamp(timeStamp)
-        {
-        }
+            : mDataBuffer(buffer), mTimestamp(timeStamp){ }
         ~CapturedBuffer() { }
 
         uint16_t* getPixelData()override { return mDataBuffer; }
@@ -482,4 +486,5 @@ class TOFInterface {
         TOFBridge*        m_pTofBridge;      ///< TOF Bridge
 };
 
+#endif // QRB5165
 #endif // TOF_BRIDGE_H

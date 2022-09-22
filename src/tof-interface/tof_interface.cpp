@@ -31,6 +31,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
+#ifdef QRB5165
+
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -48,7 +50,7 @@ extern "C" {
 #include <sys/ioctl.h>
 
 // local includes
-#include "debug_log.h"
+#include <modal_journal.h>
 #include "cci_direct.h"
 #include "tof_interface.hpp"
 
@@ -197,7 +199,7 @@ void BridgeImager::dumpLensParameters (std::pair<float, float> principalPoint, s
         ofs.close();
     }
     else {
-        fprintf(stderr, "[ERROR] Cannot dump ToF sensor lens params to %s\n", lensParamsFilePath);
+        M_ERROR("Cannot dump ToF sensor lens params to %s\n", lensParamsFilePath);
     }
 }
 
@@ -270,7 +272,7 @@ bool BridgeImager::calDataParse() {
     // Check header version
     int16_t headerVersion = 0;
     if (!getEepromHeaderVersion(headerVersion)) {
-        fprintf(stderr, "[Error] Failed to get EEPROM header version\n");
+        M_ERROR("Failed to get EEPROM header version\n");
         return false;
     }
 
@@ -278,7 +280,7 @@ bool BridgeImager::calDataParse() {
     if (headerVersion == 0x07) { // V7 header validation method
         bool calIsValid = calDataValidatev7(calEepromData);
         if (!calIsValid) {
-            printf("[ERROR] calibration data is not valid");
+            M_ERROR("Calibration data is not valid");
             return false;
         }
 
@@ -295,7 +297,7 @@ bool BridgeImager::calDataParse() {
         calDataUnknown.insert(calDataUnknown.end(), unknownBegin, unknownEnd);
     }
     else { // not V7 use old header validation method
-        fprintf(stderr, "[ERROR] Invalid header version\n");
+        M_ERROR("Invalid header version\n");
         return false;
     }
 
@@ -345,7 +347,7 @@ void BridgeImager::calFileDump() {
     const char *name = calEepromFileNamePrivate.c_str();
     std::ofstream f (name, std::ios_base::out | std::ios_base::binary);
     if (!f.is_open()) {
-        fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", name);
+        M_ERROR("Failed to open file \"%s\"", name);
         return;
     }
 
@@ -365,7 +367,7 @@ void BridgeImager::calEepromDumpToFile() {
         // directory doesn't exist, create it
         ret = mkdir(folderName, 0777);
         if (ret < 0) {
-            fprintf(stderr, "[ERROR]: Failed to create directory \"%s\"", folderName);
+            M_ERROR("Failed to create directory \"%s\"", folderName);
             return;
         }
     }
@@ -373,7 +375,7 @@ void BridgeImager::calEepromDumpToFile() {
     if ( !(stat(eepromCalName, &buf) == 0) ) {
         std::ofstream f (eepromCalName, std::ios_base::out | std::ios_base::binary);
         if (!f.is_open()) {
-            fprintf(stderr, "[ERROR]: Failed to open file \"%s\"", eepromCalName);
+            M_ERROR("Failed to open file \"%s\"", eepromCalName);
             return;
         }
 
@@ -427,7 +429,7 @@ int I2cAccess::setup() {
 
     ret = voxl_cci_init(m_cameraId);
     if (ret < 0) {
-        fprintf(stderr, "[ERROR]: Failed to setup I2CAccess");
+        M_ERROR("Failed to setup I2CAccess");
     }
 
     return ret;
@@ -439,7 +441,7 @@ void I2cAccess::readI2cSeq(uint8_t devAddr, uint16_t regAddr, I2cAddressMode add
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
         // TODO: figure out no address mode
-        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // M_ERROR("I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciDataType = (dataType == TOF_I2C_DATA_TYPE_BYTE) ? CCI_8BIT : CCI_16BIT;
@@ -449,7 +451,7 @@ void I2cAccess::readI2cSeq(uint8_t devAddr, uint16_t regAddr, I2cAddressMode add
         regAddr = i;
         ret = voxl_cci_read(m_cameraId, devAddr, regAddr, cciAddrType, &data[i], cciDataType);
         if (ret < 0) {
-            fprintf(stderr, "[ERROR] Failed CCI read\n");
+            M_ERROR("Failed CCI read\n");
         }
     }
 }
@@ -464,7 +466,7 @@ void I2cAccess::readI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regAd
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
         // TODO: figure out no address mode
-        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // M_ERROR("I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -472,7 +474,7 @@ void I2cAccess::readI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regAd
     // ToF data read through this function will always be 16-Bit data
     ret = voxl_cci_read(m_cameraId, devAddr, regAddr, cciAddrType, &buffer[0], CCI_16BIT);
     if (ret < 0) {
-        fprintf(stderr, "[ERROR] Failed CCI read\n");
+        M_ERROR("Failed CCI read\n");
     }
 }
 
@@ -482,7 +484,7 @@ void I2cAccess::writeI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regA
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
         // TODO: figure out no address mode
-        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // M_ERROR("I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -490,7 +492,7 @@ void I2cAccess::writeI2c(uint8_t devAddr, I2cAddressMode addrMode, uint16_t regA
     // ToF data written through this function will always be 16-Bit data
     ret = voxl_cci_write(m_cameraId, devAddr, regAddr, cciAddrType, (uint8_t *)&buffer[0], CCI_16BIT);
     if (ret < 0) {
-        fprintf(stderr, "[ERROR] Failed CCI read\n");
+        M_ERROR("Failed CCI read\n");
     }
 }
 
@@ -500,7 +502,7 @@ void I2cAccess::writeI2cArray(uint8_t devAddr, I2cAddressMode addrMode, const st
 
     if (addrMode == I2cAddressMode::I2C_NO_ADDRESS){
         // TODO: figure out no address mode
-        // fprintf(stderr, "[ERROR] I2C no address mode is not supported must be 8 or 16 bit\n");
+        // M_ERROR("I2C no address mode is not supported must be 8 or 16 bit\n");
         return;
     }
     cci_data_type_t cciAddrType = (addrMode == I2cAddressMode::I2C_8BIT) ? CCI_8BIT : CCI_16BIT;
@@ -520,14 +522,14 @@ void I2cAccess::writeI2cArray(uint8_t devAddr, I2cAddressMode addrMode, const st
     // Writes word of data
     ret = voxl_cci_write_word_array(m_cameraId, devAddr, regAddr, cciAddrType, regData, reg_array_size);
     if (ret < 0) {
-        fprintf(stderr, "[ERROR] Failed CCI read\n");
+        M_ERROR("Failed CCI read\n");
     }
 
 }
 
 // Used for resetting sensor via GPIO, currently unsupported
 int I2cAccess::setGPIO(uint16_t gpio, uint16_t data) {
-    fprintf(stderr, "[ERROR], setting GPIO is currently unsupported\n");
+    M_ERROR("Setting GPIO is currently unsupported\n");
     return -1;
 }
 
@@ -604,7 +606,7 @@ void BridgeDataReceiver::setEventListener (royale::IEventListener *listener) {
 
 status_t TOFBridge::onRoyaleDepthData(const void *data, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) {
     if (!mDepthChannel) {
-        printf("%s No DepthChannel provided!", __func__);
+        M_WARN("%s No DepthChannel provided!", __func__);
         return -1;
     }
 
@@ -694,7 +696,7 @@ void TOFBridge::setChange(RoyaleParamChange param) {
 std::pair<uint32_t, uint32_t> TOFBridge::getExposureLimits() {
     std::pair <uint32_t, uint32_t> expLimits;
     expLimits = std::make_pair(mExposureLimits.first, mExposureLimits.second);
-    printf("%s@%d: X(expLimits= (.min= %d, .max= %d))\n", __PRETTY_FUNCTION__, __LINE__, expLimits.first, expLimits.second);
+    M_DEBUG("%s@%d: X(expLimits= (.min= %d, .max= %d))\n", __PRETTY_FUNCTION__, __LINE__, expLimits.first, expLimits.second);
     return expLimits;
 }
 
@@ -724,7 +726,7 @@ uint32_t TOFBridge::getExposureTime(royale::String useCaseName) {
     uint32_t expTime = 0;
     royale::usecase::UseCaseDefinition *def = getUseCaseDef(useCaseName);
     if (NULL == def) {
-        printf("%s@%d: Failed to get useCase definition",
+        M_WARN("%s@%d: Failed to get useCase definition",
             __PRETTY_FUNCTION__, __LINE__);
     }
 
@@ -745,21 +747,21 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
             list = &TOFBridge::mLongRangeFramerates;
             break;
         default:
-            printf("%s@%d: Unknown range= %d",
+            M_WARN("%s@%d: Unknown range= %d",
                 __PRETTY_FUNCTION__, __LINE__, range);
             return -1;
     }
 
     bool validated = (std::find(list->begin(), list->end(), frameRate) != list->end());
     if (false == validated) {
-        printf("%s@%d: Requested usecase= \"%dph@%dfps\" is NOT supported, No change\n",
+        M_WARN("%s@%d: Requested usecase= \"%dph@%dfps\" is NOT supported, No change\n",
               __PRETTY_FUNCTION__, __LINE__, range, frameRate);
         return -1;
     }
     royale::String usecase = "MODE_" + std::to_string(range) + '_' + std::to_string(frameRate) +"FPS";
     CameraStatus ret = royaleCamera->setUseCase(usecase);
     if (CameraStatus::SUCCESS != ret) {
-        VOXL_LOG_ERROR("ROYALE: Error while setting Royale usecases: %s ret %d!\n", usecase.c_str(), (int)ret);
+        M_ERROR("Setting Royale usecases: %s ret %d!\n", usecase.c_str(), (int)ret);
         return -1;
     }
     // update usecase related params
@@ -772,7 +774,7 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
     mExposureTime = getExposureTime(usecase);
     setChange(EXPOSURE_TIME);
     mUseCaseName = usecase;
-    VOXL_LOG_INFO("Changed to usecase %s exposure time limits [ %d - %d ], cur exposure_time %u, exposure mode %d\n",
+    M_DEBUG("Changed to usecase %s exposure time limits [ %d - %d ], cur exposure_time %u, exposure mode %d\n",
           usecase.c_str(), mExposureLimits.first, mExposureLimits.second, mExposureTime, mExposureMode);
 
     return 0;
@@ -780,12 +782,12 @@ int TOFBridge::setUseCase(RoyaleDistanceRange range, uint8_t frameRate) {
 
 status_t TOFBridge::setup() {
     int interfaceRet;
-printf("HERE %d\n", __LINE__);
+
     // Create I2C interface
     i2cAccess = std::make_shared<I2cAccess>(cameraId);
     interfaceRet = i2cAccess->setup();
     if (interfaceRet < 0) {
-        fprintf(stderr, "[ERROR] Failed to initialize I2cAccess\n");
+        M_ERROR("Failed to initialize I2cAccess\n");
         return BAD_VALUE;
     }
 
@@ -793,7 +795,7 @@ printf("HERE %d\n", __LINE__);
     bridgeImager = std::make_shared<BridgeImager>(i2cAccess);
     bridgeImager->setupEeprom();
     if (interfaceRet < 0) {
-        fprintf(stderr, "[ERROR] Failed to initialize Bridge Imager\n");
+        M_ERROR("Failed to initialize Bridge Imager\n");
         return BAD_VALUE;
     }
 
@@ -803,20 +805,20 @@ printf("HERE %d\n", __LINE__);
     platform::CameraFactory factory;
     royaleCamera = factory.createDevice(moduleConfig, bridgeImager, bridgeReceiver, i2cAccess);
     if (royaleCamera == nullptr) {
-        VOXL_LOG_ERROR("ROYALE: Error in createDevice!");
+        M_ERROR("Royale createDevice!");
         return BAD_VALUE;
     }
 
     CameraStatus ret = royaleCamera->initialize();
     if (CameraStatus::SUCCESS != ret) {
-        VOXL_LOG_ERROR("ROYALE: Error in device initialize! ret: 0x%08x(%d)\n", ret,ret);
+        M_ERROR(" Royale device initialize! ret: 0x%08x(%d)\n", ret,ret);
         return BAD_VALUE;
     }
 
     LensParameters theLensParams;
     ret = royaleCamera->getLensParameters (theLensParams);
     if (CameraStatus::SUCCESS != ret) {
-        VOXL_LOG_ERROR("ROYALE: Error returned when calling royaleCamera->getLensParameters() !\n");
+        M_ERROR("Royale getLensParameters!\n");
         return BAD_VALUE;
     }
     else {
@@ -833,7 +835,7 @@ printf("HERE %d\n", __LINE__);
 
     royale::CameraAccessLevel accessLevel;
     ret = royaleCamera->getAccessLevel (accessLevel);
-    VOXL_LOG_INFO("%s accessLevel %d, ret %d\n", __func__, accessLevel, ret);
+    M_DEBUG("%s accessLevel %d, ret %d\n", __func__, accessLevel, ret);
     setUseCase(mDistanceRange,  mFrameRate);
     ret = royaleCamera->setExposureMode(mExposureMode);
 
@@ -850,7 +852,7 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
 
     std::shared_ptr<royale::config::ModuleConfig> moduleConfig = platform::getModuleConfigCustom();
 
-    VOXL_LOG_VERBOSE("Found Royale module config: imagerType %d, illuminationConfig.dutyCycle: %d temp_sensor_type: %d\n",
+    M_VERBOSE("Found Royale module config: imagerType %d, illuminationConfig.dutyCycle: %d temp_sensor_type: %d\n",
           moduleConfig->imagerConfig.imagerType,
           moduleConfig->illuminationConfig.dutyCycle,
           moduleConfig->temperatureSensorConfig.type);
@@ -859,13 +861,13 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
     std::unique_ptr <CoreConfig> configData = common::makeUnique<CoreConfig> (moduleConfig->coreConfigData);
     std::shared_ptr <CoreConfigAdapter> configAdapter = std::make_shared<CoreConfigAdapter> ( std::move(configData));
 
-    VOXL_LOG_VERBOSE("Found Royale module config: maxImgW %d maxImgH %d frameTxMode %d camName %s\n",
+    M_VERBOSE("Found Royale module config: maxImgW %d maxImgH %d frameTxMode %d camName %s\n",
           configAdapter->getMaxImageWidth(),
           configAdapter->getMaxImageHeight(),
           configAdapter->getFrameTransmissionMode(),
           configAdapter->getCameraName().c_str());
 
-    VOXL_LOG_VERBOSE("Found Royale module config: tempLimitSoft %f tempLimitHard %f autoExpoSupported %s\n",
+    M_VERBOSE("Found Royale module config: tempLimitSoft %f tempLimitHard %f autoExpoSupported %s\n",
           configAdapter->getTemperatureLimitSoft(),
           configAdapter->getTemperatureLimitHard(),
           configAdapter->isAutoExposureSupported()? "yes":"no");
@@ -883,25 +885,25 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
             royale::usecase::UseCaseDefinition *def = usecase.getDefinition();
             int phases = def->getRawFrameCount();
             int fps = def->getTargetRate();
-            VOXL_LOG_VERBOSE("Found Royale usecase: %s - phases: %d fps: %d\n", name.c_str(), phases, fps);
+            M_VERBOSE("Found Royale usecase: %s - phases: %d fps: %d\n", name.c_str(), phases, fps);
 
             const royale::Vector<royale::usecase::ExposureGroup> groups = def->getExposureGroups();
             for (size_t i = 0; i < groups.size();i++) {
                 royale::usecase::ExposureGroup group = groups[i];
-                VOXL_LOG_VERBOSE("Found Royale usecase: %s - exposure group[%d] = %s\n",
+                M_VERBOSE("Found Royale usecase: %s - exposure group[%d] = %s\n",
                       name.c_str(), i, group.m_name.c_str());
             }
 
             const royale::Vector<royale::Pair<uint32_t, uint32_t>> exp_limit_list = def->getExposureLimits();
             for (size_t i = 0; i < exp_limit_list.size();i++) {
                 royale::Pair<uint32_t, uint32_t> each_limit = exp_limit_list[i];
-                VOXL_LOG_VERBOSE("Found Royale usecase: %s - exp_limit[%d] = (%u %u)\n",
+                M_VERBOSE("Found Royale usecase: %s - exp_limit[%d] = (%u %u)\n",
                       name.c_str(), i, each_limit.first, each_limit.second);
             }
 
             const royale::Vector<uint32_t> expTimes = def->getExposureTimes();
             for (size_t i = 0; i < expTimes.size();i++) {
-                VOXL_LOG_VERBOSE("Found Royale usecase: %s - exp_time[%d] = %u\n",
+                M_VERBOSE("Found Royale usecase: %s - exp_time[%d] = %u\n",
                       name.c_str(), i, expTimes[i]);
             }
 
@@ -922,7 +924,7 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
             }
         } else {
             // @todo: These may be EYESAFETY modes, handle later.
-            printf("ROYALE: usecase non-mode %s\n", name.c_str());
+            M_VERBOSE("ROYALE: usecase non-mode %s\n", name.c_str());
         }
     }
 
@@ -935,14 +937,14 @@ android::status_t TOFBridge::populateSupportedUseCases(std::vector<uint8_t> &lon
     if (TOFBridge::mShortRangeFramerates.size() || TOFBridge::mLongRangeFramerates.size())
         return NO_ERROR;
 
-    printf("Error: Apparently no supported framerates were found for short and long range!");
+    M_ERROR("Apparently no supported framerates were found for short and long range!");
     return BAD_VALUE;
 }
 
 void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) { 
     // this func is supposed to be called after setup(),  but before startCapture()
     if (!royaleCamera) {
-        printf("ERROR! %s: Royale not initialized. Check if setup() is called first\n", __func__);
+        M_ERROR("%s: Royale not initialized. Check if setup() is called first\n", __func__);
         return;
     }
 
@@ -957,7 +959,7 @@ void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) {
     }
 
     if (!found) {
-        printf("ERROR: %s invalid data Output for Royale: %d/0x%x, use default 0x%x\n",
+        M_ERROR("%s invalid data Output for Royale: %d/0x%x, use default 0x%x\n",
         __func__, _dataOutput, _dataOutput, dataOutput);
     }
 
@@ -987,16 +989,16 @@ void TOFBridge::setInitDataOutput(RoyaleListenerType _dataOutput) {
 }
 
 status_t TOFBridge::startCapture() { 
-    VOXL_LOG_VERBOSE("%s E\n", __func__);
+    M_VERBOSE("%s E\n", __func__);
 
     if (royaleCamera) {
         royale::CameraStatus cret = royaleCamera->startCapture();
         if (royale::CameraStatus::SUCCESS != cret) {
-            VOXL_LOG_ERROR("ROYALE: Error while startCapture! %d\n", cret);
+            M_ERROR("Royale startCapture! %d\n", cret);
             return BAD_VALUE;
         }
     }
-    VOXL_LOG_VERBOSE("%s X\n", __func__);
+    M_VERBOSE("%s X\n", __func__);
 
     return NO_ERROR;
 }
@@ -1005,7 +1007,7 @@ status_t TOFBridge::stopCapture() {
     if (royaleCamera) {
         royale::CameraStatus cret = royaleCamera->stopCapture();
         if (royale::CameraStatus::SUCCESS != cret) {
-            printf("ROYALE: Error while stopCapture!");
+            M_ERROR("Royale stopCapture!");
             return BAD_VALUE;
         }
     }
@@ -1028,7 +1030,7 @@ void TOFBridge::getFrameRateListLongRange(std::vector<uint8_t> &list) {
 
 void TOFBridge::setFrameRate(uint8_t frameRate) {
     if (mFrameRate != frameRate) {
-        printf("%s@%d: E(frameRate= %d, currentFrameRate = %d )\n", __PRETTY_FUNCTION__, __LINE__, frameRate, mFrameRate);
+        M_DEBUG("%s@%d: E(frameRate= %d, currentFrameRate = %d )\n", __PRETTY_FUNCTION__, __LINE__, frameRate, mFrameRate);
         setUseCase(mDistanceRange, frameRate);
     }
 }
@@ -1052,12 +1054,12 @@ RoyaleDistanceRange TOFBridge::getDistanceRange() {
 void TOFBridge::setExposureTime(uint32_t expTime) {
     if (expTime != mExposureTime) {
         if ( expTime < mExposureLimits.first || expTime > mExposureLimits.second) {
-            VOXL_LOG_WARNING("[Warning] the exposure time %d is out of range [%d -- %d]\n", expTime, mExposureLimits.first, mExposureLimits.second);
+            M_WARN("Exposure time %d is out of range [%d -- %d]\n", expTime, mExposureLimits.first, mExposureLimits.second);
         }
 
         CameraStatus ret = royaleCamera->setExposureTime(expTime);
         if (CameraStatus::SUCCESS != ret) {
-            VOXL_LOG_ERROR("[ERROR] Failed to set exposure time %d usec, ret: %d\n", expTime, ret);
+            M_ERROR("Failed to set exposure time %d usec, ret: %d\n", expTime, ret);
             return;
         }
 
@@ -1074,7 +1076,7 @@ void TOFBridge::setExposureMode(ExposureMode expMode) {
     if (mode != mExposureMode) {
         CameraStatus ret = royaleCamera->setExposureMode(mode);
         if (CameraStatus::SUCCESS != ret) {
-            VOXL_LOG_ERROR("[ERROR] Failed to set exposure mode %d, ret: %d\n", mode, ret);
+            M_ERROR("Failed to set exposure mode %d, ret: %d\n", mode, ret);
             return;
         }
 
@@ -1128,7 +1130,7 @@ TOFInterface::TOFInterface(TOFInitializationData* pTOFInitializationData) {
     TOFBridge::populateSupportedUseCases(list_short, list_long, range, type, exp_time_limits, fps, exp_time);
 
     if (! (m_pTofBridge = new TOFBridge())) {
-        fprintf(stderr, "[ERROR] Can't create instance of TOF functionality for opened depth sensor\n");
+        M_ERROR("Can't create instance of TOF functionality for opened depth sensor\n");
         throw -EINVAL;
     }
 
@@ -1136,13 +1138,13 @@ TOFInterface::TOFInterface(TOFInitializationData* pTOFInitializationData) {
     m_pTofBridge->addRoyaleDataListener(pListener);
 
     if (m_pTofBridge->setup()) {
-        fprintf(stderr, "[ERROR] Could not set TOF usecase\n");
+        M_ERROR("Could not set TOF usecase\n");
         throw -EINVAL;
     }
 
-    // printf("\nSetting use case: mode=%d, fps = %d\n",(int)rangeDes,frameRateDes);
+    M_VERBOSE("\nSetting use case: mode=%d, fps = %d\n",(int)rangeDes,frameRateDes);
     if (m_pTofBridge->setUseCase(rangeDes,frameRateDes)) {
-        fprintf(stderr, "[ERROR] TOFInterfaceImpl-ERROR: Could not set TOF use case!\n");
+        M_ERROR("TOFInterfaceImpl-ERROR: Could not set TOF use case!\n");
         throw -EINVAL;
     }  
 
@@ -1152,3 +1154,5 @@ TOFInterface::TOFInterface(TOFInitializationData* pTOFInitializationData) {
     m_pTofBridge->startCapture();
 
 }
+
+#endif // QRB5165

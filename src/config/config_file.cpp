@@ -41,7 +41,7 @@
 
 #include "config_file.h"
 #include "config_defaults.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 
 #define CURRENT_VERSION 0.1
 #define CONFIG_FILE_NAME "/etc/modalai/voxl-camera-server.conf"
@@ -107,45 +107,45 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         CameraType type;
         char buffer[64];
         if(json_fetch_string(cur, JsonTypeString, buffer, 63)){
-            VOXL_LOG_ERROR("Error Reading config file: camera type not specified for: %s\n", buffer);
+            M_ERROR("Error Reading config file: camera type not specified for: %s\n", buffer);
             goto ERROR_EXIT;
         }
 
         if((type=GetCameraTypeFromString(buffer)) == CAMTYPE_INVALID){
-            VOXL_LOG_ERROR("Error Reading config file: invalid type: %s\n", buffer);
+            M_ERROR("Error Reading config file: invalid type: %s\n", buffer);
             goto ERROR_EXIT;
         }
 
         PerCameraInfo info = getDefaultCameraInfo(type);
 
         if(json_fetch_string(cur, JsonNameString, info.name, 63)){
-            VOXL_LOG_ERROR("Error Reading config file: camera name not specified\n", info.name);
+            M_ERROR("Error Reading config file: camera name not specified\n", info.name);
             goto ERROR_EXIT;
         }
 
         if(contains(cameraNames, info.name)){
-            VOXL_LOG_ERROR("Error Reading config file: multiple cameras with name: %s\n", info.name);
+            M_ERROR("Error Reading config file: multiple cameras with name: %s\n", info.name);
             goto ERROR_EXIT;
         }
 
         if(json_fetch_int(cur, JsonCameraIdString, &(info.camId))){
-            VOXL_LOG_ERROR("Error Reading config file: camera id not specified for: %s\n", info.name);
+            M_ERROR("Error Reading config file: camera id not specified for: %s\n", info.name);
             goto ERROR_EXIT;
         }else if(contains(cameraIds, info.camId)){
-            VOXL_LOG_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
+            M_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
         } else {
             cameraIds.push_back(info.camId);
         }
 
         if(!cJSON_HasObjectItem(cur, JsonCameraId2String) || json_fetch_int(cur, JsonCameraId2String, &(info.camId2))){
-            VOXL_LOG_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
+            M_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
             info.camId2 = -1;
         } else if(contains(cameraIds, info.camId2)){
-            VOXL_LOG_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
+            M_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
         } else {
-            VOXL_LOG_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", info.name);
+            M_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", info.name);
             cameraIds.push_back(info.camId2);
         }
 
@@ -252,13 +252,13 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
     FILE *file = fopen(CONFIG_FILE_NAME, "w");
     if(file == NULL){
 
-        VOXL_LOG_FATAL("Error opening config file: %s to write to\n", CONFIG_FILE_NAME);
+        M_PRINT("Error opening config file: %s to write to\n", CONFIG_FILE_NAME);
 
     }else{
         char *jsonString = cJSON_Print(head);
 
-        //VOXL_LOG_INFO("Writing new configuration to %s:\n%s\n",pConfigFileName, jsonString);
-        VOXL_LOG_INFO("Writing new configuration to %s\n",CONFIG_FILE_NAME);
+        //M_DEBUG("Writing new configuration to %s:\n%s\n",pConfigFileName, jsonString);
+        M_DEBUG("Writing new configuration to %s\n",CONFIG_FILE_NAME);
         fwrite(jsonString, 1, strlen(jsonString), file);
 
         fclose(file);

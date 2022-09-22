@@ -197,9 +197,9 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("hires:imx214:0")
         ;;
     7) # TOF + Stereo + Tracking
+        CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov7251:2:3")
-        CAM_LIST+=("tof:pmd-tof:0")
         ;;
     8) # Hires only
         CAM_LIST+=("hires:imx214:0")
@@ -267,7 +267,7 @@ if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
 else
     echo "enabling and starting voxl-camera-server"
     systemctl enable voxl-camera-server
-    systemctl start voxl-camera-server
+    systemctl restart voxl-camera-server
 fi
 
 echo "Done Configuring Cameras"

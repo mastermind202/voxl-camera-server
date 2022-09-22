@@ -56,6 +56,10 @@
 
 using namespace std;
 
+#ifdef APQ8096
+using namespace modalai;
+#endif
+
 // Forward Declaration
 class BufferManager;
 class PerCameraMgr;
@@ -70,7 +74,19 @@ public:
     PerCameraMgr(PerCameraInfo perCameraInfo);
     ~PerCameraMgr();
 
-    bool royaleDataDone(void* pData, uint32_t size, int64_t timestamp, RoyaleListenerType dataType);
+    #ifdef APQ8096
+        // Callback function for the TOF bridge to provide the post processed TOF data
+        bool RoyaleDataDone(const void*             pData,
+                            uint32_t                size,
+                            int64_t                 timestamp,
+                            modalai::RoyaleListenerType dataType);
+    #elif QRB5165
+        // Callback function for the TOF bridge to provide the post processed TOF data
+        bool royaleDataDone(void*                   pData,
+                            uint32_t                size,
+                            int64_t                 timestamp,
+                            RoyaleListenerType      dataType);
+    #endif
 
     // Start the camera so that it starts streaming frames
     void Start();
@@ -215,12 +231,19 @@ private:
     int                                lastSnapshotNumber = 0;
 
     ///< TOF Specific members
-    TOFInterface*                      tof_interface;                ///< TOF interface to process the TOF camera raw data
+
+    // APQ and qrb have different royale APIs, maybe someday we'll backport the
+    //     clean api to voxl1 but right now it's baked into the system image
+    #ifdef APQ8096
+        void*                          tof_interface;                ///< TOF interface to process the TOF camera raw data
+    #elif QRB5165
+        TOFInterface*                  tof_interface;                ///< TOF interface to process the TOF camera raw data
+    #endif
+
     uint32_t                           TOFFrameNumber = 0;
     uint8_t                            IROutputChannel;
     uint8_t                            DepthOutputChannel;
     uint8_t                            ConfOutputChannel;
-    uint8_t                            NoiseOutputChannel;
     uint8_t                            PCOutputChannel;
     uint8_t                            FullOutputChannel;
 

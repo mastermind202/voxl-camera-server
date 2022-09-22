@@ -33,10 +33,12 @@
 #ifndef COMMON_DEFS_H
 #define COMMON_DEFS_H
 
-#include "debug_log.h"
-#include "stdio.h"
-#include "exposure-hist.h"
-#include "exposure-msv.h"
+#include <modal_journal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <exposure-hist.h>
+#include <exposure-msv.h>
+#include "buffer_manager.h"
 
 #define PADDING_DISABLED __attribute__((packed))
 
@@ -79,8 +81,6 @@ enum ImageFormat
     FMT_TOF,            ///< TOF (camera manager will translate to proper HAL)
     FMT_MAXTYPES        ///< Max Types
 };
-int32_t HalFmtFromType(int fmt);
-const char* GetImageFmtString(int fmt);
 
 //------------------------------------------------------------------------------------------------------------------------------
 // List of camera types
@@ -94,11 +94,6 @@ enum CameraType
     CAMTYPE_TOF,
     CAMTYPE_MAX_TYPES       ///< Max types
 };
-// Get the string associated with the type
-const char* GetTypeString(int type);
-
-// Get the type associated with the string
-const CameraType GetCameraTypeFromString(char *type);
 
 enum AE_MODE
 {
@@ -140,6 +135,77 @@ struct PerCameraInfo
 };
 
 
-void PrintCameraInfo(PerCameraInfo pCameraInfo);
+static const inline char* GetImageFmtString(int fmt)
+{
+    switch ((ImageFormat)fmt){
+        case FMT_RAW8:  return "raw8";
+        case FMT_RAW10: return "raw10";
+        case FMT_NV12:  return "nv12";
+        case FMT_NV21:  return "nv21";
+        default:        return "Invalid";
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+// Convert local format type to HAL3 format type
+//------------------------------------------------------------------------------------------------------------------------------
+static const inline int32_t HalFmtFromType(int fmt)
+{
+    switch (fmt){
+        case FMT_RAW10:
+        case FMT_RAW8:
+            return HAL_PIXEL_FORMAT_RAW10;
+
+        case FMT_NV21:
+        case FMT_NV12:
+            return HAL3_FMT_YUV;
+
+        case FMT_TOF:
+
+#ifdef APQ8096
+            return HAL_PIXEL_FORMAT_BLOB;
+#elif QRB5165
+            return HAL_PIXEL_FORMAT_RAW12;
+#else
+    #error "Platform invalid"
+#endif
+        default:
+            M_ERROR("ERROR: Invalid Preview Format!\n");
+            throw -EINVAL;
+    }
+}
+
+// Get the string associated with the type
+static const inline char* GetTypeString(int type)
+{
+    switch ((CameraType)type){
+        case CAMTYPE_OV7251:      return "ov7251";
+        case CAMTYPE_OV9782:      return "ov9782";
+        case CAMTYPE_IMX214:      return "imx214";
+        case CAMTYPE_TOF:         return "pmd-tof";
+
+        default:               return "Invalid";
+    }
+}
+
+// Get the type associated with the string
+static const inline CameraType GetCameraTypeFromString(char *type)
+{
+
+    char lowerType[strlen(type) + 5];
+    int i;
+    for(i = 0; type[i]; i++){
+      lowerType[i] = tolower(type[i]);
+    }
+    lowerType[i] = 0;
+
+    for(int i = 0; i < CAMTYPE_MAX_TYPES; i++){
+        if(!strcmp(lowerType, GetTypeString((CameraType)i))){
+            return (CameraType)i;
+        }
+    }
+
+    return CAMTYPE_INVALID;
+}
 
 #endif // COMMON_DEFS

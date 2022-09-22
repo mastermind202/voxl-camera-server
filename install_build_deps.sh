@@ -10,6 +10,7 @@
 # sure the correct one is installed in voxl-cross.
 DEPS_QRB5165=( "
 libmodal-pipe
+libmodal-journal
 libmodal-json
 libmodal-exposure
 libvoxl-cci-direct
@@ -18,9 +19,9 @@ qrb5165-proprietary" )
 
 DEPS_APQ8096=( "
 libmodal-pipe
+libmodal-journal
 libmodal-json
 libmodal-exposure
-libvoxl-cci-direct
 libvoxl-cutils
 /data/offline_ipk_packages/apq8096-proprietary*.ipk" )
 
@@ -117,7 +118,7 @@ else
     # install/update each dependency
     for i in ${DEPS_APQ8096}; do
         # this will also update if already installed!
-        opkg install --nodeps $i
+        opkg install --nodeps --force-reinstall $i
     done
 
 fi

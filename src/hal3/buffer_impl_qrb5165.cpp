@@ -17,7 +17,7 @@
 
 #include "buffer_manager.h"
 #include "common_defs.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 
 using namespace std;
 
@@ -62,7 +62,7 @@ int allocateOneBuffer(
     if (ionFd <= 0) {
         ionFd = open(ion_dev_file, O_RDONLY);
         if (ionFd <= 0) {
-            VOXL_LOG_FATAL("Ion dev file open failed. Error=%d\n", errno);
+            M_PRINT("Ion dev file open failed. Error=%d\n", errno);
             return -EINVAL;
         }
     }
@@ -76,14 +76,14 @@ int allocateOneBuffer(
         slice = ALIGN_BYTE(height, 64);
         buffer_size = (size_t)(stride * slice * 3 / 2);
 
-        VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+        M_VERBOSE("Allocating Buffer: %dx%d : %s\n",
                     width,
                     height,
                     "HAL_PIXEL_FORMAT_YCBCR_420_888");
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
         buffer_size = width;
 
-        VOXL_LOG_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+        M_VERBOSE("Allocating Buffer: %dx%d : %s\n",
                     width,
                     height,
                     "HAL_PIXEL_FORMAT_BLOB" );
@@ -95,7 +95,7 @@ int allocateOneBuffer(
     allocation_data.heap_id_mask = (1U << ION_SYSTEM_HEAP_ID);
     ret = ioctl(ionFd, _IOWR('I', 0, struct ion_allocation_data), &allocation_data);
     if (ret < 0) {
-        VOXL_LOG_FATAL("ION allocation failed. ret=%d Error=%d fd=%d\n", ret, errno, ionFd);
+        M_PRINT("ION allocation failed. ret=%d Error=%d fd=%d\n", ret, errno, ionFd);
         return ret;
     }
 

@@ -47,12 +47,13 @@
 #include <voxl_cutils.h>
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
+#include <modal_journal.h>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
-#include "debug_log.h"
 #include "hal3_camera.h"
 #include "voxl_camera_server.h"
+#include "voxl_cutils.h"
 
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
@@ -114,31 +115,28 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     cameraCallbacks.pPrivate        = this;
 
     if(pCameraModule == NULL ){
-        VOXL_LOG_ERROR("ERROR: Failed to get HAL module!\n");
+        M_ERROR("Failed to get HAL module!\n");
 
         throw -EINVAL;
     }
-
-    if(currentDebugLevel == DebugLevel::VERBOSE)
-        HAL3_print_camera_resolutions(cameraId);
 
     // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
     // we just exit. The stream configuration is checked into the static metadata associated with every camera.
     if (!HAL3_is_config_supported(cameraId, p_width, p_height, p_halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported preview config: %dx%d\n", cameraId, p_width, p_height);
+        M_ERROR("Camera %d failed to find supported preview config: %dx%d\n", cameraId, p_width, p_height);
 
         throw -EINVAL;
     }
     if (en_record && !HAL3_is_config_supported(cameraId, r_width, r_height, r_halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported video config: %dx%d\n", cameraId, r_width, r_height);
+        M_ERROR("Camera %d failed to find supported video config: %dx%d\n", cameraId, r_width, r_height);
 
         throw -EINVAL;
     }
     if (en_snapshot && !HAL3_is_config_supported(cameraId, s_width, s_height, s_halFmt))
     {
-        VOXL_LOG_ERROR("ERROR: Camera %d failed to find supported snapshot config: %dx%d\n", cameraId, s_width, s_height);
+        M_ERROR("Camera %d failed to find supported snapshot config: %dx%d\n", cameraId, s_width, s_height);
 
         throw -EINVAL;
     }
@@ -148,21 +146,21 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     if (pCameraModule->common.methods->open(&pCameraModule->common, cameraName, (hw_device_t**)(&pDevice)))
     {
-        VOXL_LOG_ERROR("ERROR: Open camera %s failed!\n", name);
+        M_ERROR("Open camera %s failed!\n", name);
 
         throw -EINVAL;
     }
 
     if (pDevice->ops->initialize(pDevice, (camera3_callback_ops*)&cameraCallbacks))
     {
-        VOXL_LOG_ERROR("ERROR: Initialize camera %s failed!\n", name);
+        M_ERROR("Initialize camera %s failed!\n", name);
 
         throw -EINVAL;
     }
 
     if (ConfigureStreams())
     {
-        VOXL_LOG_ERROR("ERROR: Failed to configure streams for camera: %s\n", name);
+        M_ERROR("Failed to configure streams for camera: %s\n", name);
 
         throw -EINVAL;
     }
@@ -173,7 +171,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                               p_stream.height,
                               p_stream.format,
                               p_stream.usage)) {
-        VOXL_LOG_ERROR("ERROR: Failed to allocate preview buffers for camera: %s\n", name);
+        M_ERROR("Failed to allocate preview buffers for camera: %s\n", name);
 
         throw -EINVAL;
     }
@@ -183,7 +181,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                                           r_stream.height,
                                           r_stream.format,
                                           r_stream.usage)) {
-        VOXL_LOG_ERROR("ERROR: Failed to allocate video buffers for camera: %s\n", name);
+        M_ERROR("Failed to allocate video buffers for camera: %s\n", name);
 
         throw -EINVAL;
     }
@@ -201,7 +199,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                                  1,
                                  s_stream.format,
                                  s_stream.usage)) {
-            VOXL_LOG_ERROR("ERROR: Failed to allocate snapshot buffers for camera: %s\n", name);
+            M_ERROR("Failed to allocate snapshot buffers for camera: %s\n", name);
 
             throw -EINVAL;
         }
@@ -226,10 +224,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         otherMgr->setMaster(this);
     }
 
-    VOXL_LOG_INFO("\nSuccessfully configured camera: %s with settings:\n", name);
-    if(currentDebugLevel <= DebugLevel::INFO)
-        PrintCameraInfo(pCameraInfo);
-
 }
 
 PerCameraMgr::~PerCameraMgr() {
@@ -248,7 +242,6 @@ int PerCameraMgr::ConfigureStreams()
 
     camera3_stream_configuration_t streamConfig = { 0 };
 
-    streamConfig.operation_mode = OPERATION_MODE;
     streamConfig.num_streams    = 0;
 
     p_stream.stream_type = CAMERA3_STREAM_OUTPUT;
@@ -280,11 +273,12 @@ int PerCameraMgr::ConfigureStreams()
     }
 
     streamConfig.streams        = streams.data();
+    streamConfig.operation_mode = OPERATION_MODE;
 
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
     if (pDevice->ops->configure_streams(pDevice, &streamConfig))
     {
-        VOXL_LOG_FATAL("voxl-camera-server FATAL: Configure streams failed for camera: %d\n", cameraId);
+        M_ERROR("Configure streams failed for camera: %d\n", cameraId);
         return -EINVAL;
     }
 
@@ -369,8 +363,11 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
     if(configInfo.type == CAMTYPE_TOF) {
 
+        setExposure = 2259763;
+        setGain     = 200;
+
         if(configInfo.fps != 5 && configInfo.fps != 15) {
-            VOXL_LOG_ERROR("ERROR: Invalid TOF framerate: %d, must be either 5 or 15\n", configInfo.fps);
+            M_ERROR("Invalid TOF framerate: %d, must be either 5 or 15\n", configInfo.fps);
             return -1;
         }
 
@@ -382,11 +379,30 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
         initializationData.numDataTypes  = 1;
         initializationData.pListener     = this;
         initializationData.frameRate     = configInfo.fps;
-        initializationData.cameraId      = cameraId;
         initializationData.range         = RoyaleDistanceRange::LONG_RANGE;
 
-        tof_interface = new TOFInterface(&initializationData);
-        VOXL_LOG_INFO("\nSUCCESS: TOF interface created!\n");
+        #ifdef APQ8096
+            VCU_silent(
+                tof_interface = TOFCreateInterface();
+            )
+            if( tof_interface == NULL) {
+                M_ERROR("Failed to create tof interface\n");
+                return -1;
+            }
+            initializationData.pTOFInterface = tof_interface;
+            int ret;
+            VCU_silent(
+                ret = TOFInitialize(&initializationData);
+            )
+            if(ret) {
+                M_ERROR("Failed to initialize tof interface\n");
+                return -1;
+            }
+        #elif QRB5165
+            initializationData.cameraId      = cameraId;
+            tof_interface = new TOFInterface(&initializationData);
+        #endif
+        M_VERBOSE("TOF interface created!\n");
     }
 
     return 0;
@@ -401,7 +417,7 @@ void PerCameraMgr::Start()
 
     if(partnerMode != MODE_STEREO_SLAVE){
         if(SetupPipes()){
-            VOXL_LOG_ERROR("ERROR: Failed to setup pipes for camera: %s\n", name);
+            M_ERROR("Failed to setup pipes for camera: %s\n", name);
 
             throw -EINVAL;
         }
@@ -494,7 +510,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         camera_image_metadata_t meta = {0};
         meta.frame_id=pHalResult->frame_number;
 
-        VOXL_LOG_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
+        M_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
 
         int result = 0;
         camera_metadata_ro_entry entry;
@@ -504,7 +520,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         if (!result && entry.count)
         {
             meta.timestamp_ns = entry.data.i64[0];
-            VOXL_LOG_VERBOSE("\tTimestamp: %llu\n", meta.timestamp_ns);
+            M_VERBOSE("\tTimestamp: %llu\n", meta.timestamp_ns);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
@@ -512,7 +528,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         if (!result && entry.count)
         {
             meta.gain = entry.data.i32[0];
-            VOXL_LOG_VERBOSE("\tGain: %d\n", meta.gain);
+            M_VERBOSE("\tGain: %d\n", meta.gain);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
@@ -520,7 +536,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         if (!result && entry.count)
         {
             meta.exposure_ns = entry.data.i64[0];
-            VOXL_LOG_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
+            M_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
         }
         resultMetaQueue.push_back(meta);
 
@@ -531,7 +547,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
     for (uint i = 0; i < pHalResult->num_output_buffers; i++)
     {
 
-        VOXL_LOG_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
+        M_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
         currentFrameNumber = pHalResult->frame_number;
 
@@ -554,7 +570,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult)
 {
-    //printf("recieved notify for: %d\n", pHalResult->frame_number);
+    M_VERBOSE("recieved notify for: %d\n", pHalResult->frame_number);
     Camera3Callbacks* pCamera3Callbacks = (Camera3Callbacks*)cb;
     PerCameraMgr* pPerCameraMgr = (PerCameraMgr*)pCamera3Callbacks->pPrivate;
 
@@ -578,26 +594,26 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
                 //Another thread has already detected the fatal error, return since it has already been handled
                 if(pPerCameraMgr->EStopped) return;
 
-                VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved \"Device\" error from camera: %s\n",
+                M_ERROR("Recieved \"Device\" error from camera: %s\n",
                              pPerCameraMgr->name);
-                VOXL_LOG_FATAL(  "                          Camera server will be stopped\n");
+                M_PRINT(  "                          Camera server will be stopped\n");
                 EStopCameraServer();
                 break;
             case CAMERA3_MSG_ERROR_REQUEST:
-                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Request\" error from camera: %s\n",
+                M_ERROR("Recieved \"Request\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
             case CAMERA3_MSG_ERROR_RESULT:
-                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Result\" error from camera: %s\n",
+                M_ERROR("Recieved \"Result\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
             case CAMERA3_MSG_ERROR_BUFFER:
-                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Recieved \"Buffer\" error from camera: %s\n",
+                M_ERROR("Recieved \"Buffer\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
 
             default:
-                VOXL_LOG_ERROR("\nvoxl-camera-server ERROR: Framenumber: %d ErrorCode: %d\n",
+                M_ERROR("Camera: %s Framenumber: %d ErrorCode: %d\n", pPerCameraMgr->name,
                        msg->message.error.frame_number, msg->message.error.error_code);
         }
     }
@@ -627,7 +643,7 @@ static void ConvertTo8bitRaw(uint8_t* pImg, uint32_t widthPixels, uint32_t heigh
 static bool Check10bit(uint8_t* pImg, uint32_t widthPixels, uint32_t heightPixels)
 {
     if (pImg == NULL) {
-        VOXL_LOG_ERROR("%s was given NULL pointer for image\n", __FUNCTION__);
+        M_ERROR("%s was given NULL pointer for image\n", __FUNCTION__);
         throw -EINVAL;
     }
 
@@ -685,7 +701,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
         file_descriptor = fopen(path, "wb");
 
         if(! file_descriptor){
-            VOXL_LOG_ERROR("ERROR: failed to open file descriptor for snapshot save\n");
+            M_ERROR("failed to open file descriptor for snapshot save\n");
             return;
         }
     }
@@ -695,7 +711,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
         fwrite(src_data, size, 1, file_descriptor);
 
     } else {
-        VOXL_LOG_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
+        M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
     }
 
     fclose(file_descriptor);
@@ -729,17 +745,40 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
     uint16_t srcPixel16[p_width * p_height] = {0};
 
+
+    //Tof is different from the rest, pass the data off to spectre then send it out
+    if(configInfo.type == CAMTYPE_TOF) {
+        #ifdef APQ8096
+            TOFProcessRAW16(tof_interface,
+                        (uint16_t *)srcPixel,
+                        imageInfo.timestamp_ns);
+        #elif QRB5165
+
+            imageInfo.format     = IMAGE_FORMAT_RAW8;
+            imageInfo.size_bytes = p_width * p_height;
+            imageInfo.stride     = p_width;
+
+            // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
+            Mipi12ToRaw16(imageInfo, (uint8_t *)srcPixel, srcPixel16);
+            tof_interface->ProcessRAW16(srcPixel16, imageInfo.timestamp_ns);
+        #endif
+        M_VERBOSE("Sent tof data to royale for processing\n");
+        return;
+    }
+
+
     if (p_halFmt == HAL_PIXEL_FORMAT_RAW10)
     {
+        M_VERBOSE("Preview format HAL_PIXEL_FORMAT_RAW10\n");
 
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
         if(imageInfo.frame_id == 1){
-            VOXL_LOG_INFO("%s received raw10 frame, checking to see if is actually raw8\n", name);
+            M_DEBUG("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
             if((is10bit = Check10bit(srcPixel, p_width, p_height))){
-                VOXL_LOG_WARNING("WARNING: Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
+                M_WARN("Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
             } else {
-                VOXL_LOG_INFO("Frame was actually 8 bit, sending as is\n");
+                M_DEBUG("Frame was actually 8 bit, sending as is\n");
             }
         }
 
@@ -753,20 +792,9 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
                              p_height);
         }
     }
-    else if (p_halFmt == HAL_PIXEL_FORMAT_RAW12) {
-        // Should only be ToF on 865 that uses this function, if in the future
-        // there is another sensor that requires raw12, make this if ToF specific
-
-        imageInfo.format     = IMAGE_FORMAT_RAW8; 
-        imageInfo.size_bytes = p_width * p_height;
-        imageInfo.stride     = p_width;
-
-        // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
-        Mipi12ToRaw16(imageInfo, (uint8_t *)srcPixel, srcPixel16);
-
-    }
     else if (p_halFmt == HAL3_FMT_YUV)
     {
+        M_VERBOSE("Preview format HAL3_FMT_YUV\n");
         // For ov7251 camera there is no color so we just send the Y channel data as RAW8
         if (configInfo.type == CAMTYPE_OV7251)
         {
@@ -786,18 +814,14 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         }
 
     } else {
-        VOXL_LOG_ERROR("Camera: %s received invalid preview format, stopping\n", name);
+        M_ERROR("Camera: %s received invalid preview format, stopping\n", name);
         EStopCameraServer();
     }
 
-    //Tof is different from the rest, pass the data off to spectre then send it out
-    if(configInfo.type == CAMTYPE_TOF) {
-        tof_interface->ProcessRAW16(srcPixel16, imageInfo.timestamp_ns);
-
-    } else if (partnerMode == MODE_MONO){
+    if (partnerMode == MODE_MONO){
         // Ship the frame out of the camera server
         pipe_server_write_camera_frame(outputChannel, imageInfo, srcPixel);
-        VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+        M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
         int64_t    new_exposure_ns;
         int32_t    new_gain;
@@ -845,7 +869,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
             case IMAGE_FORMAT_STEREO_NV21:
                 break;
             default:
-                VOXL_LOG_FATAL("Error: libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8: %s\n", pipe_image_format_to_string(imageInfo.format));
+                M_ERROR("libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8: %s\n", pipe_image_format_to_string(imageInfo.format));
                 EStopCameraServer();
                 break;
         }
@@ -864,12 +888,12 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
         if(childFrame == NULL){
             pthread_mutex_unlock(&stereoMutex);
-            VOXL_LOG_WARNING("Child frame not received, assuming missing and discarding master\n");
+            M_WARN("Child frame not received, assuming missing and discarding master\n");
             return;
         }
 
         int64_t diff = imageInfo.timestamp_ns - childInfo.timestamp_ns;
-        VOXL_LOG_VERBOSE("%s timestamps(ms): %llu, %llu, diff: %lld\n",
+        M_VERBOSE("%s timestamps(ms): %llu, %llu, diff: %lld\n",
             name,
             imageInfo.timestamp_ns/1000000,
             childInfo.timestamp_ns/1000000,
@@ -877,7 +901,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
         //Much newer master, discard the child and get a new one
         if(diff > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer master than child (%lld), discarding child and trying again\n",
+            M_WARN("Camera %s recieved much newer master than child (%lld), discarding child and trying again\n",
                 name, diff/1000000);
             childFrame = NULL;
             pthread_mutex_unlock(&stereoMutex);
@@ -888,7 +912,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
         diff *= -1;
         //Much newer child, discard master but keep the child
         if(diff > MAX_STEREO_DISCREPENCY_NS){
-            VOXL_LOG_WARNING("INFO: Camera %s recieved much newer child than master (%lld), discarding master and trying again\n",
+            M_WARN("Camera %s recieved much newer child than master (%lld), discarding master and trying again\n",
                 name, diff/1000000);
             pthread_mutex_unlock(&stereoMutex);
             return;
@@ -901,7 +925,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
         // Ship the frame out of the camera server
         pipe_server_write_stereo_frame(outputChannel, imageInfo, srcPixel, childFrame);
-        VOXL_LOG_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+        M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
         // Run Auto Exposure
         int64_t    new_exposure_ns;
@@ -1009,7 +1033,7 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
         char *filename = snapshotQueue.front();
         snapshotQueue.pop_front();
 
-        VOXL_LOG_FATAL("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
+        M_PRINT("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
         WriteSnapshot(bufferBlockInfo, s_halFmt, filename);
 
         free(filename);
@@ -1020,11 +1044,22 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 // -----------------------------------------------------------------------------------------------------------------------------
 // The TOF library calls this function when it receives data from the Royale PMD libs
 // -----------------------------------------------------------------------------------------------------------------------------
-bool PerCameraMgr::royaleDataDone(void*                pData,
-                                  uint32_t             size,
-                                  int64_t              timestamp,
-                                  RoyaleListenerType   dataType)
+#ifdef APQ8096
+    // Callback function for the TOF bridge to provide the post processed TOF data
+    bool PerCameraMgr::RoyaleDataDone(const void*             pData,
+                        uint32_t                size,
+                        int64_t                 timestamp,
+                        modalai::RoyaleListenerType dataType)
+#elif QRB5165
+    // Callback function for the TOF bridge to provide the post processed TOF data
+    bool PerCameraMgr::royaleDataDone(void*                   pData,
+                        uint32_t                size,
+                        int64_t                 timestamp,
+                        RoyaleListenerType      dataType)
+#endif
 {
+
+    M_VERBOSE("Received royale data for camera: %s\n", name);
 
     constexpr int MAX_IR_VALUE_IN  = 2895;
     constexpr int MAX_IR_VALUE_OUT = (1<<8);
@@ -1033,9 +1068,13 @@ bool PerCameraMgr::royaleDataDone(void*                pData,
     const royale::Vector<royale::DepthPoint>& pointIn = pDepthData->points;
     int numPoints = (int)pointIn.size();
 
-    uint64_t timediff_ns =  VCU_time_realtime_ns() - VCU_time_monotonic_ns();
+    #ifdef APQ8096
+        uint64_t timediff_ns = VCU_time_realtime_ns() - VCU_time_monotonic_ns();
+    #else
+        uint64_t timediff_ns = 0;
+    #endif
 
-    camera_image_metadata_t IRMeta, DepthMeta, ConfMeta, NoiseMeta;
+    camera_image_metadata_t IRMeta, DepthMeta, ConfMeta;
     point_cloud_metadata_t PCMeta;
 
     IRMeta.timestamp_ns = (pDepthData->timeStamp.count() )-timediff_ns;
@@ -1047,100 +1086,74 @@ bool PerCameraMgr::royaleDataDone(void*                pData,
 
     DepthMeta = IRMeta;
     ConfMeta  = IRMeta;
-    NoiseMeta = IRMeta;
 
-    if(pipe_server_get_num_clients(IROutputChannel)){
-
-        IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
-        IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
-        IRMeta.format         = IMAGE_FORMAT_RAW8;
-        uint8_t IRData[numPoints];
-        for (int i = 0; i < numPoints; i++)
-        {
-            royale::DepthPoint point = pointIn[i];
-            uint32_t longval = point.grayValue;
-            longval *= MAX_IR_VALUE_OUT;
-            longval /= MAX_IR_VALUE_IN;
-            IRData[i]    = longval;
-        }
-        pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
+    IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
+    IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
+    IRMeta.format         = IMAGE_FORMAT_RAW8;
+    uint8_t IRData[numPoints];
+    for (int i = 0; i < numPoints; i++)
+    {
+        royale::DepthPoint point = pointIn[i];
+        uint32_t longval = point.grayValue;
+        longval *= MAX_IR_VALUE_OUT;
+        longval /= MAX_IR_VALUE_IN;
+        IRData[i]    = longval;
     }
+    pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
 
-    if(pipe_server_get_num_clients(DepthOutputChannel)){
-
-        DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
-        DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
-        DepthMeta.format      = IMAGE_FORMAT_RAW8;
-        uint8_t DepthData[numPoints];
-        for (int i = 0; i < numPoints; i++)
-        {
-            DepthData[i] = (uint8_t)(pointIn[i].z * 255);
-        }
-        pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
+    DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
+    DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
+    DepthMeta.format      = IMAGE_FORMAT_RAW8;
+    uint8_t DepthData[numPoints];
+    for (int i = 0; i < numPoints; i++)
+    {
+        DepthData[i] = (uint8_t)((pointIn[i].z / 5) * 255);
     }
+    pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
 
-    if(pipe_server_get_num_clients(ConfOutputChannel)){
-
-        ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
-        ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
-        ConfMeta.format       = IMAGE_FORMAT_RAW8;
-        uint8_t ConfData[numPoints];
-        for (int i = 0; i < numPoints; i++)
-        {
-            royale::DepthPoint point = pointIn[i];
-            ConfData[i] = point.depthConfidence;
-        }
-        pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
+    ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
+    ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
+    ConfMeta.format       = IMAGE_FORMAT_RAW8;
+    uint8_t ConfData[numPoints];
+    for (int i = 0; i < numPoints; i++)
+    {
+        royale::DepthPoint point = pointIn[i];
+        ConfData[i] = point.depthConfidence;
     }
+    pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
 
-    if(pipe_server_get_num_clients(NoiseOutputChannel)){
 
-        NoiseMeta.stride      = NoiseMeta.width * sizeof(uint8_t);
-        NoiseMeta.size_bytes  = NoiseMeta.stride * NoiseMeta.height;
-        NoiseMeta.format      = IMAGE_FORMAT_RAW8;
-        uint8_t NoiseData[numPoints];
-        for (int i = 0; i < numPoints; i++)
-        {
-            NoiseData[i] = (uint8_t)(pointIn[i].noise * 255);
-        }
-        pipe_server_write_camera_frame(NoiseOutputChannel, NoiseMeta, NoiseData);
+    PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
+    PCMeta.n_points       = numPoints;
+    float PointCloud[numPoints*3];
+    for (int i = 0; i < numPoints; i++)
+    {
+        royale::DepthPoint point = pointIn[i];
+        PointCloud[(i*3)]   = point.x;
+        PointCloud[(i*3)+1] = point.y;
+        PointCloud[(i*3)+2] = point.z;
     }
+    pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
 
-    if(pipe_server_get_num_clients(PCOutputChannel)){
 
-        PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
-        PCMeta.n_points       = numPoints;
-        float PointCloud[numPoints*3];
-        for (int i = 0; i < numPoints; i++)
-        {
-            royale::DepthPoint point = pointIn[i];
-            PointCloud[(i*3)]   = point.x;
-            PointCloud[(i*3)+1] = point.y;
-            PointCloud[(i*3)+2] = point.z;
-        }
-        pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
+    tof_data_t FullData;
+
+    FullData.magic_number = TOF_MAGIC_NUMBER;
+    FullData.timestamp_ns = IRMeta.timestamp_ns;
+    for (int i = 0; i < numPoints; i++)
+    {
+        royale::DepthPoint point = pointIn[i];
+        FullData.points     [i][0] = point.x;
+        FullData.points     [i][1] = point.y;
+        FullData.points     [i][2] = point.z;
+        FullData.noises     [i]    = point.noise;
+        uint32_t longval = point.grayValue;
+        longval *= MAX_IR_VALUE_OUT;
+        longval /= MAX_IR_VALUE_IN;
+        FullData.grayValues [i]    = longval;
+        FullData.confidences[i]    = point.depthConfidence;
     }
-
-    if(pipe_server_get_num_clients(FullOutputChannel)){
-        tof_data_t FullData;
-
-        FullData.magic_number = TOF_MAGIC_NUMBER;
-        FullData.timestamp_ns = IRMeta.timestamp_ns;
-        for (int i = 0; i < numPoints; i++)
-        {
-            royale::DepthPoint point = pointIn[i];
-            FullData.points     [i][0] = point.x;
-            FullData.points     [i][1] = point.y;
-            FullData.points     [i][2] = point.z;
-            FullData.noises     [i]    = point.noise;
-            uint32_t longval = point.grayValue;
-            longval *= MAX_IR_VALUE_OUT;
-            longval /= MAX_IR_VALUE_IN;
-            FullData.grayValues [i]    = longval;
-            FullData.confidences[i]    = point.depthConfidence;
-        }
-        pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
-    }
+    pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
 
     return true;
 }
@@ -1160,7 +1173,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         pid_t tid = syscall(SYS_gettid);
         sprintf(buf, "cam%d-result", cameraId);
         pthread_setname_np(pthread_self(), buf);
-        VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, tid);
+        M_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, tid);
 
         // Set thread priority
         int which = PRIO_PROCESS;
@@ -1194,10 +1207,10 @@ void* PerCameraMgr::ThreadPostProcessResult()
         camera3_stream_t *stream      = resultMsgQueue.front().stream;
         BufferGroup      *bufferGroup = GetBufferGroup(stream);
 
-        // Coming here means we have a result frame to process
-        VOXL_LOG_VERBOSE("%s procesing new buffer\n", name);
-
         resultMsgQueue.pop_front();
+
+        // Coming here means we have a result frame to process
+        M_VERBOSE("%s procesing new buffer\n", name);
 
         if(stopped) {
             bufferPush(*bufferGroup, handle);
@@ -1209,22 +1222,22 @@ void* PerCameraMgr::ThreadPostProcessResult()
         BufferBlock* pBufferInfo  = bufferGetBufferInfo(bufferGroup, handle);
         switch (GetStreamId(stream)){
             case STREAM_PREVIEW:
-                VOXL_LOG_VERBOSE("Camera: %s processing preview frame\n", name);
+                M_VERBOSE("Camera: %s processing preview frame\n", name);
                 ProcessPreviewFrame(pBufferInfo);
                 break;
 
             case STREAM_RECORD: // Not Ready
-                VOXL_LOG_VERBOSE("Camera: %s processing video frame\n", name);
+                M_VERBOSE("Camera: %s processing video frame\n", name);
                 //ProcessVideoFrame(pBufferInfo);
                 break;
 
             case STREAM_SNAPSHOT:
-                VOXL_LOG_VERBOSE("Camera: %s processing snapshot frame\n", name);
+                M_VERBOSE("Camera: %s processing snapshot frame\n", name);
                 ProcessSnapshotFrame(pBufferInfo);
                 break;
 
             default:
-                VOXL_LOG_ERROR("Camera: %s recieved frame for unknown stream\n", name);
+                M_ERROR("Camera: %s recieved frame for unknown stream\n", name);
                 break;
         }
         pthread_mutex_unlock(&resultMutex);
@@ -1237,14 +1250,14 @@ void* PerCameraMgr::ThreadPostProcessResult()
     }
 
     if(EStopped){
-        VOXL_LOG_FATAL("------ voxl-camera-server WARNING: Thread: %s result thread recieved ESTOP\n", name);
+        M_WARN("Thread: %s result thread recieved ESTOP\n", name);
     }else if(stopped){
-        VOXL_LOG_INFO("------ Result thread on camera: %s recieved stop command, exiting\n", name);
+        M_DEBUG("------ Result thread on camera: %s recieved stop command, exiting\n", name);
     }else{
-        VOXL_LOG_INFO("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
+        M_DEBUG("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
     }
 
-    VOXL_LOG_INFO("Leaving %s result thread\n", name);
+    M_VERBOSE("Leaving %s result thread\n", name);
 
     return NULL;
 }
@@ -1321,16 +1334,16 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         //Another thread has already detected the fatal error, return since it has already been handled
         if(stopped) return 0;
 
-        VOXL_LOG_FATAL("\nvoxl-camera-server FATAL: Recieved Fatal error from camera: %s\n", name);
+        M_ERROR("Recieved Fatal error from camera: %s\n", name);
         switch (status){
             case -EINVAL :
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -EINVAL\n", frameNumber);
+                M_ERROR("Sending request %d, ErrorCode: -EINVAL\n", frameNumber);
                 break;
             case -ENODEV:
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: -ENODEV\n", frameNumber);
+                M_ERROR("Sending request %d, ErrorCode: -ENODEV\n", frameNumber);
                 break;
             default:
-                VOXL_LOG_ERROR("\tError sending request %d, ErrorCode: %d\n", frameNumber, status);
+                M_ERROR("Sending request %d, ErrorCode: %d\n", frameNumber, status);
                 break;
         }
 
@@ -1340,7 +1353,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     }
     requestMetadata.unlock(request.settings);
 
-    VOXL_LOG_VERBOSE("Processed request for frame %d for camera %s\n", frameNumber, name);
+    M_VERBOSE("Processed request for frame %d for camera %s\n", frameNumber, name);
 
     return S_OK;
 }
@@ -1357,11 +1370,11 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     sprintf(buf, "cam%d-request", cameraId);
     pthread_setname_np(pthread_self(), buf);
 
-    VOXL_LOG_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
+    M_VERBOSE("Entered thread: %s(tid: %lu)\n", buf, syscall(SYS_gettid));
 
     if (ConstructDefaultRequestSettings()){
 
-        VOXL_LOG_ERROR("ERROR: Failed to construct request settings for camera: %s\n", name);
+        M_ERROR("Failed to construct request settings for camera: %s\n", name);
 
         EStopCameraServer();
     }
@@ -1374,13 +1387,13 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     // Stop message received. Inform about the last framenumber requested from the camera module. This in turn will be used
     // by the result thread to wait for this frame's image buffers to arrive.
     if(EStopped){
-        VOXL_LOG_WARNING("------ voxl-camera-server WARNING: Thread: %s request thread recieved ESTOP\n", name);
+        M_WARN("Thread: %s request thread recieved ESTOP\n", name);
     }else{
         lastResultFrameNumber = frame_number;
-        VOXL_LOG_INFO("------ Last request frame for %s: %d\n", name, frame_number);
+        M_DEBUG("------ Last request frame for %s: %d\n", name, frame_number);
     }
 
-    VOXL_LOG_INFO("Leaving %s request thread\n", name);
+    M_VERBOSE("Leaving %s request thread\n", name);
 
     return NULL;
 }
@@ -1434,49 +1447,42 @@ int PerCameraMgr::SetupPipes()
         IROutputChannel    = outputChannel;
         DepthOutputChannel = pipe_server_get_next_available_channel();
         ConfOutputChannel  = pipe_server_get_next_available_channel();
-        NoiseOutputChannel = pipe_server_get_next_available_channel();
         PCOutputChannel    = pipe_server_get_next_available_channel();
         FullOutputChannel  = pipe_server_get_next_available_channel();
 
         pipe_info_t IRInfo;
         pipe_info_t DepthInfo;
         pipe_info_t ConfInfo;
-        pipe_info_t NoiseInfo;
         pipe_info_t PCInfo;
         pipe_info_t FullInfo;
 
         sprintf(IRInfo.name,    "%s%s", name, "_ir");
         sprintf(DepthInfo.name, "%s%s", name, "_depth");
         sprintf(ConfInfo.name,  "%s%s", name, "_conf");
-        sprintf(NoiseInfo.name, "%s%s", name, "_noise");
         sprintf(PCInfo.name,    "%s%s", name, "_pc");
         sprintf(FullInfo.name,  "%s%s", name, "");
 
         strcpy(IRInfo.type,     "camera_image_metadata_t");
         strcpy(DepthInfo.type,  "camera_image_metadata_t");
         strcpy(ConfInfo.type,   "camera_image_metadata_t");
-        strcpy(NoiseInfo.type,  "camera_image_metadata_t");
         strcpy(PCInfo.type,     "point_cloud_metadata_t");
         strcpy(FullInfo.type,   "tof_data_t");
 
         strcpy(IRInfo.server_name,    PROCESS_NAME);
         strcpy(DepthInfo.server_name, PROCESS_NAME);
         strcpy(ConfInfo.server_name,  PROCESS_NAME);
-        strcpy(NoiseInfo.server_name, PROCESS_NAME);
         strcpy(PCInfo.server_name,    PROCESS_NAME);
         strcpy(FullInfo.server_name,  PROCESS_NAME);
 
         IRInfo.size_bytes    = 64*1024*1024;
         DepthInfo.size_bytes = 64*1024*1024;
         ConfInfo.size_bytes  = 64*1024*1024;
-        NoiseInfo.size_bytes = 64*1024*1024;
         PCInfo.size_bytes    = 64*1024*1024;
         FullInfo.size_bytes  = 256*1024*1024;
 
         pipe_server_create(IROutputChannel,    IRInfo,    0);
         pipe_server_create(DepthOutputChannel, DepthInfo, 0);
         pipe_server_create(ConfOutputChannel,  ConfInfo,  0);
-        pipe_server_create(NoiseOutputChannel, NoiseInfo, 0);
         pipe_server_create(PCOutputChannel,    PCInfo,    0);
         pipe_server_create(FullOutputChannel,  FullInfo,  0);
 
@@ -1515,11 +1521,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             bool valid = true;
             if(exp < MIN_EXP || exp > MAX_EXP){
                 valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+                M_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
             }
             if(gain < MIN_GAIN || gain > MAX_GAIN){
                 valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+                M_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
             }
             if(valid){
                 pthread_mutex_lock(&aeMutex);
@@ -1534,7 +1540,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                VOXL_LOG_INFO("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
+                M_DEBUG("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
 
                 setExposure = exp*1000000;
                 setGain =     gain;
@@ -1547,8 +1553,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 pthread_mutex_unlock(&aeMutex);
             }
         } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n", name);
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 25 350\"\n", CmdStrings[SET_EXP_GAIN]);
+            M_ERROR("Camera: %s failed to get valid exposure/gain values from control pipe\n\tShould follow format: \"%s 25 350\"\n",
+             name, CmdStrings[SET_EXP_GAIN]);
         }
 
     } else
@@ -1566,7 +1572,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             bool valid = true;
             if(exp < MIN_EXP || exp > MAX_EXP){
                 valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
+                M_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
             }
             if(valid){
                 pthread_mutex_lock(&aeMutex);
@@ -1581,7 +1587,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                VOXL_LOG_INFO("Camera: %s recieved new exp value: %6.3f(ms)\n", name, exp);
+                M_DEBUG("Camera: %s recieved new exp value: %6.3f(ms)\n", name, exp);
                 setExposure = exp*1000000;
 
                 if(otherMgr){
@@ -1591,8 +1597,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 pthread_mutex_unlock(&aeMutex);
             }
         } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid exposure value from control pipe\n", name);
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 25\"\n", CmdStrings[SET_EXP]);
+            M_ERROR("Camera: %s failed to get valid exposure value from control pipe\n\tShould follow format: \"%s 25\"\n",
+            name, CmdStrings[SET_EXP]);
         }
     } else
     /**************************
@@ -1609,7 +1615,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             bool valid = true;
             if(gain < MIN_GAIN || gain > MAX_GAIN){
                 valid = false;
-                VOXL_LOG_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
+                M_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
             }
             if(valid){
                 pthread_mutex_lock(&aeMutex);
@@ -1624,7 +1630,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                VOXL_LOG_INFO("Camera: %s recieved new gain value: %d\n", name, gain);
+                M_DEBUG("Camera: %s recieved new gain value: %d\n", name, gain);
                 setGain = gain;
 
                 if(otherMgr){
@@ -1634,8 +1640,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 pthread_mutex_unlock(&aeMutex);
             }
         } else {
-            VOXL_LOG_ERROR("Camera: %s failed to get valid gain value from control pipe\n", name);
-            VOXL_LOG_ERROR("\tShould follow format: \"%s 350\"\n", CmdStrings[SET_GAIN]);
+            M_ERROR("Camera: %s failed to get valid gain value from control pipe\n\tShould follow format: \"%s 350\"\n",
+            name, CmdStrings[SET_GAIN]);
         }
     } else
     /**************************
@@ -1656,7 +1662,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 otherMgr->ConstructDefaultRequestSettings();
             }
 
-            VOXL_LOG_INFO("Camera: %s starting to use Auto Exposure\n", name);
+            M_DEBUG("Camera: %s starting to use Auto Exposure\n", name);
         }
         pthread_mutex_unlock(&aeMutex);
 
@@ -1678,7 +1684,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 otherMgr->ae_mode = AE_OFF;
                 otherMgr->ConstructDefaultRequestSettings();
             }
-            VOXL_LOG_INFO("Camera: %s ceasing to use Auto Exposure\n", name);
+            M_DEBUG("Camera: %s ceasing to use Auto Exposure\n", name);
         }
         pthread_mutex_unlock(&aeMutex);
 
@@ -1707,16 +1713,22 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                 }
             }
 
-            VOXL_LOG_ERROR("Camera: %s taking snapshot (destination: %s)\n", name, filename);
+            M_PRINT("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
             snapshotQueue.push_back(filename);
             numNeededSnapshots++;
 
         } else {
-            VOXL_LOG_ERROR("Camera: %s failed to take snapshot, mode not enabled\n", name);
+            M_ERROR("Camera: %s declining to take snapshot, mode not enabled\n", name);
         }
-    } else {
-        VOXL_LOG_ERROR("Camera: %s got unknown Command: %s\n", name, cmd);
+    }
+    /**************************
+     *
+     *  ¯\_(ツ)_/¯
+     *
+     */
+    else {
+        M_ERROR("Camera: %s got unknown Command: %s\n", name, cmd);
     }
 }
 
@@ -1741,7 +1753,7 @@ static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint
                                         ANDROID_JPEG_MAX_SIZE,
                                         &jpegBufferMaxSize);
     if (jpegBufferMaxSize.count == 0) {
-        fprintf(stderr, "Find maximum JPEG size from metadat failed.!\n");
+        M_ERROR("Find maximum JPEG size from metadata failed.!\n");
         return 0;
     }
     maxJpegBufferSize = jpegBufferMaxSize.data.i32[0];

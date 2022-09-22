@@ -5,7 +5,7 @@
  ******************************************************************************************************************************/
 
 #include "buffer_manager.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 
 #include <condition_variable>
 #include <mutex>
@@ -39,7 +39,7 @@ void bufferDeleteBuffers(BufferGroup& bufferGroup)
 {
 
     if (bufferGroup.totalBuffers != bufferGroup.freeBuffers.size()){
-        VOXL_LOG_ERROR("WARNING: Deleting buffers: %lu of %d still in use\n",
+        M_WARN("Deleting buffers: %lu of %d still in use\n",
             (bufferGroup.totalBuffers)-(bufferGroup.freeBuffers.size()),
             bufferGroup.totalBuffers);
     }
@@ -62,7 +62,7 @@ int bufferAllocateBuffers(
         if(allocateOneBuffer(bufferGroup, i, width, height, format, consumerFlags, &bufferGroup.buffers[i])) return -1;
 
         if(bufferGroup.bufferBlocks[i].vaddress == NULL){
-            VOXL_LOG_ERROR("Buffer was allocated but did not populate the vaddress field\n");
+            M_ERROR("Buffer was allocated but did not populate the vaddress field\n");
             return -1;
         }
 
@@ -99,6 +99,6 @@ BufferBlock* bufferGetBufferInfo(BufferGroup* bufferGroup, buffer_handle_t* buff
             return &(bufferGroup->bufferBlocks[i]);
         }
     }
-    VOXL_LOG_ERROR("%s wan't able to successfully find the requested buffer\n", __FUNCTION__ );
+    M_ERROR("%s wan't able to successfully find the requested buffer\n", __FUNCTION__ );
     return NULL;
 }

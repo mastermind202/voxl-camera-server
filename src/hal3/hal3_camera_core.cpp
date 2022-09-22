@@ -33,13 +33,13 @@
 
 #include <stdio.h>
 #include "common_defs.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 #include "hal3_camera.h"
 
 // Callback to indicate device status change
 static void CameraDeviceStatusChange(const struct camera_module_callbacks* callbacks, int camera_id, int new_status)
 {
-    VOXL_LOG_INFO("Camera %d device status change: %d\n", camera_id, new_status);
+    M_DEBUG("Camera %d device status change: %d\n", camera_id, new_status);
 }
 // Callback to indicate torch mode status change
 static void TorchModeStatusChange(const struct camera_module_callbacks* callbacks, const char* camera_id, int new_status)
@@ -59,7 +59,7 @@ camera_module_t* HAL3_get_camera_module()
         return cameraModule;
     }
 
-    VOXL_LOG_VERBOSE("Attempting to open the hal module\n");
+    M_DEBUG("Attempting to open the hal module\n");
 
     int i;
     for (i = 0;
@@ -67,17 +67,17 @@ camera_module_t* HAL3_get_camera_module()
          i++)
     {
 
-        VOXL_LOG_ERROR("ERROR: Camera module not opened, %d attempts remaining\n",
+        M_WARN("Camera module not opened, %d attempts remaining\n",
                         NUM_MODULE_OPEN_ATTEMPTS-i);
         sleep(1);
     }
 
     if(cameraModule == NULL){
-        VOXL_LOG_FATAL("ERROR: Camera module not opened after %d attempts\n", NUM_MODULE_OPEN_ATTEMPTS);
+        M_ERROR("Camera module not opened after %d attempts\n", NUM_MODULE_OPEN_ATTEMPTS);
         return NULL;
     }
 
-    VOXL_LOG_INFO("SUCCESS: Camera module opened on attempt %d\n", i);
+    M_DEBUG("SUCCESS: Camera module opened on attempt %d\n", i);
 
     //This check should never fail but we should still make it
     if (cameraModule->init != NULL)
@@ -85,14 +85,14 @@ camera_module_t* HAL3_get_camera_module()
         cameraModule->init();
         if (cameraModule->init == NULL)
         {
-            VOXL_LOG_FATAL("ERROR: Camera module failed to init\n");
+            M_ERROR("Camera module failed to init\n");
             return NULL;
         }
     }
 
     int numCameras = cameraModule->get_number_of_cameras();
 
-    VOXL_LOG_INFO("----------- Number of cameras: %d\n\n", numCameras);
+    M_DEBUG("----------- Number of cameras: %d\n\n", numCameras);
 
     cameraModule->set_callbacks(&moduleCallbacks);
 
@@ -107,8 +107,6 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
     if(cameraModule == NULL){
-        printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
-
         return false;
     }
 
@@ -130,7 +128,7 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
                 (entry.data.i32[i+2] == height) &&
                 (entry.data.i32[i+3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT))
             {
-                VOXL_LOG_VERBOSE("Successfully found configuration match for camera %d: %dx%d\n", camId, width, height);
+                M_VERBOSE("Successfully found configuration match for camera %d: %dx%d\n", camId, width, height);
                 return true;
             }
         }
@@ -138,51 +136,6 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
 
     return false;
 }
-/*
-void HAL3_print_camera_resolutions(int camId){
-
-    camera_module_t* cameraModule = HAL3_get_camera_module();
-
-    if(cameraModule == NULL){
-        printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
-        return;
-    }
-
-    if(camId == -1){
-        int numCameras = cameraModule->get_number_of_cameras();
-
-        printf("Note: This list comes from the HAL module and may nfot be indicative\n");
-        printf("\tof configurations that have full pipelines\n\n");
-        printf("Number of cameras: %d\n\n", numCameras);
-
-        for(int i = 0; i < numCameras; i++){
-            HAL3_print_camera_resolutions(i);
-        }
-    } else {
-
-        camera_info cameraInfo;
-        cameraModule->get_camera_info(camId, &cameraInfo);
-
-        camera_metadata_t* pStaticMetadata = (camera_metadata_t *)cameraInfo.static_camera_characteristics;
-        camera_metadata_ro_entry entry;
-
-        // Get the list of all stream resolutions supported and then go through each one of them looking for a match
-        find_camera_metadata_ro_entry(pStaticMetadata, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
-
-        printf("Stats for camera: %d:\n", camId);
-        for (size_t j = 0; j < entry.count; j+=4)
-        {
-            if (entry.data.i32[j + 3] == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT)
-            {
-                if(entry.data.i32[j] == HAL_PIXEL_FORMAT_BLOB){
-                    printf("\t%d x %d\n", entry.data.i32[j+1], entry.data.i32[j+2]);
-                }
-            }
-        }
-
-    }
-
-}*/
 
 void HAL3_print_camera_resolutions(int camId){
 
@@ -190,23 +143,22 @@ void HAL3_print_camera_resolutions(int camId){
     int width, height;
 
     if(cameraModule == NULL){
-        printf("ERROR: %s : Could not open camera module\n", __FUNCTION__);
         return;
     }
 
     if(camId == -1){
         int numCameras = cameraModule->get_number_of_cameras();
 
-        printf("Note: This list comes from the HAL module and may not be indicative\n");
-        printf("\tof configurations that have full pipelines\n\n");
-        printf("Number of cameras: %d\n\n", numCameras);
+        M_DEBUG("Note: This list comes from the HAL module and may not be indicative\n");
+        M_DEBUG("\tof configurations that have full pipelines\n\n");
+        M_DEBUG("Number of cameras: %d\n\n", numCameras);
 
         for(int i = 0; i < numCameras; i++){
             HAL3_print_camera_resolutions(i);
         }
     } else {
 
-        printf("Stats for camera: %d:\n", camId);
+        M_DEBUG("Stats for camera: %d:\n", camId);
         camera_info cameraInfo;
         cameraModule->get_camera_info(camId, &cameraInfo);
 
@@ -216,42 +168,42 @@ void HAL3_print_camera_resolutions(int camId){
         //get raw sizes
         //ANDROID_SCALER_AVAILABLE_RAW_SIZES
         find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_RAW_SIZES, &entry);
-        printf("ANDROID_SCALER_AVAILABLE_RAW_SIZES:\n\t");
+        M_DEBUG("ANDROID_SCALER_AVAILABLE_RAW_SIZES:\n\t");
         for (uint32_t i = 0 ; i < entry.count; i += 2) {
             width = entry.data.i32[i+0];
             height = entry.data.i32[i+1];
-            printf("%dx%d, ",width ,height);
+            M_DEBUG("%dx%d, ",width ,height);
         }
-        printf("\n");
+        M_DEBUG("\n");
 
         //get video sizes
         find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, &entry);
-        printf("ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES:");
+        M_DEBUG("ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES:");
         for (uint32_t i = 0 ; i < entry.count; i += 2) {
             if (i%16==0)
-                printf("\n\t");
+                M_DEBUG("\n\t");
             width = entry.data.i32[i+0];
             height = entry.data.i32[i+1];
-            printf("%4dx%4d, ",width ,height);
+            M_DEBUG("%4dx%4d, ",width ,height);
         }
-        printf("\n");
+        M_DEBUG("\n");
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_SENSITIVITY_RANGE, &entry);
         uint32_t min_sensitivity = entry.data.i32[0];
         uint32_t max_sensitivity = entry.data.i32[1];
-        printf("ANDROID_SENSOR_INFO_SENSITIVITY_RANGE\n\tmin = %d\n\tmax = %d\n",min_sensitivity,max_sensitivity);
+        M_DEBUG("ANDROID_SENSOR_INFO_SENSITIVITY_RANGE\n\tmin = %d\n\tmax = %d\n",min_sensitivity,max_sensitivity);
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY, &entry);
-        printf("ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY\n\t%d\n",entry.data.i32[0]);
+        M_DEBUG("ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY\n\t%d\n",entry.data.i32[0]);
 
 
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE, &entry);
         unsigned long long min_exposure = entry.data.i64[0];  //ns
         unsigned long long max_exposure = entry.data.i64[1];  //ns
-        printf("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %lluns\n\tmax = %lluns\n",min_exposure,max_exposure);
+        M_DEBUG("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %lluns\n\tmax = %lluns\n",min_exposure,max_exposure);
 
-        printf("\n");
+        M_DEBUG("\n");
 
     }
 

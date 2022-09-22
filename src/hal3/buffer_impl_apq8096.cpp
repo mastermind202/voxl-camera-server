@@ -14,7 +14,7 @@
 
 #include "buffer_manager.h"
 #include "common_defs.h"
-#include "debug_log.h"
+#include <modal_journal.h>
 
 using namespace std;
 
@@ -33,7 +33,7 @@ static int SetupGrallocInterface()
 
     if (grallocModule == NULL)
     {
-        VOXL_LOG_FATAL("voxl-camera-server ERROR: Can not get Gralloc hardware module\n\n");
+        M_ERROR("Failed to get Gralloc hardware module\n\n");
         return -1;
     }
 
@@ -41,7 +41,7 @@ static int SetupGrallocInterface()
 
     if (grallocDevice == NULL)
     {
-        VOXL_LOG_FATAL("voxl-camera-server ERROR: Can not get Gralloc device!\n\n");
+        M_ERROR("Failed to get Gralloc device!\n\n");
         return -1;
     }
 
@@ -154,9 +154,7 @@ int allocateOneBuffer(
         bufferGroup.bufferBlocks[index].height         = height;
     } else
     {
-    printf("Here %d\n", __LINE__);
-
-        VOXL_LOG_FATAL("voxl-camera-server ERROR: Unknown pixel format!\n");
+        M_ERROR("Unknown pixel format!\n");
         return -1;
     }
 

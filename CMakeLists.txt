@@ -35,14 +35,16 @@ project(QRB5165-camera-server)
 
 cmake_minimum_required(VERSION 3.3)
 
-option(PLATFORM "platform APQ8096 or QRB5165" QRB5165)
+option(PLATFORM "platform APQ8096 or QRB5165" NONE)
 
 if(PLATFORM MATCHES APQ8096)
     message(STATUS "Building for platform APQ8096")
     add_definitions(-DAPQ8096 )
-else()
+elseif(PLATFORM MATCHES QRB5165)
     message(STATUS "Building for platform QRB5165")
     add_definitions(-DQRB5165 )
+else()
+    message(FATAL_ERROR "Platform not specified")
 endif()
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -72,23 +74,27 @@ include_directories(
 
 target_link_libraries(${SERVERNAME}
     modal_pipe
+    modal_journal
     modal_exposure
     modal_json
     voxl_cutils
     camera_metadata
     hardware
-    spectre4_7
-    platform3_31
-    voxl_cci_direct
+    platform
 )
 
 if(PLATFORM MATCHES APQ8096)
 
     target_link_libraries(${SERVERNAME}
         camera_client
+        tof-interface
+        spectre3
+        log
     )
 else()
     target_link_libraries(${SERVERNAME}
+        voxl_cci_direct
+        spectre
         cutils
     )
 endif()
@@ -98,11 +104,10 @@ add_executable(${CONFNAME}
     ${CONFSOURCE}
     src/config/config_file.cpp
     src/config/config_defaults.cpp
-    src/common/debug_log.cpp
-    src/common/common.cpp
 )
 
 target_link_libraries(${CONFNAME}
+    modal_journal
     modal_json
 )
 
