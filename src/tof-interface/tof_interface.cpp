@@ -610,7 +610,7 @@ status_t TOFBridge::onRoyaleDepthData(const void *data, uint32_t size, int64_t t
         return -1;
     }
 
-    return mDepthChannel->royaleDataDone((void *)data, size, timestamp, dataType) ? 0 : -1;
+    return mDepthChannel->RoyaleDataDone(data, size, timestamp, dataType) ? 0 : -1;
 }
 
 // IR image callback

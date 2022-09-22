@@ -2,7 +2,7 @@
 
 ## Build Instructions
 
-1. Requires the voxl-cross>=v2.0 docker image (found [here](https://developer.modalai.com/asset))
+1. Requires the voxl-cross>=v2.2 docker image (found [here](https://developer.modalai.com/asset))
     * (PC) ```cd [Path To]/voxl-camera-server```
     * (PC) ```voxl-docker -i voxl-cross```
 2. Build project binary:

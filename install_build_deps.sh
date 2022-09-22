@@ -15,7 +15,8 @@ libmodal-json
 libmodal-exposure
 libvoxl-cci-direct
 libvoxl-cutils
-qrb5165-proprietary" )
+qrb5165-proprietary
+royale-331-spectre-4-7" )
 
 DEPS_APQ8096=( "
 libmodal-pipe

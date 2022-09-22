@@ -74,19 +74,11 @@ public:
     PerCameraMgr(PerCameraInfo perCameraInfo);
     ~PerCameraMgr();
 
-    #ifdef APQ8096
-        // Callback function for the TOF bridge to provide the post processed TOF data
-        bool RoyaleDataDone(const void*             pData,
-                            uint32_t                size,
-                            int64_t                 timestamp,
-                            modalai::RoyaleListenerType dataType);
-    #elif QRB5165
-        // Callback function for the TOF bridge to provide the post processed TOF data
-        bool royaleDataDone(void*                   pData,
-                            uint32_t                size,
-                            int64_t                 timestamp,
-                            RoyaleListenerType      dataType);
-    #endif
+    // Callback function for the TOF bridge to provide the post processed TOF data
+    bool RoyaleDataDone(const void*             pData,
+                        uint32_t                size,
+                        int64_t                 timestamp,
+                        RoyaleListenerType      dataType);
 
     // Start the camera so that it starts streaming frames
     void Start();

@@ -743,7 +743,6 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
     imageInfo.height       = p_height;
 
     uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
-    uint16_t srcPixel16[p_width * p_height] = {0};
 
 
     //Tof is different from the rest, pass the data off to spectre then send it out
@@ -754,6 +753,7 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
                         imageInfo.timestamp_ns);
         #elif QRB5165
 
+            uint16_t srcPixel16[p_width * p_height] = {0};
             imageInfo.format     = IMAGE_FORMAT_RAW8;
             imageInfo.size_bytes = p_width * p_height;
             imageInfo.stride     = p_width;
@@ -1044,19 +1044,11 @@ void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
 // -----------------------------------------------------------------------------------------------------------------------------
 // The TOF library calls this function when it receives data from the Royale PMD libs
 // -----------------------------------------------------------------------------------------------------------------------------
-#ifdef APQ8096
-    // Callback function for the TOF bridge to provide the post processed TOF data
-    bool PerCameraMgr::RoyaleDataDone(const void*             pData,
-                        uint32_t                size,
-                        int64_t                 timestamp,
-                        modalai::RoyaleListenerType dataType)
-#elif QRB5165
-    // Callback function for the TOF bridge to provide the post processed TOF data
-    bool PerCameraMgr::royaleDataDone(void*                   pData,
-                        uint32_t                size,
-                        int64_t                 timestamp,
-                        RoyaleListenerType      dataType)
-#endif
+// Callback function for the TOF bridge to provide the post processed TOF data
+bool PerCameraMgr::RoyaleDataDone(const void*             pData,
+                                  uint32_t                size,
+                                  int64_t                 timestamp,
+                                  RoyaleListenerType      dataType)
 {
 
     M_VERBOSE("Received royale data for camera: %s\n", name);

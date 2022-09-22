@@ -135,7 +135,7 @@ enum I2C_DATA_TYPE
 // -----------------------------------------------------------------------------------------------------------------------------
 class IRoyaleDataListener {
     public:
-        virtual bool royaleDataDone(void* pData, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) = 0;
+        virtual bool RoyaleDataDone(const void* pData, uint32_t size, int64_t timestamp, RoyaleListenerType dataType) = 0;
 };
 
 
