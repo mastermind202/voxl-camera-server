@@ -1060,16 +1060,10 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
     const royale::Vector<royale::DepthPoint>& pointIn = pDepthData->points;
     int numPoints = (int)pointIn.size();
 
-    #ifdef APQ8096
-        uint64_t timediff_ns = VCU_time_realtime_ns() - VCU_time_monotonic_ns();
-    #else
-        uint64_t timediff_ns = 0;
-    #endif
-
     camera_image_metadata_t IRMeta, DepthMeta, ConfMeta;
     point_cloud_metadata_t PCMeta;
 
-    IRMeta.timestamp_ns = (pDepthData->timeStamp.count() )-timediff_ns;
+    IRMeta.timestamp_ns = pDepthData->timeStamp.count();
     IRMeta.gain         = 0;
     IRMeta.exposure_ns  = 0;
     IRMeta.frame_id     = ++TOFFrameNumber;
