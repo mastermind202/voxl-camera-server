@@ -201,6 +201,7 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 break;
 
             case 'l':
+                M_JournalSetLevel(DEBUG);
                 HAL3_print_camera_resolutions(-1);
                 exit(0);
 
@@ -232,6 +233,7 @@ static void PrintHelpMessage()
     M_PRINT("\n                      2 : Print >= warning logs");
     M_PRINT("\n                      3 : Print only fatal logs");
     M_PRINT("\n-h, --help              : Print this help message");
+    M_PRINT("\n-l, --list              : Shows a list of plugged in cameras and some info about them");
     M_PRINT("\n\n");
 }
 
