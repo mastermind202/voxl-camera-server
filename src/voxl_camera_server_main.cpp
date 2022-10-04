@@ -227,7 +227,7 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
 static void PrintHelpMessage()
 {
     M_PRINT("\n\nCommand line arguments are as follows:\n");
-    M_PRINT("\n-d, --debug-level       : debug level (Default 2)");
+    M_PRINT("\n-d, --debug-level       : Log debug level (Default 2)");
     M_PRINT("\n                      0 : Print verbose logs");
     M_PRINT("\n                      1 : Print >= info logs");
     M_PRINT("\n                      2 : Print >= warning logs");
