@@ -260,12 +260,18 @@ camera_module_t* HAL3_get_camera_module();
 void HAL3_print_camera_resolutions(int camId);
 
 /**
- * @brief      Checks to see if
+ * @brief      Checks to see if a given config is supported for a camera
  *
  * @param[in]  camId  The camera to print resolutions for
  * 					-1 prints all available cameras
  */
 bool HAL3_is_config_supported(int camId, int width, int height, int format);
 
+/**
+ * @brief      Generates a list of cameras to run based off what's plugged in
+ *
+ * @param[in]  cameras  Reference to list that we'll populate with camera info
+ */
+Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras);
 
 #endif

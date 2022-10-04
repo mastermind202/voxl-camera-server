@@ -107,32 +107,32 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         CameraType type;
         char buffer[64];
         if(json_fetch_string(cur, JsonTypeString, buffer, 63)){
-            M_ERROR("Error Reading config file: camera type not specified for: %s\n", buffer);
+            M_ERROR("Reading config file: camera type not specified for: %s\n", buffer);
             goto ERROR_EXIT;
         }
 
         if((type=GetCameraTypeFromString(buffer)) == CAMTYPE_INVALID){
-            M_ERROR("Error Reading config file: invalid type: %s\n", buffer);
+            M_ERROR("Reading config file: invalid type: %s\n", buffer);
             goto ERROR_EXIT;
         }
 
         PerCameraInfo info = getDefaultCameraInfo(type);
 
         if(json_fetch_string(cur, JsonNameString, info.name, 63)){
-            M_ERROR("Error Reading config file: camera name not specified\n", info.name);
+            M_ERROR("Reading config file: camera name not specified\n", info.name);
             goto ERROR_EXIT;
         }
 
         if(contains(cameraNames, info.name)){
-            M_ERROR("Error Reading config file: multiple cameras with name: %s\n", info.name);
+            M_ERROR("Reading config file: multiple cameras with name: %s\n", info.name);
             goto ERROR_EXIT;
         }
 
         if(json_fetch_int(cur, JsonCameraIdString, &(info.camId))){
-            M_ERROR("Error Reading config file: camera id not specified for: %s\n", info.name);
+            M_ERROR("Reading config file: camera id not specified for: %s\n", info.name);
             goto ERROR_EXIT;
         }else if(contains(cameraIds, info.camId)){
-            M_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
+            M_ERROR("Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
         } else {
             cameraIds.push_back(info.camId);
@@ -142,7 +142,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
             M_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
             info.camId2 = -1;
         } else if(contains(cameraIds, info.camId2)){
-            M_ERROR("Error Reading config file: multiple cameras with id: %d\n", info.camId);
+            M_ERROR("Reading config file: multiple cameras with id: %d\n", info.camId);
             goto ERROR_EXIT;
         } else {
             M_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", info.name);
@@ -252,7 +252,7 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
     FILE *file = fopen(CONFIG_FILE_NAME, "w");
     if(file == NULL){
 
-        M_PRINT("Error opening config file: %s to write to\n", CONFIG_FILE_NAME);
+        M_ERROR("Opening config file: %s to write to\n", CONFIG_FILE_NAME);
 
     }else{
         char *jsonString = cJSON_Print(head);

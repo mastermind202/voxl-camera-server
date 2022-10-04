@@ -33,6 +33,7 @@
 
 #include <stdio.h>
 #include "common_defs.h"
+#include "config_defaults.h"
 #include <modal_journal.h>
 #include "hal3_camera.h"
 
@@ -143,6 +144,7 @@ void HAL3_print_camera_resolutions(int camId){
     int width, height;
 
     if(cameraModule == NULL){
+        M_ERROR("Failed to open hal3 module\n");
         return;
     }
 
@@ -207,4 +209,53 @@ void HAL3_print_camera_resolutions(int camId){
 
     }
 
+}
+
+Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
+{
+    camera_module_t* cameraModule = HAL3_get_camera_module();
+
+    if(cameraModule == NULL){
+        M_ERROR("Failed to open hal3 module\n");
+        return S_ERROR;
+    }
+
+    int numCameras = cameraModule->get_number_of_cameras();
+
+    if(numCameras == 0){
+        M_ERROR("Did not detect any cameras plugged in\n");
+        return S_ERROR;
+    }
+
+    for(int i = 0; i < numCameras; i++){
+
+        CameraType type;
+
+        // Best way for now to detect camera type right now
+        if(HAL3_is_config_supported(i, 3840, 2160, HAL_PIXEL_FORMAT_BLOB)){
+            type = CAMTYPE_IMX214;
+            M_PRINT("Assuming type: IMX214 for camera %d\n", i);
+        } else if(HAL3_is_config_supported(i, 1280, 800, HAL3_FMT_YUV)){
+            type = CAMTYPE_OV9782;
+            M_PRINT("Assuming type: OV9782 for camera %d\n", i);
+        } else if(HAL3_is_config_supported(i, 640, 480, HAL_PIXEL_FORMAT_RAW10)){
+            type = CAMTYPE_OV7251;
+            M_PRINT("Assuming type: OV7251 for camera %d\n", i);
+        } else {
+            type = CAMTYPE_TOF;
+            M_PRINT("Assuming type: PMD_TOF for camera %d\n", i);
+        }
+
+        PerCameraInfo info = getDefaultCameraInfo(type);
+
+        sprintf(info.name, "cam%d", i);
+        info.camId = i;
+        info.camId2 = -1;
+
+        cameras.push_back(info);
+
+    }
+
+
+    return S_OK;
 }

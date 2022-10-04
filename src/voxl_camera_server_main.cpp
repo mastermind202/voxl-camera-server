@@ -62,6 +62,8 @@ static int    ParseArgs(int         argc,
 static list<PerCameraMgr*> mgrs;
 static void cleanManagers();
 
+static int source_is_config_file = 1;
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Main camera server function that reads the config file, starts different cameras (using the requested API), sends the
 // camera frames on the external interface and also gracefully exits in the event of a shutdown
@@ -106,9 +108,16 @@ int main(int argc, char* const argv[])
 
     list<PerCameraInfo> cameraInfo;
 
-    if(ReadConfigFile(cameraInfo)){
-        M_ERROR("Failed to read config file\n");
-        return -1;
+    if(source_is_config_file){
+        if(ReadConfigFile(cameraInfo)){
+            M_ERROR("Failed to read config file\n");
+            return -1;
+        }
+    } else { //We're gonna ask hal3 for a list of cameras
+        if(HAL3_get_debug_configuration(cameraInfo)){
+            M_ERROR("Failed to get valid debug configuration\n");
+            return -1;
+        }
     }
 
     M_DEBUG("------ voxl-camera-server: Starting camera server\n");
@@ -174,12 +183,13 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
         {"debug-level",      required_argument,  0, 'd'},
         {"help",             no_argument,        0, 'h'},
         {"list",             no_argument,        0, 'l'},
+        {"self-identify",    no_argument,        0, 's'},
     };
 
     int optionIndex = 0;
     int option;
 
-    while ((option = getopt_long (argc, argv, ":d:hl", &LongOptions[0], &optionIndex)) != -1)
+    while ((option = getopt_long (argc, argv, ":d:hls", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
@@ -204,6 +214,10 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 M_JournalSetLevel(DEBUG);
                 HAL3_print_camera_resolutions(-1);
                 exit(0);
+
+            case 's':
+                source_is_config_file = 0;
+                break;
 
             case 'h':
                 return -1;
@@ -234,6 +248,8 @@ static void PrintHelpMessage()
     M_PRINT("\n                      3 : Print only fatal logs");
     M_PRINT("\n-h, --help              : Print this help message");
     M_PRINT("\n-l, --list              : Shows a list of plugged in cameras and some info about them");
+    M_PRINT("\n-s, --self-identify     : Debug mode where camera server attempts to self-identify cameras\n");
+    M_PRINT("\n                              instead of pulling information from config file");
     M_PRINT("\n\n");
 }
 
