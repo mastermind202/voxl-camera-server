@@ -97,6 +97,14 @@ camera_module_t* HAL3_get_camera_module()
 
     cameraModule->set_callbacks(&moduleCallbacks);
 
+    #ifdef QRB5165
+    if(voxl_cci_init()) {
+        M_ERROR("Failed to open CCI interface\n");
+        cameraModule = NULL;
+        return NULL;
+    }
+    #endif
+
     return cameraModule;
 
 }

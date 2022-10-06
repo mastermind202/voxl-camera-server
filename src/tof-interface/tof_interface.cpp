@@ -415,25 +415,9 @@ uint32_t BridgeImager::crc32(uint32_t crc, const uint8_t *buf, size_t size) {
     return crc ^ ~0U;
 }
 
-// -----------------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // I2CAccess class implemenatation
-// -----------------------------------------------------------------------------------------------------------------------------
-
-I2cAccess::~I2cAccess() {
-    voxl_cci_close(m_cameraId);
-}
-
-// Setup camera CCI direct access
-int I2cAccess::setup() {
-    int ret;
-
-    ret = voxl_cci_init(m_cameraId);
-    if (ret < 0) {
-        M_ERROR("Failed to setup I2CAccess");
-    }
-
-    return ret;
-}
+// -----------------------------------------------------------------------------
 
 // CCI direct sequence read
 void I2cAccess::readI2cSeq(uint8_t devAddr, uint16_t regAddr, I2cAddressMode addrMode, std::vector<uint8_t> &data, I2C_DATA_TYPE dataType) {
@@ -785,15 +769,10 @@ status_t TOFBridge::setup() {
 
     // Create I2C interface
     i2cAccess = std::make_shared<I2cAccess>(cameraId);
-    interfaceRet = i2cAccess->setup();
-    if (interfaceRet < 0) {
-        M_ERROR("Failed to initialize I2cAccess\n");
-        return BAD_VALUE;
-    }
 
     // Create Bridge Imager interface
     bridgeImager = std::make_shared<BridgeImager>(i2cAccess);
-    bridgeImager->setupEeprom();
+    interfaceRet = bridgeImager->setupEeprom();
     if (interfaceRet < 0) {
         M_ERROR("Failed to initialize Bridge Imager\n");
         return BAD_VALUE;

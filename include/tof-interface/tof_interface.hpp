@@ -145,9 +145,7 @@ class IRoyaleDataListener {
 class I2cAccess : public royale::pal::II2cBusAccess {
     public:
         I2cAccess(int cameraId) { m_cameraId = cameraId; }
-        ~I2cAccess();
-
-        int setup();
+        ~I2cAccess(){}
 
         void writeI2c (uint8_t devAddr, I2cAddressMode addrMode, uint16_t regAddr, const std::vector<uint8_t> &buffer);
         void writeI2cArray (uint8_t devAddr, I2cAddressMode addrMode, const std::map <uint16_t, uint16_t> &reg_map);
