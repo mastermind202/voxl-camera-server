@@ -240,17 +240,16 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
 // -----------------------------------------------------------------------------------------------------------------------------
 static void PrintHelpMessage()
 {
-    M_PRINT("\n\nCommand line arguments are as follows:\n");
-    M_PRINT("\n-d, --debug-level       : Log debug level (Default 2)");
-    M_PRINT("\n                      0 : Print verbose logs");
-    M_PRINT("\n                      1 : Print >= info logs");
-    M_PRINT("\n                      2 : Print >= warning logs");
-    M_PRINT("\n                      3 : Print only fatal logs");
-    M_PRINT("\n-h, --help              : Print this help message");
-    M_PRINT("\n-l, --list              : Shows a list of plugged in cameras and some info about them");
-    M_PRINT("\n-s, --self-identify     : Debug mode where camera server attempts to self-identify cameras\n");
-    M_PRINT("\n                              instead of pulling information from config file");
-    M_PRINT("\n\n");
+    M_PRINT("\nCommand line arguments are as follows:\n\n");
+    M_PRINT("-d, --debug-level       : Log debug level (Default 2)\n");
+    M_PRINT("                      0 : Print verbose logs\n");
+    M_PRINT("                      1 : Print >= info logs\n");
+    M_PRINT("                      2 : Print >= warning logs\n");
+    M_PRINT("                      3 : Print only fatal logs\n");
+    M_PRINT("-h, --help              : Print this help message\n");
+    M_PRINT("-l, --list              : Shows a list of plugged in cameras and some info about them\n");
+    M_PRINT("-s, --self-identify     : Debug mode where camera server attempts to self-identify cameras\n");
+    M_PRINT("                              instead of pulling information from config file\n\n");
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
