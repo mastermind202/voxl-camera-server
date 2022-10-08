@@ -5,6 +5,8 @@
 [Unit]
 Description=voxl-camera-server
 SourcePath=/usr/bin/voxl-camera-server
+After=voxl-wait-for-fs.service
+Requires=voxl-wait-for-fs.service
 
 [Service]
 User=root
