@@ -1504,16 +1504,11 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         int gain = -1;
 
         if(sscanf(cmd, "%s %f %d", buffer, &exp, &gain) == 3){
-            bool valid = true;
             if(exp < MIN_EXP || exp > MAX_EXP){
-                valid = false;
                 M_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-            }
-            if(gain < MIN_GAIN || gain > MAX_GAIN){
-                valid = false;
+            } else if(gain < MIN_GAIN || gain > MAX_GAIN){
                 M_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-            }
-            if(valid){
+            } else {
                 pthread_mutex_lock(&aeMutex);
 
                 if(ae_mode != AE_OFF) {
@@ -1555,12 +1550,9 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         float exp = -1.0;
 
         if(sscanf(cmd, "%s %f", buffer, &exp) == 2){
-            bool valid = true;
             if(exp < MIN_EXP || exp > MAX_EXP){
-                valid = false;
                 M_ERROR("Invalid Control Pipe Exposure: %f,\n\tShould be between %f and %f\n", exp, MIN_EXP, MAX_EXP);
-            }
-            if(valid){
+            } else {
                 pthread_mutex_lock(&aeMutex);
 
                 if(ae_mode != AE_OFF) {
@@ -1598,12 +1590,9 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         int gain = -1;
 
         if(sscanf(cmd, "%s %d", buffer, &gain) == 2){
-            bool valid = true;
             if(gain < MIN_GAIN || gain > MAX_GAIN){
-                valid = false;
                 M_ERROR("Invalid Control Pipe Gain: %d,\n\tShould be between %d and %d\n", gain, MIN_GAIN, MAX_GAIN);
-            }
-            if(valid){
+            } else {
                 pthread_mutex_lock(&aeMutex);
 
                 if(ae_mode != AE_OFF) {

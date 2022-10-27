@@ -114,14 +114,14 @@ else
     ## make sure we have the latest package index
     opkg update
 
-    echo "installing: $DEPS_APQ8096"
-
     # install/update each dependency
-    for i in ${DEPS_APQ8096}; do
-        # this will also update if already installed!
-        opkg install --nodeps --force-reinstall $i
-    done
-
+    echo "installing: $DEPS_APQ8096"
+    if ! opkg install --nodeps --force-reinstall $DEPS_APQ8096 ; then
+        echo
+        echo "ERROR: Opkg failed to install dependencies"
+        echo
+        exit -1
+    fi
 fi
 
 echo ""
