@@ -64,15 +64,17 @@ file(GLOB_RECURSE all_src_files "src/*.c*")
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
-	include/
-	include/hal3/
-	include/config/
-	include/common/
+    include/
+    include/hal3/
+    include/config/
+    include/common/
+    include/omx/
     include/tof-interface/
     /usr/include/royale/
 )
 
 target_link_libraries(${SERVERNAME}
+    dl
     modal_pipe
     modal_journal
     modal_exposure

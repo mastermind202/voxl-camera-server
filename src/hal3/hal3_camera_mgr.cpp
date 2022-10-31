@@ -58,7 +58,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_RECORD_BUFFERS 16
+#define NUM_ENCODE_BUFFERS 32
 #define NUM_SNAPSHOT_BUFFERS 16
 #define JPEG_DEFUALT_QUALITY        85
 
@@ -92,14 +92,14 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
-    en_record         (pCameraInfo.en_record),
+    en_encode         (pCameraInfo.en_encode),
     en_snapshot       (pCameraInfo.en_snapshot),
     p_width           (pCameraInfo.p_width),
     p_height          (pCameraInfo.p_height),
     p_halFmt          (HalFmtFromType(pCameraInfo.p_format)),
-    r_width           (pCameraInfo.r_width),
-    r_height          (pCameraInfo.r_height),
-    r_halFmt          (-1),
+    e_width           (pCameraInfo.e_width),
+    e_height          (pCameraInfo.e_height),
+    e_halFmt          (HAL3_FMT_YUV),
     s_width           (pCameraInfo.s_width),
     s_height          (pCameraInfo.s_height),
     s_halFmt          (HAL_PIXEL_FORMAT_BLOB),
@@ -128,9 +128,9 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_record && !HAL3_is_config_supported(cameraId, r_width, r_height, r_halFmt))
+    if (en_encode && !HAL3_is_config_supported(cameraId, e_width, e_height, e_halFmt))
     {
-        M_ERROR("Camera %d failed to find supported video config: %dx%d\n", cameraId, r_width, r_height);
+        M_ERROR("Camera %d failed to find supported encode config: %dx%d\n", cameraId, e_width, e_height);
 
         throw -EINVAL;
     }
@@ -175,16 +175,36 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_record && bufferAllocateBuffers(r_bufferGroup,
-                                          NUM_RECORD_BUFFERS,
-                                          r_stream.width,
-                                          r_stream.height,
-                                          r_stream.format,
-                                          r_stream.usage)) {
-        M_ERROR("Failed to allocate video buffers for camera: %s\n", name);
 
-        throw -EINVAL;
+    if (en_encode) {
+
+        try{
+            VideoEncoderConfig enc_info = {
+                .width =             (uint32_t)e_width,   ///< Image width
+                .height =            (uint32_t)e_height,  ///< Image height
+                .format =            (uint32_t)e_halFmt,  ///< Image format
+                .isBitRateConstant = true,      ///< Is the bit rate constant
+                .targetBitRate =     100000,      ///< Desired target bitrate
+                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .isH265 =            true       ///< Is it H265 encoding or H264
+            };
+            pVideoEncoder = new VideoEncoder(&enc_info);
+        } catch(int) {
+            M_ERROR("Failed to initialize encoder for camera: %s\n", name);
+            throw -EINVAL;
+        }
+
+        if (bufferAllocateBuffers(e_bufferGroup,
+                                  NUM_ENCODE_BUFFERS,
+                                  e_stream.width,
+                                  e_stream.height,
+                                  e_stream.format,
+                                  e_stream.usage)) {
+            M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
+            throw -EINVAL;
+        }
     }
+
     if (en_snapshot) {
 
         camera_info halCameraInfo;
@@ -216,7 +236,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         newInfo.camId2 = -1;
 
         // These are disabled until(if) we figure out a good way to handle them
-        newInfo.en_record = false;
+        newInfo.en_encode = false;
         newInfo.en_snapshot = false;
 
         otherMgr = new PerCameraMgr(newInfo);
@@ -257,6 +277,21 @@ int PerCameraMgr::ConfigureStreams()
     streams.push_back(&p_stream);
     streamConfig.num_streams ++;
 
+    if(en_encode) {
+        e_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        e_stream.width       = e_width;
+        e_stream.height      = e_height;
+        e_stream.format      = e_halFmt;
+        e_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        e_stream.usage       = GRALLOC_USAGE_HW_VIDEO_ENCODER;
+        e_stream.rotation    = ROTATION_MODE;
+        e_stream.max_buffers = NUM_ENCODE_BUFFERS;
+        e_stream.priv        = 0;
+
+        streams.push_back(&e_stream);
+        streamConfig.num_streams ++;
+    }
+
     if(en_snapshot) {
         s_stream.stream_type = CAMERA3_STREAM_OUTPUT;
         s_stream.width       = s_width;
@@ -272,6 +307,7 @@ int PerCameraMgr::ConfigureStreams()
         streamConfig.num_streams ++;
     }
 
+    num_streams = streamConfig.num_streams;
     streamConfig.streams        = streams.data();
     streamConfig.operation_mode = OPERATION_MODE;
 
@@ -423,6 +459,10 @@ void PerCameraMgr::Start()
         }
     }
 
+    if(pVideoEncoder) {
+        pVideoEncoder->Start();
+    }
+
     pthread_condattr_t condAttr;
     pthread_condattr_init(&condAttr);
     pthread_condattr_setclock(&condAttr, CLOCK_MONOTONIC);
@@ -474,8 +514,16 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
+    printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    if(pVideoEncoder) {
+        pVideoEncoder->Stop();
+        printf("%s, %d\n", __FUNCTION__, __LINE__ );
+        delete pVideoEncoder;
+        printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    }
+
     bufferDeleteBuffers(p_bufferGroup);
-    bufferDeleteBuffers(r_bufferGroup);
+    bufferDeleteBuffers(e_bufferGroup);
     bufferDeleteBuffers(s_bufferGroup);
 
     if (pDevice != NULL)
@@ -539,6 +587,10 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
             M_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
         }
         resultMetaQueue.push_back(meta);
+        if(en_encode) {
+            resultMetaQueue.push_back(meta);
+        }
+
 
         pthread_mutex_unlock(&resultMutex);
 
@@ -734,7 +786,8 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
 }
 
 
-void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
+void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo)
+{
 
     camera_image_metadata_t imageInfo = resultMetaQueue.front();
     resultMetaQueue.pop_front();
@@ -1027,7 +1080,16 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo){
 
 }
 
-void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo){
+void PerCameraMgr::ProcessEncodeFrame(BufferBlock* bufferBlockInfo)
+{
+    camera_image_metadata_t imageInfo = resultMetaQueue.front();
+    resultMetaQueue.pop_front();
+
+    pVideoEncoder->ProcessFrameToEncode(imageInfo.frame_id, imageInfo.timestamp_ns, bufferBlockInfo);
+}
+
+void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo)
+{
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
@@ -1167,12 +1229,13 @@ void* PerCameraMgr::ThreadPostProcessResult()
         setpriority(which, tid, nice);
     }
 
+    uint8_t num_finished_streams = en_snapshot;
+
     // The condition of the while loop is such that this thread will not terminate till it receives the last expected image
     // frame from the camera module or detects the ESTOP flag
-    while (!EStopped && lastResultFrameNumber != currentFrameNumber)
+    while (!EStopped && num_finished_streams != num_streams)
     {
         pthread_mutex_lock(&resultMutex);
-
         if (resultMsgQueue.empty())
         {
             //Wait for a signal that we have recieved a frame or an estop
@@ -1198,13 +1261,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
         // Coming here means we have a result frame to process
         M_VERBOSE("%s procesing new buffer\n", name);
 
-        if(stopped) {
-            bufferPush(*bufferGroup, handle);
-            pthread_cond_signal(&stereoCond);
-            pthread_mutex_unlock(&resultMutex);
-            continue;
-        }
-
         BufferBlock* pBufferInfo  = bufferGetBufferInfo(bufferGroup, handle);
         switch (GetStreamId(stream)){
             case STREAM_PREVIEW:
@@ -1212,9 +1268,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 ProcessPreviewFrame(pBufferInfo);
                 break;
 
-            case STREAM_RECORD: // Not Ready
-                M_VERBOSE("Camera: %s processing video frame\n", name);
-                //ProcessVideoFrame(pBufferInfo);
+            case STREAM_ENCODED: // Not Ready
+                M_VERBOSE("Camera: %s processing encode frame\n", name);
+                ProcessEncodeFrame(pBufferInfo);
                 break;
 
             case STREAM_SNAPSHOT:
@@ -1226,19 +1282,18 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 M_ERROR("Camera: %s recieved frame for unknown stream\n", name);
                 break;
         }
+
+        if (lastResultFrameNumber == currentFrameNumber)
+            num_finished_streams++;
+
         pthread_mutex_unlock(&resultMutex);
 
-        // Tof processing is asynchronous, we may need to let
-        //     the royale callback return the buffer (test this)
-        // if(configInfo.type != CAMTYPE_TOF)
         bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
 
     }
 
     if(EStopped){
         M_WARN("Thread: %s result thread recieved ESTOP\n", name);
-    }else if(stopped){
-        M_DEBUG("------ Result thread on camera: %s recieved stop command, exiting\n", name);
     }else{
         M_DEBUG("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
     }
@@ -1273,6 +1328,20 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
     request.num_output_buffers ++;
     streamBufferList.push_back(pstreamBuffer);
+
+    if(en_encode){
+
+        camera3_stream_buffer_t estreamBuffer;
+        estreamBuffer.buffer        = (const native_handle_t**)bufferPop(e_bufferGroup);
+        estreamBuffer.stream        = &e_stream;
+        estreamBuffer.status        = 0;
+        estreamBuffer.acquire_fence = -1;
+        estreamBuffer.release_fence = -1;
+
+        request.num_output_buffers ++;
+        streamBufferList.push_back(estreamBuffer);
+
+    }
 
     if(en_snapshot && numNeededSnapshots > 0){
         numNeededSnapshots --;
@@ -1416,7 +1485,7 @@ int PerCameraMgr::SetupPipes()
         snprintf(cont_cmds, 255, "%s%s%s",
             CONTROL_COMMANDS,
             en_snapshot ? ",snapshot" : "",
-            en_record   ? ",start_record,stop_record" : "");
+            en_encode   ? ",start_record,stop_record" : "");
 
         pipe_info_t info;
         strcpy(info.name       , name);

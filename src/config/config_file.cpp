@@ -63,8 +63,8 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonFlipString         "flip"                     ///< Camera flip?
 #define JsonPWidthString       "preview_width"            ///< Preview Frame width
 #define JsonPHeightString      "preview_height"           ///< Preview Frame height
-#define JsonRWidthString       "record_width"             ///< Record Frame width
-#define JsonRHeightString      "record_height"            ///< Record Frame height
+#define JsonEWidthString       "encode_width"             ///< Encode Frame width
+#define JsonEHeightString      "encode_height"            ///< Encode Frame height
 #define JsonSWidthString       "snapshot_width"           ///< Snapshot Frame width
 #define JsonSHeightString      "snapshot_height"          ///< Snapshot Frame height
 #define JsonFpsString          "frame_rate"               ///< Fps
@@ -161,8 +161,8 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.p_width,   info.p_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.p_height,  info.p_height);
-        json_fetch_int_with_default  (cur, JsonRWidthString,        &info.r_width,   info.r_width);
-        json_fetch_int_with_default  (cur, JsonRHeightString,       &info.r_height,  info.r_height);
+        json_fetch_int_with_default  (cur, JsonEWidthString,        &info.e_width,   info.e_width);
+        json_fetch_int_with_default  (cur, JsonEHeightString,       &info.e_height,  info.e_height);
         json_fetch_int_with_default  (cur, JsonSWidthString,        &info.s_width,   info.s_width);
         json_fetch_int_with_default  (cur, JsonSHeightString,       &info.s_height,  info.s_height);
 
@@ -219,11 +219,15 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        if (info.type == CAMTYPE_IMX214) {
-            cJSON_AddNumberToObject  (node, JsonPWidthString,        info.p_width);
-            cJSON_AddNumberToObject  (node, JsonPHeightString,       info.p_height);
-            //cJSON_AddNumberToObject  (node, JsonRWidthString,        info.r_width);
-            //cJSON_AddNumberToObject  (node, JsonRHeightString,       info.r_height);
+        cJSON_AddNumberToObject  (node, JsonPWidthString,        info.p_width);
+        cJSON_AddNumberToObject  (node, JsonPHeightString,       info.p_height);
+
+        if (info.en_encode) {
+            cJSON_AddNumberToObject  (node, JsonEWidthString,        info.e_width);
+            cJSON_AddNumberToObject  (node, JsonEHeightString,       info.e_height);
+        }
+
+        if (info.en_snapshot) {
             cJSON_AddNumberToObject  (node, JsonSWidthString,        info.s_width);
             cJSON_AddNumberToObject  (node, JsonSHeightString,       info.s_height);
         }

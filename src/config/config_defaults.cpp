@@ -152,7 +152,7 @@ static const PerCameraInfo IMX214Defaults =
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
-        false,                      //< Enable Video Record
+        true,                       //< Enable Video Record
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
         true,                       //< Enable Snapshot mode?

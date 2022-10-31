@@ -47,6 +47,7 @@
 #include "common_defs.h"
 #include "exposure-hist.h"
 #include "exposure-msv.h"
+#include "omx_video_encoder.h"
 #include "tof_interface.hpp"
 
 #define NUM_MODULE_OPEN_ATTEMPTS 10
@@ -98,14 +99,14 @@ public:
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
           char                 name[MAX_NAME_LENGTH];
-    const bool                 en_record;
+    const bool                 en_encode;
     const bool                 en_snapshot;
     const int32_t              p_width;                        ///< Preview Width
     const int32_t              p_height;                       ///< Preview Height
     const int32_t              p_halFmt;                       ///< Preview HAL format
-    const int32_t              r_width;                        ///< Record Width
-    const int32_t              r_height;                       ///< Record Height
-    const int32_t              r_halFmt;                       ///< Record HAL format
+    const int32_t              e_width;                        ///< Encode Width
+    const int32_t              e_height;                       ///< Encode Height
+    const int32_t              e_halFmt;                       ///< Encode HAL format
     const int32_t              s_width;                        ///< Snapshot Width
     const int32_t              s_height;                       ///< Snapshot Height
     const int32_t              s_halFmt;                       ///< Snapshot HAL format
@@ -128,6 +129,7 @@ private:
     int  ProcessOneCaptureRequest(int frameNumber);
 
     void ProcessPreviewFrame (BufferBlock* bufferBlockInfo);
+    void ProcessEncodeFrame  (BufferBlock* bufferBlockInfo);
     void ProcessSnapshotFrame(BufferBlock* bufferBlockInfo);
 
     // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
@@ -153,7 +155,7 @@ private:
 
     enum STREAM_ID {
         STREAM_PREVIEW,
-        STREAM_RECORD,
+        STREAM_ENCODED,
         STREAM_SNAPSHOT,
         STREAM_INVALID
     };
@@ -161,8 +163,8 @@ private:
     STREAM_ID GetStreamId(camera3_stream_t *stream){
         if (stream == &p_stream) {
             return STREAM_PREVIEW;
-        } else if (stream == &r_stream) {
-            return STREAM_RECORD;
+        } else if (stream == &e_stream) {
+            return STREAM_ENCODED;
         } else if (stream == &s_stream) {
             return STREAM_SNAPSHOT;
         } else {
@@ -177,8 +179,8 @@ private:
         switch (stream){
             case STREAM_PREVIEW:
                 return &p_bufferGroup;
-            case STREAM_RECORD:
-                return &r_bufferGroup;
+            case STREAM_ENCODED:
+                return &e_bufferGroup;
             case STREAM_SNAPSHOT:
                 return &s_bufferGroup;
             default:
@@ -187,16 +189,18 @@ private:
     }
 
     camera_module_t*                   pCameraModule;               ///< Camera module
+    VideoEncoder*                      pVideoEncoder;
     ModalExposureHist                  expHistInterface;
     ModalExposureMSV                   expMSVInterface;
     Camera3Callbacks                   cameraCallbacks;             ///< Camera callbacks
     camera3_device_t*                  pDevice;                     ///< HAL3 device
+    uint8_t                            num_streams;
     camera3_stream_t                   p_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                   r_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                   s_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                   e_stream;                    ///< Stream to be used for the encoded request
+    camera3_stream_t                   s_stream;                    ///< Stream to be used for the snapshots request
     android::CameraMetadata            requestMetadata;             ///< Per request metadata
     BufferGroup                        p_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                        r_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                        e_bufferGroup;               ///< Buffer manager per stream
     BufferGroup                        s_bufferGroup;               ///< Buffer manager per stream
     pthread_t                          requestThread;               ///< Request thread private data
     pthread_t                          resultThread;                ///< Result Thread private data

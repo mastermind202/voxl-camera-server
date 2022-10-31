@@ -120,9 +120,9 @@ struct PerCameraInfo
     int     p_width;            ///< Preview Width of the frame
     int     p_height;           ///< Preview Height of the frame
     int     p_format;           ///< Preview Frame format
-    bool    en_record;
-    int     r_width;            ///< Video Record Width of the frame
-    int     r_height;           ///< Video Record Height of the frame
+    bool    en_encode;
+    int     e_width;            ///< Video Encode Width of the frame
+    int     e_height;           ///< Video Encode Height of the frame
     bool    en_snapshot;
     int     s_width;            ///< Snapshot Width of the frame
     int     s_height;           ///< Snapshot Height of the frame
