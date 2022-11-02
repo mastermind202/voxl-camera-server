@@ -53,6 +53,7 @@ typedef struct VideoEncoderConfig
     int      targetBitRate;         ///< Desired target bitrate
     int32_t  frameRate;             ///< Frame rate
     bool     isH265;                ///< Is it H265 encoding or H264
+    BufferGroup *inputBuffers;      ///< Input buffers coming from hal3
 } VideoEncoderConfig;
 
 //------------------------------------------------------------------------------------------------------------------------------
@@ -115,11 +116,11 @@ public:
     uint32_t               m_outputBufferCount;     ///< Output buffer count
     FILE*                  m_pVideoFilehandle;      ///< Video file handle
     OMX_HANDLETYPE         m_OMXHandle = NULL;      ///< OMX component handle
+    BufferGroup*           m_pHALInputBuffers;
     OMX_BUFFERHEADERTYPE** m_ppInputBuffers;        ///< Input buffers
     uint32_t               m_nextInputBufferIndex;  ///< Next input buffer to use
     OMX_BUFFERHEADERTYPE** m_ppOutputBuffers;       ///< Output buffers
     uint32_t               m_nextOutputBufferIndex; ///< Next input buffer to use
-    int64_t                m_frameTimestampInc;     ///< Frame timestamp increments based on framerate
 };
 
 #endif // VOXL_CAMERA_SERVER_VIDEO_ENCODER

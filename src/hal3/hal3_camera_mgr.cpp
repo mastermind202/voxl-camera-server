@@ -58,7 +58,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_ENCODE_BUFFERS 32
+#define NUM_ENCODE_BUFFERS 11
 #define NUM_SNAPSHOT_BUFFERS 16
 #define JPEG_DEFUALT_QUALITY        85
 
@@ -178,22 +178,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     if (en_encode) {
 
-        try{
-            VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)e_width,   ///< Image width
-                .height =            (uint32_t)e_height,  ///< Image height
-                .format =            (uint32_t)e_halFmt,  ///< Image format
-                .isBitRateConstant = true,      ///< Is the bit rate constant
-                .targetBitRate =     100000,      ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            true       ///< Is it H265 encoding or H264
-            };
-            pVideoEncoder = new VideoEncoder(&enc_info);
-        } catch(int) {
-            M_ERROR("Failed to initialize encoder for camera: %s\n", name);
-            throw -EINVAL;
-        }
-
         if (bufferAllocateBuffers(e_bufferGroup,
                                   NUM_ENCODE_BUFFERS,
                                   e_stream.width,
@@ -203,6 +187,24 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
             throw -EINVAL;
         }
+
+        try{
+            VideoEncoderConfig enc_info = {
+                .width =             (uint32_t)e_width,   ///< Image width
+                .height =            (uint32_t)e_height,  ///< Image height
+                .format =            (uint32_t)e_halFmt,  ///< Image format
+                .isBitRateConstant = true,      ///< Is the bit rate constant
+                .targetBitRate =     10000,      ///< Desired target bitrate
+                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .isH265 =            false,       ///< Is it H265 encoding or H264
+                .inputBuffers =      &e_bufferGroup
+            };
+            pVideoEncoder = new VideoEncoder(&enc_info);
+        } catch(int) {
+            M_ERROR("Failed to initialize encoder for camera: %s\n", name);
+            throw -EINVAL;
+        }
+
     }
 
     if (en_snapshot) {
@@ -514,13 +516,10 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
-    if(pVideoEncoder) {
+        if(pVideoEncoder) {
         pVideoEncoder->Stop();
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-        delete pVideoEncoder;
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-    }
+                delete pVideoEncoder;
+            }
 
     bufferDeleteBuffers(p_bufferGroup);
     bufferDeleteBuffers(e_bufferGroup);
@@ -1266,6 +1265,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             case STREAM_PREVIEW:
                 M_VERBOSE("Camera: %s processing preview frame\n", name);
                 ProcessPreviewFrame(pBufferInfo);
+                bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
             case STREAM_ENCODED: // Not Ready
@@ -1276,10 +1276,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
             case STREAM_SNAPSHOT:
                 M_VERBOSE("Camera: %s processing snapshot frame\n", name);
                 ProcessSnapshotFrame(pBufferInfo);
+                bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
             default:
                 M_ERROR("Camera: %s recieved frame for unknown stream\n", name);
+                bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
         }
 
@@ -1288,7 +1290,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
         pthread_mutex_unlock(&resultMutex);
 
-        bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
 
     }
 
@@ -1320,7 +1321,11 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.num_output_buffers  = 0;
 
     camera3_stream_buffer_t pstreamBuffer;
-    pstreamBuffer.buffer        = (const native_handle_t**)bufferPop(p_bufferGroup);
+    if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(p_bufferGroup)) == NULL) {
+        M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+        EStopCameraServer();
+        return -1;
+    }
     pstreamBuffer.stream        = &p_stream;
     pstreamBuffer.status        = 0;
     pstreamBuffer.acquire_fence = -1;
@@ -1332,7 +1337,12 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     if(en_encode){
 
         camera3_stream_buffer_t estreamBuffer;
-        estreamBuffer.buffer        = (const native_handle_t**)bufferPop(e_bufferGroup);
+        if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(e_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for encoder stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            EStopCameraServer();
+            return -1;
+        }
+
         estreamBuffer.stream        = &e_stream;
         estreamBuffer.status        = 0;
         estreamBuffer.acquire_fence = -1;
@@ -1347,7 +1357,11 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         numNeededSnapshots --;
 
         camera3_stream_buffer_t sstreamBuffer;
-        sstreamBuffer.buffer        = (const native_handle_t**)bufferPop(s_bufferGroup);
+        if((sstreamBuffer.buffer    = (const native_handle_t**)bufferPop(s_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            EStopCameraServer();
+            return -1;
+        }
         sstreamBuffer.stream        = &s_stream;
         sstreamBuffer.status        = 0;
         sstreamBuffer.acquire_fence = -1;

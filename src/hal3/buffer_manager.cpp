@@ -69,6 +69,8 @@ int bufferAllocateBuffers(
         bufferGroup.totalBuffers++;
         bufferGroup.freeBuffers.push_back(&bufferGroup.buffers[i]);
     }
+    printf("%s, %d\n", __FUNCTION__, bufferGroup.totalBuffers );
+
     return 0;
 }
 
@@ -77,6 +79,15 @@ void bufferPush(BufferGroup& bufferGroup, buffer_handle_t* buffer)
     unique_lock<mutex> lock(bufferMutex);
     bufferGroup.freeBuffers.push_back(buffer);
     bufferConditionVar.notify_all();
+}
+
+void bufferPushAddress(BufferGroup& bufferGroup, void* vaddress)
+{
+    for (unsigned int i = 0; i < bufferGroup.totalBuffers; i++){
+        if (vaddress == bufferGroup.bufferBlocks[i].vaddress){
+            bufferPush(bufferGroup, &bufferGroup.buffers[i]);
+        }
+    }
 }
 
 buffer_handle_t* bufferPop(BufferGroup& bufferGroup)

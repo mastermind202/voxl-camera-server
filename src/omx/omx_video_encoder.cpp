@@ -47,6 +47,8 @@
 #include "buffer_manager.h"
 #include "common_defs.h"
 
+#define USE_HAL_INPUT_BUFFERS
+
 ///<@todo Make these functions
 #define Log2(number, power) {OMX_U32 temp = number; power = 0; while ((0 == (temp & 0x1)) && power < 16) {temp >>=0x1; power++;}}
 #define FractionToQ16(q,num,den) { OMX_U32 power; Log2(den,power); q = num << (16 - power); }
@@ -114,8 +116,6 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
     m_nextInputBufferIndex  = 0;
     m_nextOutputBufferIndex = 0;
 
-    m_frameTimestampInc = 0;
-
     g_pOmxCoreHandle = dlopen("/usr/lib/libOmxCore.so", RTLD_NOW);
     OMX_ERRORTYPE (*OMXInit)(void);
 
@@ -158,7 +158,6 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
 VideoEncoder::~VideoEncoder()
 {
 
-    printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     OMX_ERRORTYPE (*OMXDeinit)(void);
     OMXDeinit = (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Deinit");
@@ -167,8 +166,7 @@ VideoEncoder::~VideoEncoder()
 
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-        OMX_FreeBuffer(m_OMXHandle, PortIndexIn, m_ppInputBuffers[i]);
+                OMX_FreeBuffer(m_OMXHandle, PortIndexIn, m_ppInputBuffers[i]);
         usleep(100000);
     }
 
@@ -176,26 +174,21 @@ VideoEncoder::~VideoEncoder()
 
     for (uint32_t i = 0; i < m_outputBufferCount; i++)
     {
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-        OMX_FreeBuffer(m_OMXHandle, PortIndexOut, m_ppOutputBuffers[i]);
+                OMX_FreeBuffer(m_OMXHandle, PortIndexOut, m_ppOutputBuffers[i]);
         usleep(100000);
     }
 
     delete m_ppOutputBuffers;
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
-    if (m_OMXHandle != NULL)
-    {
-        typedef OMX_ERRORTYPE (*OMXFreeHandleFunc)(OMX_IN OMX_HANDLETYPE hComp);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    // if (m_OMXHandle != NULL)
+    // {
+    //     typedef OMX_ERRORTYPE (*OMXFreeHandleFunc)(OMX_IN OMX_HANDLETYPE hComp);
 
-        OMXFreeHandleFunc OMXFreeHandle = (OMXFreeHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_FreeHandle");
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    //     OMXFreeHandleFunc OMXFreeHandle = (OMXFreeHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_FreeHandle");
 
-        OMXFreeHandle(m_OMXHandle);
-        m_OMXHandle = NULL;
-    }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+    //     OMXFreeHandle(m_OMXHandle);
+    //     m_OMXHandle = NULL;
+    // }
 
 }
 
@@ -213,6 +206,8 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     int  codingType;
     int  profile;
     int  level;
+
+    m_pHALInputBuffers = pVideoEncoderConfig->inputBuffers;
 
     OMX_RESET_STRUCT(&videoPortFmt, OMX_VIDEO_PARAM_PORTFORMATTYPE);
     OMX_RESET_STRUCT(&profileLevel, OMX_VIDEO_PARAM_PROFILELEVELTYPE);
@@ -372,16 +367,10 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         M_ERROR("OMX_GetConfig of OMX_IndexConfigVideoFramerate failed!\n");
         return OMX_ErrorUndefined;
     }
-    FractionToQ16(framerate.xEncodeFramerate, (int)(pVideoEncoderConfig->frameRate * 2), 2);
+    // FractionToQ16(framerate.xEncodeFramerate, (int)(pVideoEncoderConfig->frameRate * 2), 2);
+    framerate.xEncodeFramerate = pVideoEncoderConfig->frameRate;
 
     OMX_RESET_STRUCT_SIZE_VERSION(&framerate, OMX_CONFIG_FRAMERATETYPE);
-
-    m_frameTimestampInc = 30000; // microsecs
-
-    if (pVideoEncoderConfig->frameRate > 60)
-    {
-        m_frameTimestampInc = 15000;
-    }
 
     if (OMX_SetConfig(m_OMXHandle, OMX_IndexConfigVideoFramerate, (OMX_PTR)&framerate))
     {
@@ -459,6 +448,10 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
+    #ifdef USE_HAL_INPUT_BUFFERS
+    m_inputBufferCount = m_pHALInputBuffers->totalBuffers;
+    #endif
+
     // Set/Get output port parameters
     if (SetPortParams((OMX_U32)PortIndexOut,
                       (OMX_U32)(pVideoEncoderConfig->width),
@@ -486,12 +479,27 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
 
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
-        // The OMX component i.e. the video encoder allocates the memory residing behind these buffers
-        if (OMX_AllocateBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize))
-        {
-            M_ERROR("OMX_AllocateBuffer on input buffer: %d failed\n", i);
-            return OMX_ErrorUndefined;
-        }
+        #ifdef USE_HAL_INPUT_BUFFERS
+            if(!pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress)
+            {
+                M_WARN("Encoder expecting(%d) more buffers than module allocated(%d)\n", m_inputBufferCount, i);
+                return OMX_ErrorUndefined;
+            }
+            // The OMX component i.e. the video encoder allocates the block, gets the memory from hal
+            if (OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
+                    pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
+            {
+                M_ERROR("OMX_UseBuffer on input buffer: %d failed\n", i);
+                return OMX_ErrorUndefined;
+            }
+        #else
+            // The OMX component i.e. the video encoder allocates the memory residing behind these buffers
+            if (OMX_AllocateBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize))
+            {
+                M_ERROR("OMX_AllocateBuffer on input buffer: %d failed\n", i);
+                return OMX_ErrorUndefined;
+            }
+        #endif
     }
 
     for (uint32_t i = 0; i < m_outputBufferCount; i++)
@@ -572,6 +580,7 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
 
     sPortDef.nBufferCountActual = bufferCountMin;
     sPortDef.nBufferCountMin    = bufferCountMin;
+    M_DEBUG("Buffer Count Expected: %d\n", sPortDef.nBufferCountActual);
 
     OMX_RESET_STRUCT_SIZE_VERSION(&sPortDef, OMX_PARAM_PORTDEFINITIONTYPE);
 
@@ -586,6 +595,7 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
         M_ERROR("------voxl-camera-server ERROR: OMX_GetParameter OMX_IndexParamPortDefinition failed!\n");
         return OMX_ErrorUndefined;
     }
+    M_DEBUG("Buffer Count Actual: %d\n", sPortDef.nBufferCountActual);
 
     *pBufferCount = sPortDef.nBufferCountActual;
     *pBufferSize  = sPortDef.nBufferSize;
@@ -599,28 +609,39 @@ void VideoEncoder::ProcessFrameToEncode(int frameNumber, uint64_t timestamp, Buf
 {
 
     lastFrameNumber = frameNumber;
-    OMX_BUFFERHEADERTYPE* OMXBuffer  = m_ppInputBuffers[m_nextInputBufferIndex++];
 
-    m_nextInputBufferIndex %= m_inputBufferCount;
+    #ifdef USE_HAL_INPUT_BUFFERS
+        OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
+        for(unsigned int i = 0; (OMXBuffer = m_ppInputBuffers[i])->pBuffer != buffer->vaddress; i++) {
+            M_VERBOSE("Encoder Buffer Miss\n");
+            if(i == m_pHALInputBuffers->totalBuffers - 1){
+                M_ERROR("Encoder did not find omx-ready buffer for buffer: 0x%lx, skipping encoding\n", buffer->vaddress);
+                return;
+            }
+        }
+        M_VERBOSE("Encoder Buffer Hit\n");
+    #else
+        OMX_BUFFERHEADERTYPE* OMXBuffer = m_ppInputBuffers[m_nextInputBufferIndex++];
 
+        m_nextInputBufferIndex %= m_inputBufferCount;
 
-    // Copy the YUV frame data into the OMX component input port OMX buffer. The data needs to be provided to the encoder
-    // in the way in which it was allocated by gralloc. Gralloc may introduce gaps between the Y and UV data and that's
-    // exactly how we have to provide the buffer to the encoder (with the gaps between the Y and UV).
-    // uint8_t*     pDestAddress = (uint8_t*)OMXBuffer->pBuffer;
-    // uint8_t*     pSrcAddress  = (uint8_t*)buffer->vaddress;
-    // memcpy(pDestAddress, pSrcAddress, buffer->size);
-
-    OMXBuffer->pBuffer = (OMX_U8*)buffer->vaddress;
-
+        // Copy the YUV frame data into the OMX component input port OMX buffer. The data needs to be provided to the encoder
+        // in the way in which it was allocated by gralloc. Gralloc may introduce gaps between the Y and UV data and that's
+        // exactly how we have to provide the buffer to the encoder (with the gaps between the Y and UV).
+        uint8_t*     pDestAddress = (uint8_t*)OMXBuffer->pBuffer;
+        uint8_t*     pSrcAddress  = (uint8_t*)buffer->vaddress;
+        memcpy(pDestAddress, pSrcAddress, buffer->size);
+    #endif
     OMXBuffer->nFilledLen = buffer->size;
-    printf("\n\nsize: %lu\n\n", buffer->size);
     OMXBuffer->nTimeStamp = timestamp;
 
     if (OMX_EmptyThisBuffer(m_OMXHandle, OMXBuffer))
     {
         M_ERROR("OMX_EmptyThisBuffer failed for framebuffer: %d\n", frameNumber);
     }
+    #ifndef USE_HAL_INPUT_BUFFERS
+        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
+    #endif
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -696,16 +717,11 @@ void VideoEncoder::Stop()
 
     pthread_mutex_destroy(&out_mutex);
     pthread_cond_destroy(&out_cond);
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
 
     if(m_pVideoFilehandle) {
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-        fflush(m_pVideoFilehandle);
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-        fclose(m_pVideoFilehandle);
-        printf("%s, %d\n", __FUNCTION__, __LINE__ );
-    }
-printf("%s, %d\n", __FUNCTION__, __LINE__ );
+                fflush(m_pVideoFilehandle);
+                fclose(m_pVideoFilehandle);
+            }
 
 }
 
@@ -896,6 +912,11 @@ OMX_ERRORTYPE OMXEmptyBufferHandler(OMX_IN OMX_HANDLETYPE        hComponent,    
                                     OMX_IN OMX_PTR               pAppData,      ///< Any private app data
                                     OMX_IN OMX_BUFFERHEADERTYPE* pBuffer)       ///< Buffer that has been emptied
 {
+    #ifdef USE_HAL_INPUT_BUFFERS
+        VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
+        bufferPushAddress(*pVideoEncoder->m_pHALInputBuffers, pBuffer->pBuffer);
+    #endif
+
     return OMX_ErrorNone;
 }
 
