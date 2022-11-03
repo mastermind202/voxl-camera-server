@@ -116,7 +116,7 @@ int allocateOneBuffer(
         struct android_ycbcr ycbcr;
         grallocModule->lock_ycbcr(grallocModule,
                                    *pBuffer,
-                                   GRALLOC_USAGE_SW_READ_OFTEN,
+                                   consumerFlags,
                                    0,
                                    0,
                                    width,

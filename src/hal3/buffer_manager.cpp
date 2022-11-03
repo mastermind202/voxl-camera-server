@@ -69,7 +69,6 @@ int bufferAllocateBuffers(
         bufferGroup.totalBuffers++;
         bufferGroup.freeBuffers.push_back(&bufferGroup.buffers[i]);
     }
-    printf("%s, %d\n", __FUNCTION__, bufferGroup.totalBuffers );
 
     return 0;
 }

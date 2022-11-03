@@ -128,6 +128,7 @@ int main(int argc, char* const argv[])
             M_VERBOSE("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
             continue;
         }
+        M_DEBUG("Starting Camera: %s\n", info.name);
 
         try{
             PerCameraMgr *mgr = new PerCameraMgr(info);
@@ -140,7 +141,7 @@ int main(int argc, char* const argv[])
             return -1;
         }
 
-        M_DEBUG("\tStarted Camera: %s\n", info.name);
+        M_DEBUG("Started Camera: %s\n", info.name);
 
     }
     cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());

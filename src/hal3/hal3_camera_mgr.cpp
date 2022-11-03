@@ -58,7 +58,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_ENCODE_BUFFERS 11
+#define NUM_ENCODE_BUFFERS 32
 #define NUM_SNAPSHOT_BUFFERS 16
 #define JPEG_DEFUALT_QUALITY        85
 
@@ -194,7 +194,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .height =            (uint32_t)e_height,  ///< Image height
                 .format =            (uint32_t)e_halFmt,  ///< Image format
                 .isBitRateConstant = true,      ///< Is the bit rate constant
-                .targetBitRate =     10000,      ///< Desired target bitrate
+                .targetBitRate =     1000000,      ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,       ///< Is it H265 encoding or H264
                 .inputBuffers =      &e_bufferGroup
@@ -372,7 +372,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
 
             uint8_t aeMode            =  ANDROID_CONTROL_AE_MODE_ON;
             uint8_t antibanding       =  ANDROID_CONTROL_AE_ANTIBANDING_MODE_OFF;
-            uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_OFF;
+            uint8_t awbMode           =  ANDROID_CONTROL_AWB_MODE_AUTO;
 
             //Don't have any autofocus so turn these off
             uint8_t afMode            =  ANDROID_CONTROL_AF_MODE_OFF;

@@ -54,6 +54,7 @@ typedef struct VideoEncoderConfig
     int32_t  frameRate;             ///< Frame rate
     bool     isH265;                ///< Is it H265 encoding or H264
     BufferGroup *inputBuffers;      ///< Input buffers coming from hal3
+    int      outputPipe;            ///< Pre-configured MPA output pipe
 } VideoEncoderConfig;
 
 //------------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ public:
     // This call indicates that no more frames will be sent for encoding
     void Stop();
     // Client of this encoder class calls this function to pass in the YUV video frame to be encoded
-    void ProcessFrameToEncode(int frameNumber, uint64_t timestamp, BufferBlock* buffer);
+    void ProcessFrameToEncode(camera_image_metadata_t meta, BufferBlock* buffer);
     // OMX output thread calls this function to process the OMX component's output encoded buffer
     void ProcessEncodedFrame(OMX_BUFFERHEADERTYPE* pEncodedFrame);
 
@@ -114,7 +115,6 @@ public:
     uint32_t               m_inputBufferCount;      ///< Input buffer count
     uint32_t               m_outputBufferSize;      ///< Output buffer size
     uint32_t               m_outputBufferCount;     ///< Output buffer count
-    FILE*                  m_pVideoFilehandle;      ///< Video file handle
     OMX_HANDLETYPE         m_OMXHandle = NULL;      ///< OMX component handle
     BufferGroup*           m_pHALInputBuffers;
     OMX_BUFFERHEADERTYPE** m_ppInputBuffers;        ///< Input buffers
