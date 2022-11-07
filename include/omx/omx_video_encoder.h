@@ -92,10 +92,6 @@ public:
                                 OMX_U32* pBufferCount,
                                 OMX_COLOR_FORMATTYPE format);
 
-    static const uint32_t NumOMXInputBuffers   = 16;
-    static const uint32_t NumOMXOutputBuffers  = 16;
-    static const uint32_t InputBufferCount     = 20;
-    static const uint32_t OutputBufferCount    = 20;
     static const uint32_t BitrateDefault       = (2*8*1024*1024);
     static const uint32_t TargetBitrateDefault = (18*1024*1024*8);
     static const OMX_U32  PortIndexIn          = 0;

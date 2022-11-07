@@ -60,6 +60,7 @@
 #define NUM_PREVIEW_BUFFERS 16
 #define NUM_ENCODE_BUFFERS 32
 #define NUM_SNAPSHOT_BUFFERS 16
+#define ENCODER_FORMAT
 #define JPEG_DEFUALT_QUALITY        85
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
@@ -781,7 +782,6 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
         raw16Buf[(buf16Idx*2)]   = (raw12Buf[buf8Idx] << 4) + (raw12Buf[buf8Idx + 2] & 0x0F);
         raw16Buf[(buf16Idx*2)+1] = (raw12Buf[buf8Idx + 1] << 4) + ((raw12Buf[buf8Idx + 2] & 0xF0) >> 4);
     }
-
 }
 
 
@@ -847,23 +847,10 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo)
     else if (p_halFmt == HAL3_FMT_YUV)
     {
         M_VERBOSE("Preview format HAL3_FMT_YUV\n");
-        // For ov7251 camera there is no color so we just send the Y channel data as RAW8
-        if (configInfo.type == CAMTYPE_OV7251)
-        {
-
-            imageInfo.format     = IMAGE_FORMAT_RAW8;
-            imageInfo.size_bytes = p_width * p_height;
-            imageInfo.stride     = p_width;
-
-        }
-        // We always send YUV contiguous data out of the camera server
-        else {
-
-            imageInfo.format     = IMAGE_FORMAT_NV12;
-            bufferMakeYUVContiguous(bufferBlockInfo);
-            ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
-            imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
-        }
+        imageInfo.format     = IMAGE_FORMAT_NV12;
+        bufferMakeYUVContiguous(bufferBlockInfo);
+        ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
+        imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
 
     } else {
         M_ERROR("Camera: %s received invalid preview format, stopping\n", name);

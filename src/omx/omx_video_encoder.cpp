@@ -52,6 +52,9 @@
 
 #define USE_HAL_INPUT_BUFFERS
 
+#define NUM_INPUT_BUFFERS  16
+#define NUM_OUTPUT_BUFFERS 16
+
 ///<@todo Make these functions
 #define Log2(number, power) {OMX_U32 temp = number; power = 0; while ((0 == (temp & 0x1)) && power < 16) {temp >>=0x1; power++;}}
 #define FractionToQ16(q,num,den) { OMX_U32 power; Log2(den,power); q = num << (16 - power); }
@@ -445,7 +448,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
                       #ifdef USE_HAL_INPUT_BUFFERS
                       (OMX_U32)(pVideoEncoderConfig->inputBuffers->totalBuffers),
                       #else
-                      (OMX_U32)InputBufferCount,
+                      (OMX_U32)NUM_INPUT_BUFFERS,
                       #endif
                       (OMX_U32)(pVideoEncoderConfig->frameRate),
                       paramBitRate.nTargetBitrate,
@@ -461,7 +464,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     if (SetPortParams((OMX_U32)PortIndexOut,
                       (OMX_U32)(pVideoEncoderConfig->width),
                       (OMX_U32)(pVideoEncoderConfig->height),
-                      (OMX_U32)OutputBufferCount,
+                      (OMX_U32)NUM_OUTPUT_BUFFERS,
                       (OMX_U32)(pVideoEncoderConfig->frameRate),
                       paramBitRate.nTargetBitrate,
                       (OMX_U32*)&m_outputBufferSize,
