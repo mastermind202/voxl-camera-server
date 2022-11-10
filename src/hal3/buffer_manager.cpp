@@ -85,8 +85,11 @@ void bufferPushAddress(BufferGroup& bufferGroup, void* vaddress)
     for (unsigned int i = 0; i < bufferGroup.totalBuffers; i++){
         if (vaddress == bufferGroup.bufferBlocks[i].vaddress){
             bufferPush(bufferGroup, &bufferGroup.buffers[i]);
+            return;
         }
     }
+    M_ERROR("Recieved invalid buffer in %s\n", __FUNCTION__);
+    return;
 }
 
 buffer_handle_t* bufferPop(BufferGroup& bufferGroup)

@@ -225,6 +225,8 @@ private:
     list<char *>                       snapshotQueue;
     atomic_int                         numNeededSnapshots {0};
     int                                lastSnapshotNumber = 0;
+    int                                encodeOutputChannel = -1;
+    camera_image_metadata_t            last_meta = {0};
 
     ///< TOF Specific members
 

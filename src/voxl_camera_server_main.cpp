@@ -153,10 +153,10 @@ int main(int argc, char* const argv[])
         usleep(500000);
     }
 
-    M_PRINT("\n------ voxl-camera-server INFO: Camera server is now stopping\n");
+    M_PRINT("\n------ voxl-camera-server: Camera server is now stopping\n");
     cleanManagers();
 
-    M_PRINT("\n------ voxl-camera-server INFO: Camera server exited gracefully\n\n");
+    M_PRINT("\n------ voxl-camera-server: Camera server exited gracefully\n\n");
 
     return 0;
 }
@@ -170,6 +170,7 @@ static void cleanManagers(){
     }
 
     mgrs.erase(mgrs.begin(), mgrs.end());
+    pipe_server_close_all();
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------

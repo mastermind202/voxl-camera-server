@@ -190,6 +190,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
+            encodeOutputChannel = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)e_width,   ///< Image width
                 .height =            (uint32_t)e_height,  ///< Image height
@@ -198,7 +199,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .targetBitRate =     1000000,      ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,       ///< Is it H265 encoding or H264
-                .inputBuffers =      &e_bufferGroup
+                .inputBuffers =      &e_bufferGroup,
+                .outputPipe =        encodeOutputChannel
             };
             pVideoEncoder = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -517,10 +519,10 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-        if(pVideoEncoder) {
+    if(pVideoEncoder) {
         pVideoEncoder->Stop();
-                delete pVideoEncoder;
-            }
+        delete pVideoEncoder;
+    }
 
     bufferDeleteBuffers(p_bufferGroup);
     bufferDeleteBuffers(e_bufferGroup);
@@ -555,8 +557,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         pthread_mutex_lock(&resultMutex);
 
-        camera_image_metadata_t meta = {0};
-        meta.frame_id=pHalResult->frame_number;
+        last_meta.frame_id=pHalResult->frame_number;
 
         M_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
 
@@ -567,31 +568,25 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
-            meta.timestamp_ns = entry.data.i64[0];
-            M_VERBOSE("\tTimestamp: %llu\n", meta.timestamp_ns);
+            last_meta.timestamp_ns = entry.data.i64[0];
+            M_VERBOSE("\tTimestamp: %llu\n", last_meta.timestamp_ns);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
 
         if (!result && entry.count)
         {
-            meta.gain = entry.data.i32[0];
-            M_VERBOSE("\tGain: %d\n", meta.gain);
+            last_meta.gain = entry.data.i32[0];
+            M_VERBOSE("\tGain: %d\n", last_meta.gain);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
 
         if (!result && entry.count)
         {
-            meta.exposure_ns = entry.data.i64[0];
-            M_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
+            last_meta.exposure_ns = entry.data.i64[0];
+            M_VERBOSE("\tExposure: %ld\n", last_meta.exposure_ns);
         }
-        resultMetaQueue.push_back(meta);
-        if(en_encode) {
-            resultMetaQueue.push_back(meta);
-        }
-
-
         pthread_mutex_unlock(&resultMutex);
 
     }
@@ -602,12 +597,22 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         M_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
         currentFrameNumber = pHalResult->frame_number;
+        if(currentFrameNumber != last_meta.frame_id){
+            M_WARN("Recieved buffer and metadata out of order, skipping\n");
+
+            buffer_handle_t  *handle      = pHalResult->output_buffers[i].buffer;
+            camera3_stream_t *stream      = pHalResult->output_buffers[i].stream;
+            BufferGroup      *bufferGroup = GetBufferGroup(stream);
+            bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
+            return;
+        }
 
         // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
         pthread_mutex_lock(&resultMutex);
 
         // Queue up work for the result thread "ThreadPostProcessResult"
         resultMsgQueue.push_back(pHalResult->output_buffers[i]);
+        resultMetaQueue.push_back(last_meta);
         pthread_cond_signal(&resultCond);
         pthread_mutex_unlock(&resultMutex);
 
@@ -1068,10 +1073,13 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo)
 
 void PerCameraMgr::ProcessEncodeFrame(BufferBlock* bufferBlockInfo)
 {
-    camera_image_metadata_t imageInfo = resultMetaQueue.front();
+    camera_image_metadata_t meta = resultMetaQueue.front();
     resultMetaQueue.pop_front();
 
-    pVideoEncoder->ProcessFrameToEncode(imageInfo.frame_id, imageInfo.timestamp_ns, bufferBlockInfo);
+    meta.width = e_width;
+    meta.height = e_height;
+
+    pVideoEncoder->ProcessFrameToEncode(meta, bufferBlockInfo);
 }
 
 void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo)
@@ -1321,7 +1329,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.num_output_buffers ++;
     streamBufferList.push_back(pstreamBuffer);
 
-    if(en_encode){
+    if(en_encode && pipe_server_get_num_clients(encodeOutputChannel)){
 
         camera3_stream_buffer_t estreamBuffer;
         if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(e_bufferGroup)) == NULL) {
@@ -1483,10 +1491,9 @@ int PerCameraMgr::SetupPipes()
                 this);                                                 //Context
 
         char cont_cmds[256];
-        snprintf(cont_cmds, 255, "%s%s%s",
+        snprintf(cont_cmds, 255, "%s%s",
             CONTROL_COMMANDS,
-            en_snapshot ? ",snapshot" : "",
-            en_encode   ? ",start_record,stop_record" : "");
+            en_snapshot ? ",snapshot" : "");
 
         pipe_info_t info;
         strcpy(info.name       , name);
@@ -1497,6 +1504,13 @@ int PerCameraMgr::SetupPipes()
         pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
 
         pipe_server_set_available_control_commands(outputChannel, cont_cmds);
+
+        if(en_encode){
+            char encode_name[32];
+            snprintf(encode_name, 31, "%s_encoded", name);
+            strcpy(info.name, encode_name);
+            pipe_server_create(encodeOutputChannel, info, 0);
+        }
 
     } else {
 

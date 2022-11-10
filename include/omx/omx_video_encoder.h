@@ -74,8 +74,6 @@ public:
     void Stop();
     // Client of this encoder class calls this function to pass in the YUV video frame to be encoded
     void ProcessFrameToEncode(camera_image_metadata_t meta, BufferBlock* buffer);
-    // OMX output thread calls this function to process the OMX component's output encoded buffer
-    void ProcessEncodedFrame(OMX_BUFFERHEADERTYPE* pEncodedFrame);
 
     void* ThreadProcessOMXOutputPort();
 
@@ -101,12 +99,12 @@ public:
     pthread_mutex_t        out_mutex;               ///< Out thread Mutex for list access
     pthread_cond_t         out_cond;                ///< Out thread Condition variable for wake up
     std::list<OMX_BUFFERHEADERTYPE*>      out_msgQueue;            ///< Out thread Message queue
+    std::list<camera_image_metadata_t>    out_metaQueue;           ///< Out thread Message queue
 
-    volatile int           lastFrameNumber = -1;    ///< The absolute last frame that needs to be encoded
-    volatile int           finalFrameNumber = -1;   ///< The absolute last frame that needs to be encoded
     volatile bool          stop = false;            ///< Thread terminate indicator
 
     VideoEncoderConfig     m_VideoEncoderConfig;
+    int                    m_outputPipe;
     uint32_t               m_inputBufferSize;       ///< Input buffer size
     uint32_t               m_inputBufferCount;      ///< Input buffer count
     uint32_t               m_outputBufferSize;      ///< Output buffer size

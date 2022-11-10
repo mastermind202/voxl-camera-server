@@ -134,6 +134,7 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
     pthread_condattr_destroy(&attr);
 
     m_VideoEncoderConfig = *pVideoEncoderConfig;
+    m_outputPipe        = m_VideoEncoderConfig.outputPipe;
     m_inputBufferSize   = 0;
     m_inputBufferCount  = 0;
     m_outputBufferSize  = 0;
@@ -179,13 +180,11 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
 VideoEncoder::~VideoEncoder()
 {
 
-
-
     OMXDeinit();
 
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
-                OMX_FreeBuffer(m_OMXHandle, PortIndexIn, m_ppInputBuffers[i]);
+        OMX_FreeBuffer(m_OMXHandle, PortIndexIn, m_ppInputBuffers[i]);
         usleep(100000);
     }
 
@@ -193,7 +192,7 @@ VideoEncoder::~VideoEncoder()
 
     for (uint32_t i = 0; i < m_outputBufferCount; i++)
     {
-                OMX_FreeBuffer(m_OMXHandle, PortIndexOut, m_ppOutputBuffers[i]);
+        OMX_FreeBuffer(m_OMXHandle, PortIndexOut, m_ppOutputBuffers[i]);
         usleep(100000);
     }
 
@@ -241,7 +240,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         pComponentName = (char *)"OMX.qcom.video.encoder.avc";
         codingType     = OMX_VIDEO_CodingAVC;
         profile        = OMX_VIDEO_AVCProfileBaseline;
-        level          = OMX_VIDEO_AVCLevel3;
+        level          = OMX_VIDEO_AVCLevel4;
     }
 
     if (OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks))
@@ -298,7 +297,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        avc.nPFrames                  = 29;
+        avc.nPFrames                  = 9;
         avc.nBFrames                  = 0;
         avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
         avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
@@ -620,8 +619,11 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
 // -----------------------------------------------------------------------------------------------------------------------------
 void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBlock* buffer)
 {
-
-    lastFrameNumber = meta.frame_id;
+    pthread_mutex_lock(&out_mutex);
+    // Queue up work for thread "ThreadProcessOMXOutputPort"
+    out_metaQueue.push_back(meta);
+    pthread_cond_signal(&out_cond);
+    pthread_mutex_unlock(&out_mutex);
 
     #ifdef USE_HAL_INPUT_BUFFERS
         OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
@@ -660,14 +662,6 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// OMX output thread calls this function to process the OMX component's output encoded buffer
-// -----------------------------------------------------------------------------------------------------------------------------
-void VideoEncoder::ProcessEncodedFrame(OMX_BUFFERHEADERTYPE* pEncodedFrame)
-{
-
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
 // This function performs any work necessary to start receiving encoding frames from the client
 // -----------------------------------------------------------------------------------------------------------------------------
 void VideoEncoder::Start()
@@ -689,13 +683,10 @@ void VideoEncoder::Start()
 void VideoEncoder::Stop()
 {
     stop  = true;
-    M_DEBUG("------ Last frame sent for encoding: %d\n", lastFrameNumber);
-
-    finalFrameNumber = lastFrameNumber;
     // The thread wont finish and the "join" call will not return till the last expected encoded frame is received from
     // the encoder OMX component
-    pthread_join(out_thread, NULL);
     pthread_cond_signal(&out_cond);
+    pthread_join(out_thread, NULL);
 
     pthread_mutex_destroy(&out_mutex);
     pthread_cond_destroy(&out_cond);
@@ -924,18 +915,11 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 {
     pthread_setname_np(pthread_self(), "omx_out");
 
-    // Set thread priority
-    pid_t tid   = syscall(SYS_gettid);
-    int   which = PRIO_PROCESS;
-    int   nice  = -10;
-
-    setpriority(which, tid, nice);
-
-    int frameNumber = 0;
+    int64_t frameNumber = -1;
 
     // The condition of the while loop is such that this thread will not terminate till it receives the last expected encoded
     // frame from the OMX component
-    while (finalFrameNumber == -1 || frameNumber < finalFrameNumber)
+    while (!stop)
     {
         pthread_mutex_lock(&out_mutex);
 
@@ -946,14 +930,73 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
             continue;
         }
 
+        if(out_metaQueue.empty()){
+            M_WARN("Trying to process omx output with missing metadata\n");
+            pthread_cond_wait(&out_cond, &out_mutex);
+            pthread_mutex_unlock(&out_mutex);
+            continue;
+        }
+
+
         // Coming here means we have a encoded frame to process
         OMX_BUFFERHEADERTYPE* pOMXBuffer = out_msgQueue.front();
-
         out_msgQueue.pop_front();
-        pthread_mutex_unlock(&out_mutex);
 
-        // pOMXThreadMessageData->pOMXBuffer contains the encoded frame data
-        ProcessEncodedFrame(pOMXBuffer);
+
+        camera_image_metadata_t meta     = out_metaQueue.front();
+        // 30 bytes is a metadata packet, don't associate it with a frame
+        if(pOMXBuffer->nFilledLen != 30){
+            out_metaQueue.pop_front();
+        } else {
+            meta.frame_id = -1;
+        }
+
+        pthread_mutex_unlock(&out_mutex);
+        frameNumber = meta.frame_id;
+
+        meta.size_bytes = pOMXBuffer->nFilledLen;
+        meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
+
+        uint8_t *data = pOMXBuffer->pBuffer;
+        printf("Frame: %d size: %08X %s\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\n",
+               meta.frame_id,
+               meta.size_bytes,
+               data[4] == 0x41 ? "" : "---------------", //Indicate non-pframe
+               data[0],
+               data[1],
+               data[2],
+               data[3],
+               data[4],
+               data[5],
+               data[6],
+               data[7],
+               data[8],
+               data[9],
+               data[10],
+               data[11],
+               data[12],
+               data[13],
+               data[14],
+               data[15],
+               data[16],
+               data[17],
+               data[18],
+               data[19],
+               data[20],
+               data[21],
+               data[22],
+               data[23],
+               data[24],
+               data[25],
+               data[26],
+               data[27],
+               data[28],
+               data[29],
+               data[30],
+               data[31]
+               );
+
+        pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
 
         // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX
         // component
@@ -961,8 +1004,6 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         {
             M_ERROR("OMX_FillThisBuffer resulted in error for frame %d\n", frameNumber);
         }
-
-        frameNumber++;
     }
 
     M_DEBUG("------ Last frame encoded: %d\n", frameNumber);
