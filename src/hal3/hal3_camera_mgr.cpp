@@ -60,7 +60,7 @@
 #define NUM_PREVIEW_BUFFERS 16
 #define NUM_ENCODE_BUFFERS 32
 #define NUM_SNAPSHOT_BUFFERS 16
-#define ENCODER_FORMAT
+
 #define JPEG_DEFUALT_QUALITY        85
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))

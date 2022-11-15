@@ -297,7 +297,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        avc.nPFrames                  = 9;
+        avc.nPFrames                  = 29;
         avc.nBFrames                  = 0;
         avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
         avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
