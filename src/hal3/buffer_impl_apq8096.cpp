@@ -57,6 +57,17 @@ void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
     const int height = pBufferInfo->height;
     const int width  = pBufferInfo->width;
 
+    if((uint8_t*)(pBufferInfo->vaddress) + (width*height) == offsetMap.at(pBufferInfo)){
+        M_VERBOSE("Buffer already continuous\n");
+        return;
+    }
+
+    unsigned int offset;
+    for(offset = 0; ((uint8_t*)(pBufferInfo->vaddress))[width*height + offset] == 256 || ((uint8_t*)(pBufferInfo->vaddress))[width*height + offset] == 0; offset++);
+
+    // M_PRINT("Supposed offset: %lu\n", (uint64_t)(offsetMap.at(pBufferInfo)) - (uint64_t)((pBufferInfo->vaddress) + (width*height)) );
+    // M_PRINT("Calculated offset: %lu\n", offset);
+
     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
 }
 

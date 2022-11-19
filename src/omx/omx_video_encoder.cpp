@@ -944,8 +944,8 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
 
         camera_image_metadata_t meta     = out_metaQueue.front();
-        // 30 bytes is a metadata packet, don't associate it with a frame
-        if(pOMXBuffer->nFilledLen != 30){
+        // h264 metadata packet, don't associate it with a frame
+        if(pOMXBuffer->pBuffer[4] != 0x67){
             out_metaQueue.pop_front();
         } else {
             meta.frame_id = -1;
@@ -956,45 +956,6 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
         meta.size_bytes = pOMXBuffer->nFilledLen;
         meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
-
-        uint8_t *data = pOMXBuffer->pBuffer;
-        printf("Frame: %d size: %08X %s\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\t%02X %02X %02X %02X %02X %02X %02X %02X\n\n",
-               meta.frame_id,
-               meta.size_bytes,
-               data[4] == 0x41 ? "" : "---------------", //Indicate non-pframe
-               data[0],
-               data[1],
-               data[2],
-               data[3],
-               data[4],
-               data[5],
-               data[6],
-               data[7],
-               data[8],
-               data[9],
-               data[10],
-               data[11],
-               data[12],
-               data[13],
-               data[14],
-               data[15],
-               data[16],
-               data[17],
-               data[18],
-               data[19],
-               data[20],
-               data[21],
-               data[22],
-               data[23],
-               data[24],
-               data[25],
-               data[26],
-               data[27],
-               data[28],
-               data[29],
-               data[30],
-               data[31]
-               );
 
         pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
 

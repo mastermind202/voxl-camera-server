@@ -168,7 +168,7 @@ void HAL3_print_camera_resolutions(int camId){
         }
     } else {
 
-        M_DEBUG("Stats for camera: %d:\n", camId);
+        M_PRINT("Stats for camera: %d:\n", camId);
         camera_info cameraInfo;
         cameraModule->get_camera_info(camId, &cameraInfo);
 
@@ -178,42 +178,42 @@ void HAL3_print_camera_resolutions(int camId){
         //get raw sizes
         //ANDROID_SCALER_AVAILABLE_RAW_SIZES
         find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_RAW_SIZES, &entry);
-        M_DEBUG("ANDROID_SCALER_AVAILABLE_RAW_SIZES:\n\t");
+        M_PRINT("ANDROID_SCALER_AVAILABLE_RAW_SIZES:\n\t");
         for (uint32_t i = 0 ; i < entry.count; i += 2) {
             width = entry.data.i32[i+0];
             height = entry.data.i32[i+1];
-            M_DEBUG("%dx%d, ",width ,height);
+            M_PRINT("%dx%d, ",width ,height);
         }
-        M_DEBUG("\n");
+        M_PRINT("\n");
 
         //get video sizes
         find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, &entry);
-        M_DEBUG("ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES:");
+        M_PRINT("ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES:");
         for (uint32_t i = 0 ; i < entry.count; i += 2) {
             if (i%16==0)
-                M_DEBUG("\n\t");
+                M_PRINT("\n\t");
             width = entry.data.i32[i+0];
             height = entry.data.i32[i+1];
-            M_DEBUG("%4dx%4d, ",width ,height);
+            M_PRINT("%4dx%4d, ",width ,height);
         }
-        M_DEBUG("\n");
+        M_PRINT("\n");
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_SENSITIVITY_RANGE, &entry);
         uint32_t min_sensitivity = entry.data.i32[0];
         uint32_t max_sensitivity = entry.data.i32[1];
-        M_DEBUG("ANDROID_SENSOR_INFO_SENSITIVITY_RANGE\n\tmin = %d\n\tmax = %d\n",min_sensitivity,max_sensitivity);
+        M_PRINT("ANDROID_SENSOR_INFO_SENSITIVITY_RANGE\n\tmin = %d\n\tmax = %d\n",min_sensitivity,max_sensitivity);
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY, &entry);
-        M_DEBUG("ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY\n\t%d\n",entry.data.i32[0]);
+        M_PRINT("ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY\n\t%d\n",entry.data.i32[0]);
 
 
 
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE, &entry);
         unsigned long long min_exposure = entry.data.i64[0];  //ns
         unsigned long long max_exposure = entry.data.i64[1];  //ns
-        M_DEBUG("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %lluns\n\tmax = %lluns\n",min_exposure,max_exposure);
+        M_PRINT("ANDROID_SENSOR_INFO_EXPOSURE_TIME_RANGE\n\tmin = %lluns\n\tmax = %lluns\n",min_exposure,max_exposure);
 
-        M_DEBUG("\n");
+        M_PRINT("\n");
 
     }
 

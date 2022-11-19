@@ -249,6 +249,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         otherMgr->setMaster(this);
     }
 
+    last_meta.framerate = pCameraInfo.fps;
+
 }
 
 PerCameraMgr::~PerCameraMgr() {
@@ -289,6 +291,7 @@ int PerCameraMgr::ConfigureStreams()
         e_stream.format      = e_halFmt;
         e_stream.data_space  = HAL_DATASPACE_UNKNOWN;
         e_stream.usage       = GRALLOC_USAGE_HW_VIDEO_ENCODER;
+        // e_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
         e_stream.rotation    = ROTATION_MODE;
         e_stream.max_buffers = NUM_ENCODE_BUFFERS;
         e_stream.priv        = 0;
@@ -1078,6 +1081,8 @@ void PerCameraMgr::ProcessEncodeFrame(BufferBlock* bufferBlockInfo)
 
     meta.width = e_width;
     meta.height = e_height;
+
+    // bufferMakeYUVContiguous(bufferBlockInfo);
 
     pVideoEncoder->ProcessFrameToEncode(meta, bufferBlockInfo);
 }
