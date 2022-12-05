@@ -39,7 +39,7 @@
 #include <sys/syscall.h>
 #include <errno.h>
 #include <system/graphics.h>
-#include <media/hardware/HardwareAPI.h>
+// #include <media/hardware/HardwareAPI.h>
 #include <OMX_QCOMExtns.h>
 #include <modal_journal.h>
 #include <OMX_VideoExt.h>
@@ -51,8 +51,9 @@
 #include "common_defs.h"
 
 #define USE_HAL_INPUT_BUFFERS
+// #undef USE_HAL_INPUT_BUFFERS
 
-#define NUM_INPUT_BUFFERS  16
+#define NUM_INPUT_BUFFERS  11
 #define NUM_OUTPUT_BUFFERS 16
 
 ///<@todo Make these functions
@@ -111,8 +112,11 @@ static OMXFreeHandleFunc OMXFreeHandle;
 
 static void __attribute__((constructor)) setupOMXFuncs()
 {
-    g_pOmxCoreHandle = dlopen("/usr/lib/libOmxCore.so", RTLD_NOW);
-
+    #ifdef APQ8096
+        g_pOmxCoreHandle = dlopen("/usr/lib/libOmxCore.so", RTLD_NOW);
+    #elif QRB5165
+        g_pOmxCoreHandle = dlopen("/usr/lib/libmm-omxcore.so", RTLD_NOW);
+    #endif
     OMXInit =   (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Init");
     OMXDeinit = (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Deinit");
     OMXGetHandle =     (OMXGetHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_GetHandle");
@@ -297,29 +301,55 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
+        // avc.nPFrames                  = 29;
+        // avc.nBFrames                  = 0;
+        // avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
+        // avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
+        // avc.bUseHadamard              = OMX_FALSE;
+        // avc.nRefFrames                = 1;
+        // avc.nRefIdx10ActiveMinus1     = 1;
+        // avc.nRefIdx11ActiveMinus1     = 0;
+        // avc.bEnableUEP                = OMX_FALSE;
+        // avc.bEnableFMO                = OMX_FALSE;
+        // avc.bEnableASO                = OMX_FALSE;
+        // avc.bEnableRS                 = OMX_FALSE;
+        // avc.nAllowedPictureTypes      = 2;
+        // avc.bFrameMBsOnly             = OMX_FALSE;
+        // avc.bMBAFF                    = OMX_FALSE;
+        // avc.bWeightedPPrediction      = OMX_FALSE;
+        // avc.nWeightedBipredicitonMode = 0;
+        // avc.bconstIpred               = OMX_FALSE;
+        // avc.bDirect8x8Inference       = OMX_FALSE;
+        // avc.bDirectSpatialTemporal    = OMX_FALSE;
+        // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
+        // avc.bEntropyCodingCABAC       = OMX_FALSE;
+        // avc.nCabacInitIdc             = 0;
+
+
         avc.nPFrames                  = 29;
         avc.nBFrames                  = 0;
         avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
         avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        avc.bUseHadamard              = OMX_FALSE;
+        avc.bUseHadamard              = OMX_TRUE;
         avc.nRefFrames                = 1;
-        avc.nRefIdx10ActiveMinus1     = 1;
+        avc.nRefIdx10ActiveMinus1     = 0;
         avc.nRefIdx11ActiveMinus1     = 0;
         avc.bEnableUEP                = OMX_FALSE;
         avc.bEnableFMO                = OMX_FALSE;
         avc.bEnableASO                = OMX_FALSE;
         avc.bEnableRS                 = OMX_FALSE;
-        avc.nAllowedPictureTypes      = 2;
-        avc.bFrameMBsOnly             = OMX_FALSE;
+        avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
+        avc.bFrameMBsOnly             = OMX_TRUE;
         avc.bMBAFF                    = OMX_FALSE;
         avc.bWeightedPPrediction      = OMX_FALSE;
-        avc.nWeightedBipredicitonMode = 0;
         avc.bconstIpred               = OMX_FALSE;
         avc.bDirect8x8Inference       = OMX_FALSE;
         avc.bDirectSpatialTemporal    = OMX_FALSE;
         avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
         avc.bEntropyCodingCABAC       = OMX_FALSE;
         avc.nCabacInitIdc             = 0;
+        avc.nSliceHeaderSpacing       = 0;
+
 
         OMX_RESET_STRUCT_SIZE_VERSION(&avc, OMX_VIDEO_PARAM_AVCTYPE);
 
@@ -385,27 +415,27 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
-    // Set Color aspect parameters
-    android::DescribeColorAspectsParams colorParams;
-    OMX_RESET_STRUCT(&colorParams, android::DescribeColorAspectsParams);
-    colorParams.nPortIndex = PortIndexIn;
+    // // Set Color aspect parameters
+    // android::DescribeColorAspectsParams colorParams;
+    // OMX_RESET_STRUCT(&colorParams, android::DescribeColorAspectsParams);
+    // colorParams.nPortIndex = PortIndexIn;
 
-    if (OMX_GetConfig(m_OMXHandle, (OMX_INDEXTYPE)OMX_QTIIndexConfigDescribeColorAspects, (OMX_PTR)&colorParams))
-    {
-        M_ERROR("OMX_GetConfig of OMX_QTIIndexConfigDescribeColorAspects failed!\n");
-        return OMX_ErrorUndefined;
-    }
-    colorParams.sAspects.mPrimaries    = android::ColorAspects::PrimariesBT709_5;
-    colorParams.sAspects.mTransfer     = android::ColorAspects::TransferSMPTE170M;
-    colorParams.sAspects.mMatrixCoeffs = android::ColorAspects::MatrixBT709_5;
+    // if (OMX_GetConfig(m_OMXHandle, (OMX_INDEXTYPE)OMX_QTIIndexConfigDescribeColorAspects, (OMX_PTR)&colorParams))
+    // {
+    //     M_ERROR("OMX_GetConfig of OMX_QTIIndexConfigDescribeColorAspects failed!\n");
+    //     return OMX_ErrorUndefined;
+    // }
+    // colorParams.sAspects.mPrimaries    = android::ColorAspects::PrimariesBT709_5;
+    // colorParams.sAspects.mTransfer     = android::ColorAspects::TransferSMPTE170M;
+    // colorParams.sAspects.mMatrixCoeffs = android::ColorAspects::MatrixBT709_5;
 
-    OMX_RESET_STRUCT_SIZE_VERSION(&colorParams, android::DescribeColorAspectsParams);
+    // OMX_RESET_STRUCT_SIZE_VERSION(&colorParams, android::DescribeColorAspectsParams);
 
-    if (OMX_SetConfig(m_OMXHandle, (OMX_INDEXTYPE)OMX_QTIIndexConfigDescribeColorAspects, (OMX_PTR)&colorParams))
-    {
-        M_ERROR("OMX_SetConfig of OMX_QTIIndexConfigDescribeColorAspects failed!\n");
-        return OMX_ErrorUndefined;
-    }
+    // if (OMX_SetConfig(m_OMXHandle, (OMX_INDEXTYPE)OMX_QTIIndexConfigDescribeColorAspects, (OMX_PTR)&colorParams))
+    // {
+    //     M_ERROR("OMX_SetConfig of OMX_QTIIndexConfigDescribeColorAspects failed!\n");
+    //     return OMX_ErrorUndefined;
+    // }
 
     // Set Bitrate
     OMX_VIDEO_PARAM_BITRATETYPE paramBitRate;
@@ -493,17 +523,19 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
                 return OMX_ErrorUndefined;
             }
             // The OMX component i.e. the video encoder allocates the block, gets the memory from hal
-            if (OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
+            if (int ret = OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
                     pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
             {
                 M_ERROR("OMX_UseBuffer on input buffer: %d failed\n", i);
+                OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
                 return OMX_ErrorUndefined;
             }
         #else
             // The OMX component i.e. the video encoder allocates the memory residing behind these buffers
-            if (OMX_AllocateBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize))
+            if (int ret = OMX_AllocateBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize))
             {
                 M_ERROR("OMX_AllocateBuffer on input buffer: %d failed\n", i);
+                OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
                 return OMX_ErrorUndefined;
             }
         #endif
@@ -705,10 +737,10 @@ OMX_ERRORTYPE OMXEventHandler(OMX_IN OMX_HANDLETYPE hComponent,     ///< OMX com
 {
     switch (eEvent) {
         case OMX_EventCmdComplete:
-            M_DEBUG("OMX Event: OMX_EventCmdComplete\n");
+            M_DEBUG("OMX_EventCmdComplete\n");
             break;
         case OMX_EventError:
-            M_DEBUG("OMX Event: OMX_EventError: ");
+            M_DEBUG("OMX_EventError: ");
             switch ((OMX_ERRORTYPE)nData1) {
                 case OMX_ErrorNone:
                     printf("OMX_ErrorNone\n");
@@ -957,7 +989,7 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         meta.size_bytes = pOMXBuffer->nFilledLen;
         meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
 
-        pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
+        // pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
 
         // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX
         // component

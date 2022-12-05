@@ -43,6 +43,7 @@
 #include <condition_variable>
 #include <atomic>
 
+#include "ringbuffer.h"
 #include "buffer_manager.h"
 #include "common_defs.h"
 #include "exposure-hist.h"
@@ -128,9 +129,25 @@ private:
     // Send one capture request to the camera module
     int  ProcessOneCaptureRequest(int frameNumber);
 
-    void ProcessPreviewFrame (BufferBlock* bufferBlockInfo);
-    void ProcessEncodeFrame  (BufferBlock* bufferBlockInfo);
-    void ProcessSnapshotFrame(BufferBlock* bufferBlockInfo);
+    typedef std::pair<int, camera3_stream_buffer> image_result;
+
+    void ProcessPreviewFrame (image_result result);
+    void ProcessEncodeFrame  (image_result result);
+    void ProcessSnapshotFrame(image_result result);
+
+    int getMeta(int frameNumber, camera_image_metadata_t *retMeta){
+        for(camera_image_metadata_t c : resultMetaRing){
+            fprintf(stderr, "%s, %d : %d - %d\n", __FUNCTION__, __LINE__, frameNumber, c.frame_id );
+
+            if(c.frame_id == frameNumber){
+                fprintf(stderr, "%s, %d\n\n", __FUNCTION__, __LINE__ );
+
+                *retMeta = c;
+                return 0;
+            }
+        }
+        return -1;
+    }
 
     // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
     // the time of processing the frame result. When we register the callbacks with the camera module, we register the starting
@@ -188,45 +205,43 @@ private:
         }
     }
 
-    camera_module_t*                   pCameraModule;               ///< Camera module
-    VideoEncoder*                      pVideoEncoder;
-    ModalExposureHist                  expHistInterface;
-    ModalExposureMSV                   expMSVInterface;
-    Camera3Callbacks                   cameraCallbacks;             ///< Camera callbacks
-    camera3_device_t*                  pDevice;                     ///< HAL3 device
-    uint8_t                            num_streams;
-    camera3_stream_t                   p_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                   e_stream;                    ///< Stream to be used for the encoded request
-    camera3_stream_t                   s_stream;                    ///< Stream to be used for the snapshots request
-    android::CameraMetadata            requestMetadata;             ///< Per request metadata
-    BufferGroup                        p_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                        e_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                        s_bufferGroup;               ///< Buffer manager per stream
-    pthread_t                          requestThread;               ///< Request thread private data
-    pthread_t                          resultThread;                ///< Result Thread private data
-    pthread_mutex_t                    resultMutex;                 ///< Mutex for list access
-    pthread_cond_t                     resultCond;                  ///< Condition variable for wake up
-    pthread_mutex_t                    aeMutex;                     ///< Mutex for list access
-    bool                               is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
-    int64_t                            currentFrameNumber = 0;      ///< Frame Number
-    int64_t                            setExposure = 5259763;       ///< Exposure
-    int32_t                            setGain     = 800;           ///< Gain
-    std::list<camera3_stream_buffer>   resultMsgQueue;
-    std::list<camera_image_metadata_t> resultMetaQueue;
-    pthread_mutex_t                    stereoMutex;                 ///< Mutex for stereo comms
-    pthread_cond_t                     stereoCond;                  ///< Condition variable for wake up
-    PerCameraMgr*                      otherMgr;                    ///< Pointer to the partner manager in a stereo pair
-    PCM_MODE                           partnerMode;                 ///< Mode for mono/stereo
-    uint8_t*                           childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
-    camera_image_metadata_t            childInfo;                   ///< Copy of the child frame info
-    bool                               stopped = false;             ///< Indication for the thread to terminate
-    bool                               EStopped = false;            ///< Emergency Stop, terminate without any cleanup
-    int                                lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
-    list<char *>                       snapshotQueue;
-    atomic_int                         numNeededSnapshots {0};
-    int                                lastSnapshotNumber = 0;
-    int                                encodeOutputChannel = -1;
-    camera_image_metadata_t            last_meta = {0};
+    camera_module_t*                    pCameraModule;               ///< Camera module
+    VideoEncoder*                       pVideoEncoder;
+    ModalExposureHist                   expHistInterface;
+    ModalExposureMSV                    expMSVInterface;
+    Camera3Callbacks                    cameraCallbacks;             ///< Camera callbacks
+    camera3_device_t*                   pDevice;                     ///< HAL3 device
+    uint8_t                             num_streams;
+    camera3_stream_t                    p_stream;                    ///< Stream to be used for the preview request
+    camera3_stream_t                    e_stream;                    ///< Stream to be used for the encoded request
+    camera3_stream_t                    s_stream;                    ///< Stream to be used for the snapshots request
+    android::CameraMetadata             requestMetadata;             ///< Per request metadata
+    BufferGroup                         p_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                         e_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                         s_bufferGroup;               ///< Buffer manager per stream
+    pthread_t                           requestThread;               ///< Request thread private data
+    pthread_t                           resultThread;                ///< Result Thread private data
+    pthread_mutex_t                     resultMutex;                 ///< Mutex for list access
+    pthread_cond_t                      resultCond;                  ///< Condition variable for wake up
+    pthread_mutex_t                     aeMutex;                     ///< Mutex for list access
+    bool                                is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
+    int64_t                             setExposure = 5259763;       ///< Exposure
+    int32_t                             setGain     = 800;           ///< Gain
+    std::list<image_result>             resultMsgQueue;
+    RingBuffer<camera_image_metadata_t> resultMetaRing;
+    pthread_mutex_t                     stereoMutex;                 ///< Mutex for stereo comms
+    pthread_cond_t                      stereoCond;                  ///< Condition variable for wake up
+    PerCameraMgr*                       otherMgr;                    ///< Pointer to the partner manager in a stereo pair
+    PCM_MODE                            partnerMode;                 ///< Mode for mono/stereo
+    uint8_t*                            childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
+    camera_image_metadata_t             childInfo;                   ///< Copy of the child frame info
+    bool                                stopped = false;             ///< Indication for the thread to terminate
+    bool                                EStopped = false;            ///< Emergency Stop, terminate without any cleanup
+    int                                 lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
+    list<char *>                        snapshotQueue;
+    atomic_int                          numNeededSnapshots {0};
+    int                                 lastSnapshotNumber = 0;
+    int                                 encodeOutputChannel = -1;
 
     ///< TOF Specific members
 

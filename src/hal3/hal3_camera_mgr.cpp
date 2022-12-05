@@ -58,7 +58,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_ENCODE_BUFFERS 32
+#define NUM_ENCODE_BUFFERS 11
 #define NUM_SNAPSHOT_BUFFERS 16
 
 #define JPEG_DEFUALT_QUALITY        85
@@ -248,9 +248,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         otherMgr->setMaster(this);
     }
-
-    last_meta.framerate = pCameraInfo.fps;
-
 }
 
 PerCameraMgr::~PerCameraMgr() {
@@ -558,9 +555,9 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
     if(pHalResult->partial_result > 1){
 
-        pthread_mutex_lock(&resultMutex);
-
-        last_meta.frame_id=pHalResult->frame_number;
+        camera_image_metadata_t meta;
+        meta.frame_id=pHalResult->frame_number;
+        meta.framerate = configInfo.fps;
 
         M_VERBOSE("Received metadata for frame %d from camera %s\n", pHalResult->frame_number, name);
 
@@ -571,26 +568,27 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         if (!result && entry.count)
         {
-            last_meta.timestamp_ns = entry.data.i64[0];
-            M_VERBOSE("\tTimestamp: %llu\n", last_meta.timestamp_ns);
+            meta.timestamp_ns = entry.data.i64[0];
+            M_VERBOSE("\tTimestamp: %llu\n", meta.timestamp_ns);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_SENSITIVITY, &entry);
 
         if (!result && entry.count)
         {
-            last_meta.gain = entry.data.i32[0];
-            M_VERBOSE("\tGain: %d\n", last_meta.gain);
+            meta.gain = entry.data.i32[0];
+            M_VERBOSE("\tGain: %d\n", meta.gain);
         }
 
         result = find_camera_metadata_ro_entry(pHalResult->result, ANDROID_SENSOR_EXPOSURE_TIME, &entry);
 
         if (!result && entry.count)
         {
-            last_meta.exposure_ns = entry.data.i64[0];
-            M_VERBOSE("\tExposure: %ld\n", last_meta.exposure_ns);
+            meta.exposure_ns = entry.data.i64[0];
+            M_VERBOSE("\tExposure: %ld\n", meta.exposure_ns);
         }
-        pthread_mutex_unlock(&resultMutex);
+
+        resultMetaRing.insert_data(meta);
 
     }
 
@@ -599,23 +597,11 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
         M_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
-        currentFrameNumber = pHalResult->frame_number;
-        if(currentFrameNumber != last_meta.frame_id){
-            M_WARN("Recieved buffer and metadata out of order, skipping\n");
-
-            buffer_handle_t  *handle      = pHalResult->output_buffers[i].buffer;
-            camera3_stream_t *stream      = pHalResult->output_buffers[i].stream;
-            BufferGroup      *bufferGroup = GetBufferGroup(stream);
-            bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
-            return;
-        }
-
         // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
         pthread_mutex_lock(&resultMutex);
 
         // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push_back(pHalResult->output_buffers[i]);
-        resultMetaQueue.push_back(last_meta);
+        resultMsgQueue.push_back({pHalResult->frame_number, pHalResult->output_buffers[i]});
         pthread_cond_signal(&resultCond);
         pthread_mutex_unlock(&resultMutex);
 
@@ -793,11 +779,18 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
 }
 
 
-void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo)
+void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&p_bufferGroup, result.second.buffer);
 
-    camera_image_metadata_t imageInfo = resultMetaQueue.front();
-    resultMetaQueue.pop_front();
+    fprintf(stderr, "%s, %d\n", __FUNCTION__, __LINE__ );
+    camera_image_metadata_t imageInfo;
+    if(getMeta(result.first, &imageInfo)) {
+        M_WARN("Trying to process encode buffer without metadata\n");
+        // bufferPush(e_bufferGroup, bufferBlockInfo);
+        return;
+    }
+
     imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
     imageInfo.width        = p_width;
     imageInfo.height       = p_height;
@@ -1074,10 +1067,18 @@ void PerCameraMgr::ProcessPreviewFrame(BufferBlock* bufferBlockInfo)
 
 }
 
-void PerCameraMgr::ProcessEncodeFrame(BufferBlock* bufferBlockInfo)
+void PerCameraMgr::ProcessEncodeFrame(image_result result)
 {
-    camera_image_metadata_t meta = resultMetaQueue.front();
-    resultMetaQueue.pop_front();
+
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&e_bufferGroup, result.second.buffer);
+
+    fprintf(stderr, "%s, %d\n", __FUNCTION__, __LINE__ );
+    camera_image_metadata_t meta;
+    if(getMeta(result.first, &meta)) {
+        M_WARN("Trying to process encode buffer without metadata\n");
+        bufferPush(e_bufferGroup, result.second.buffer);
+        return;
+    }
 
     meta.width = e_width;
     meta.height = e_height;
@@ -1087,8 +1088,10 @@ void PerCameraMgr::ProcessEncodeFrame(BufferBlock* bufferBlockInfo)
     pVideoEncoder->ProcessFrameToEncode(meta, bufferBlockInfo);
 }
 
-void PerCameraMgr::ProcessSnapshotFrame(BufferBlock* bufferBlockInfo)
+void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
+
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&s_bufferGroup, result.second.buffer);
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
@@ -1251,31 +1254,33 @@ void* PerCameraMgr::ThreadPostProcessResult()
             continue;
         }
 
-        buffer_handle_t  *handle      = resultMsgQueue.front().buffer;
-        camera3_stream_t *stream      = resultMsgQueue.front().stream;
+        image_result result = resultMsgQueue.front();
+        resultMsgQueue.pop_front();
+        pthread_mutex_unlock(&resultMutex);
+
+        buffer_handle_t  *handle      = result.second.buffer;
+        camera3_stream_t *stream      = result.second.stream;
         BufferGroup      *bufferGroup = GetBufferGroup(stream);
 
-        resultMsgQueue.pop_front();
 
         // Coming here means we have a result frame to process
         M_VERBOSE("%s procesing new buffer\n", name);
 
-        BufferBlock* pBufferInfo  = bufferGetBufferInfo(bufferGroup, handle);
         switch (GetStreamId(stream)){
             case STREAM_PREVIEW:
                 M_VERBOSE("Camera: %s processing preview frame\n", name);
-                ProcessPreviewFrame(pBufferInfo);
+                ProcessPreviewFrame(result);
                 bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
             case STREAM_ENCODED: // Not Ready
                 M_VERBOSE("Camera: %s processing encode frame\n", name);
-                ProcessEncodeFrame(pBufferInfo);
+                ProcessEncodeFrame(result);
                 break;
 
             case STREAM_SNAPSHOT:
                 M_VERBOSE("Camera: %s processing snapshot frame\n", name);
-                ProcessSnapshotFrame(pBufferInfo);
+                ProcessSnapshotFrame(result);
                 bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
@@ -1285,10 +1290,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
         }
 
-        if (lastResultFrameNumber == currentFrameNumber)
+        if (lastResultFrameNumber == result.first)
             num_finished_streams++;
 
-        pthread_mutex_unlock(&resultMutex);
 
 
     }
