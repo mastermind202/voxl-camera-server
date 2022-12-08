@@ -56,6 +56,13 @@
 #define NUM_INPUT_BUFFERS  11
 #define NUM_OUTPUT_BUFFERS 16
 
+
+#ifdef APQ8096
+    const char* OMX_LIB_NAME = "/usr/lib/libOmxCore.so";
+#elif QRB5165
+    const char* OMX_LIB_NAME = "/usr/lib/libmm-omxcore.so";
+#endif
+
 ///<@todo Make these functions
 #define Log2(number, power) {OMX_U32 temp = number; power = 0; while ((0 == (temp & 0x1)) && power < 16) {temp >>=0x1; power++;}}
 #define FractionToQ16(q,num,den) { OMX_U32 power; Log2(den,power); q = num << (16 - power); }
@@ -112,11 +119,9 @@ static OMXFreeHandleFunc OMXFreeHandle;
 
 static void __attribute__((constructor)) setupOMXFuncs()
 {
-    #ifdef APQ8096
-        g_pOmxCoreHandle = dlopen("/usr/lib/libOmxCore.so", RTLD_NOW);
-    #elif QRB5165
-        g_pOmxCoreHandle = dlopen("/usr/lib/libmm-omxcore.so", RTLD_NOW);
-    #endif
+
+    g_pOmxCoreHandle = dlopen(OMX_LIB_NAME, RTLD_NOW);
+
     OMXInit =   (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Init");
     OMXDeinit = (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Deinit");
     OMXGetHandle =     (OMXGetHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_GetHandle");
@@ -147,11 +152,11 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
     m_nextInputBufferIndex  = 0;
     m_nextOutputBufferIndex = 0;
 
-    if (OMXInit())
-    {
-        M_ERROR("OMX Init failed!\n");
-        throw -EINVAL;
-    }
+    // if (OMXInit())
+    // {
+    //     M_ERROR("OMX Init failed!\n");
+    //     throw -EINVAL;
+    // }
 
     if (SetConfig(pVideoEncoderConfig))
     {
@@ -243,8 +248,8 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     {
         pComponentName = (char *)"OMX.qcom.video.encoder.avc";
         codingType     = OMX_VIDEO_CodingAVC;
-        profile        = OMX_VIDEO_AVCProfileBaseline;
-        level          = OMX_VIDEO_AVCLevel4;
+        profile        = OMX_VIDEO_AVCProfileHigh;
+        level          = OMX_VIDEO_AVCLevel51;
     }
 
     if (OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks))
@@ -301,54 +306,54 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        // avc.nPFrames                  = 29;
-        // avc.nBFrames                  = 0;
-        // avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
-        // avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        // avc.bUseHadamard              = OMX_FALSE;
-        // avc.nRefFrames                = 1;
-        // avc.nRefIdx10ActiveMinus1     = 1;
-        // avc.nRefIdx11ActiveMinus1     = 0;
-        // avc.bEnableUEP                = OMX_FALSE;
-        // avc.bEnableFMO                = OMX_FALSE;
-        // avc.bEnableASO                = OMX_FALSE;
-        // avc.bEnableRS                 = OMX_FALSE;
-        // avc.nAllowedPictureTypes      = 2;
-        // avc.bFrameMBsOnly             = OMX_FALSE;
-        // avc.bMBAFF                    = OMX_FALSE;
-        // avc.bWeightedPPrediction      = OMX_FALSE;
-        // avc.nWeightedBipredicitonMode = 0;
-        // avc.bconstIpred               = OMX_FALSE;
-        // avc.bDirect8x8Inference       = OMX_FALSE;
-        // avc.bDirectSpatialTemporal    = OMX_FALSE;
-        // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
-        // avc.bEntropyCodingCABAC       = OMX_FALSE;
-        // avc.nCabacInitIdc             = 0;
-
-
         avc.nPFrames                  = 29;
         avc.nBFrames                  = 0;
         avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
         avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        avc.bUseHadamard              = OMX_TRUE;
+        avc.bUseHadamard              = OMX_FALSE;
         avc.nRefFrames                = 1;
-        avc.nRefIdx10ActiveMinus1     = 0;
+        avc.nRefIdx10ActiveMinus1     = 1;
         avc.nRefIdx11ActiveMinus1     = 0;
         avc.bEnableUEP                = OMX_FALSE;
         avc.bEnableFMO                = OMX_FALSE;
         avc.bEnableASO                = OMX_FALSE;
         avc.bEnableRS                 = OMX_FALSE;
-        avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
-        avc.bFrameMBsOnly             = OMX_TRUE;
+        avc.nAllowedPictureTypes      = 2;
+        avc.bFrameMBsOnly             = OMX_FALSE;
         avc.bMBAFF                    = OMX_FALSE;
         avc.bWeightedPPrediction      = OMX_FALSE;
+        avc.nWeightedBipredicitonMode = 0;
         avc.bconstIpred               = OMX_FALSE;
         avc.bDirect8x8Inference       = OMX_FALSE;
         avc.bDirectSpatialTemporal    = OMX_FALSE;
         avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
         avc.bEntropyCodingCABAC       = OMX_FALSE;
         avc.nCabacInitIdc             = 0;
-        avc.nSliceHeaderSpacing       = 0;
+
+
+        // avc.nPFrames                  = 29;
+        // avc.nBFrames                  = 0;
+        // avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
+        // avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
+        // avc.bUseHadamard              = OMX_TRUE;
+        // avc.nRefFrames                = 1;
+        // avc.nRefIdx10ActiveMinus1     = 0;
+        // avc.nRefIdx11ActiveMinus1     = 0;
+        // avc.bEnableUEP                = OMX_FALSE;
+        // avc.bEnableFMO                = OMX_FALSE;
+        // avc.bEnableASO                = OMX_FALSE;
+        // avc.bEnableRS                 = OMX_FALSE;
+        // avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
+        // avc.bFrameMBsOnly             = OMX_TRUE;
+        // avc.bMBAFF                    = OMX_FALSE;
+        // avc.bWeightedPPrediction      = OMX_FALSE;
+        // avc.bconstIpred               = OMX_FALSE;
+        // avc.bDirect8x8Inference       = OMX_FALSE;
+        // avc.bDirectSpatialTemporal    = OMX_FALSE;
+        // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
+        // avc.bEntropyCodingCABAC       = OMX_FALSE;
+        // avc.nCabacInitIdc             = 0;
+        // avc.nSliceHeaderSpacing       = 0;
 
 
         OMX_RESET_STRUCT_SIZE_VERSION(&avc, OMX_VIDEO_PARAM_AVCTYPE);
@@ -470,6 +475,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
+    OMX_SendCommand(m_OMXHandle, OMX_CommandPortEnable, PortIndexIn, NULL);
     // Set/Get input port parameters
     if (SetPortParams((OMX_U32)PortIndexIn,
                       (OMX_U32)(pVideoEncoderConfig->width),
@@ -688,6 +694,10 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
         M_ERROR("OMX_EmptyThisBuffer failed for framebuffer: %d\n", meta.frame_id);
     }
     #ifndef USE_HAL_INPUT_BUFFERS
+        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
+    #endif
+
+    #ifdef USE_HAL_INPUT_BUFFERS
         bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
     #endif
 
@@ -912,10 +922,10 @@ OMX_ERRORTYPE OMXEmptyBufferHandler(OMX_IN OMX_HANDLETYPE        hComponent,    
                                     OMX_IN OMX_PTR               pAppData,      ///< Any private app data
                                     OMX_IN OMX_BUFFERHEADERTYPE* pBuffer)       ///< Buffer that has been emptied
 {
-    #ifdef USE_HAL_INPUT_BUFFERS
-        VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
-        bufferPushAddress(*pVideoEncoder->m_pHALInputBuffers, pBuffer->pBuffer);
-    #endif
+    // #ifdef USE_HAL_INPUT_BUFFERS
+    //     VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
+    //     bufferPushAddress(*pVideoEncoder->m_pHALInputBuffers, pBuffer->pBuffer);
+    // #endif
 
     return OMX_ErrorNone;
 }
@@ -989,7 +999,8 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         meta.size_bytes = pOMXBuffer->nFilledLen;
         meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
 
-        // pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
+        pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
+        M_WARN("Sent encoded frame: %d\n", frameNumber);
 
         // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX
         // component

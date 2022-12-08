@@ -137,11 +137,9 @@ private:
 
     int getMeta(int frameNumber, camera_image_metadata_t *retMeta){
         for(camera_image_metadata_t c : resultMetaRing){
-            fprintf(stderr, "%s, %d : %d - %d\n", __FUNCTION__, __LINE__, frameNumber, c.frame_id );
+            // fprintf(stderr, "%s, %d : %d - %d\n", __FUNCTION__, __LINE__, frameNumber, c.frame_id );
 
             if(c.frame_id == frameNumber){
-                fprintf(stderr, "%s, %d\n\n", __FUNCTION__, __LINE__ );
-
                 *retMeta = c;
                 return 0;
             }

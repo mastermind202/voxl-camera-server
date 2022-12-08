@@ -196,9 +196,9 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .height =            (uint32_t)e_height,  ///< Image height
                 .format =            (uint32_t)e_halFmt,  ///< Image format
                 .isBitRateConstant = true,      ///< Is the bit rate constant
-                .targetBitRate =     1000000,      ///< Desired target bitrate
+                .targetBitRate =     50000000,      ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            false,       ///< Is it H265 encoding or H264
+                .isH265 =            true,       ///< Is it H265 encoding or H264
                 .inputBuffers =      &e_bufferGroup,
                 .outputPipe =        encodeOutputChannel
             };
@@ -783,7 +783,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&p_bufferGroup, result.second.buffer);
 
-    fprintf(stderr, "%s, %d\n", __FUNCTION__, __LINE__ );
+    fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
     camera_image_metadata_t imageInfo;
     if(getMeta(result.first, &imageInfo)) {
         M_WARN("Trying to process encode buffer without metadata\n");
@@ -1072,7 +1072,7 @@ void PerCameraMgr::ProcessEncodeFrame(image_result result)
 
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&e_bufferGroup, result.second.buffer);
 
-    fprintf(stderr, "%s, %d\n", __FUNCTION__, __LINE__ );
+    fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
