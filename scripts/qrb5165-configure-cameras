@@ -47,15 +47,17 @@ print_configurations () {
     echo -e "2  Tracking Only"
     echo -e "3  Hires + Stereo(OV7251) + Tracking"
     echo -e "4  Hires + Tracking"
-    echo -e "${SET_STRIKETHROUGH}5  TOF + Tracking${RESET_ALL}"
+    echo -e "5  TOF + Tracking"
     echo -e "6  Hires + TOF + Tracking"
-    echo -e "${SET_STRIKETHROUGH}7  TOF + Stereo(OV7251) + Tracking${RESET_ALL}"
+    echo -e "7  TOF + Stereo(OV7251) + Tracking"
     echo -e "8  Hires Only"
     echo -e "9  TOF Only"
     echo -e "10 Stereo(OV7251) only"
     echo -e "11 Tracking + Hires + Dual Stereo(OV7251) Pairs"
     echo -e "12 Stereo(OV9782) only"
     echo -e "13 Hires + Stereo(OV7251)"
+    echo -e "14 Stereo(OV9782) + TOF + Tracking"
+
 }
 
 print_usage () {
@@ -154,12 +156,8 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("hires:imx214:1")
         ;;
     5) # TOF + Tracking
-        echo "Configuration ${CAM_CONFIG_ID} is not supported on the QRB5165 Platform yet"
-        exit -1
-    #   HIRES_CAM_ID=-1
-    #   TRACKING_CAM_ID=1
-    #   STEREO_CAM_ID=-1
-    #   TOF_CAM_ID=0
+        CAM_LIST+=("tof:pmd-tof:0")
+        CAM_LIST+=("tracking:ov7251:1")
         ;;
     6) # Hires + TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
@@ -192,6 +190,11 @@ case $CAM_CONFIG_ID in
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")
         CAM_LIST+=("stereo:ov7251:1:2")
+        ;;
+    14) # Stereo 9782 + TOF + Tracking
+        CAM_LIST+=("tof:pmd-tof:0")
+        CAM_LIST+=("tracking:ov7251:1")
+        CAM_LIST+=("stereo:ov9782:2:3")
         ;;
     *)
         echo "invalid option"

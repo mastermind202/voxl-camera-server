@@ -68,6 +68,7 @@ print_configurations () {
     echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo(OV7251) Pairs${RESET_ALL}"
     echo -e "12 Stereo(OV9782) only"
     echo -e "13 Hires + Stereo(OV7251)"
+    echo -e "14 Stereo(OV9782) + TOF + Tracking"
 
 }
 
@@ -220,6 +221,11 @@ case $CAM_CONFIG_ID in
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")
         CAM_LIST+=("stereo:ov7251:1:2")
+        ;;
+    14) # Stereo 9782 + TOF + Tracking
+        CAM_LIST+=("tof:pmd-tof:0")
+        CAM_LIST+=("tracking:ov7251:1")
+        CAM_LIST+=("stereo:ov9782:2:3")
         ;;
     *)
         echo "invalid option"
