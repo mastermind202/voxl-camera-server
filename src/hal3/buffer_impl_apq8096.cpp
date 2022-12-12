@@ -57,6 +57,9 @@ void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
     const int height = pBufferInfo->height;
     const int width  = pBufferInfo->width;
 
+    if(((uint8_t*)(pBufferInfo->vaddress) + (width*height)) == offsetMap.at(pBufferInfo)) {
+        return;
+    }
     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
 }
 
