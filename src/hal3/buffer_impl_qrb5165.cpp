@@ -72,18 +72,24 @@ int allocateOneBuffer(
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
-        stride = ALIGN_BYTE(width, 64);
+        stride = ALIGN_BYTE(width, 256);
         slice = ALIGN_BYTE(height, 64);
-        buffer_size = (size_t)(stride * slice * 3 / 2);
+        // stride = width;
+        // slice = height;
+        buffer_size = (size_t)(stride * slice * 3 / 2) + (4096 * 400);
+        // buffer_size = (size_t)(stride * slice * 4 / 2);
 
-        M_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+
+
+        M_DEBUG("Allocating Buffer: %dx%d stride: %d %s\n",
                     width,
                     height,
+                    stride,
                     "HAL_PIXEL_FORMAT_YCBCR_420_888");
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
         buffer_size = width;
 
-        M_VERBOSE("Allocating Buffer: %dx%d : %s\n",
+        M_DEBUG("Allocating Buffer: %dx%d : %s\n",
                     width,
                     height,
                     "HAL_PIXEL_FORMAT_BLOB" );

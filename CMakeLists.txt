@@ -52,6 +52,9 @@ set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib -Wl,--unresolved-symbols
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-format-overflow -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
 set(SERVERNAME voxl-camera-server)
 
+# We know what we're doing
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format-truncation -Wno-pointer-arith")
+
 
 if(PLATFORM MATCHES QRB5165)
 set(CMAKE_CXX_FLAGS "-L/usr/lib64 ${CMAKE_CXX_FLAGS}")

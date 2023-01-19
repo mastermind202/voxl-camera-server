@@ -49,6 +49,7 @@
 #include "omx_video_encoder.h"
 #include "buffer_manager.h"
 #include "common_defs.h"
+#include "voxl_camera_server.h"
 
 #define USE_HAL_INPUT_BUFFERS
 // #undef USE_HAL_INPUT_BUFFERS
@@ -56,11 +57,13 @@
 #define NUM_INPUT_BUFFERS  11
 #define NUM_OUTPUT_BUFFERS 16
 
-
 #ifdef APQ8096
     const char* OMX_LIB_NAME = "/usr/lib/libOmxCore.so";
+    const OMX_COLOR_FORMATTYPE   OMX_COLOR_FMT = OMX_QCOM_COLOR_FormatYVU420SemiPlanar;
 #elif QRB5165
     const char* OMX_LIB_NAME = "/usr/lib/libmm-omxcore.so";
+    const OMX_COLOR_FORMATTYPE   OMX_COLOR_FMT = OMX_COLOR_FormatYUV420SemiPlanar;
+    // const OMX_COLOR_FORMATTYPE   OMX_COLOR_FMT = 0x7fa30c0a;
 #endif
 
 ///<@todo Make these functions
@@ -152,11 +155,11 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
     m_nextInputBufferIndex  = 0;
     m_nextOutputBufferIndex = 0;
 
-    // if (OMXInit())
-    // {
-    //     M_ERROR("OMX Init failed!\n");
-    //     throw -EINVAL;
-    // }
+    if (OMXInit())
+    {
+        M_ERROR("OMX Init failed!\n");
+        throw -EINVAL;
+    }
 
     if (SetConfig(pVideoEncoderConfig))
     {
@@ -194,7 +197,6 @@ VideoEncoder::~VideoEncoder()
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
         OMX_FreeBuffer(m_OMXHandle, PortIndexIn, m_ppInputBuffers[i]);
-        usleep(100000);
     }
 
     delete m_ppInputBuffers;
@@ -202,7 +204,6 @@ VideoEncoder::~VideoEncoder()
     for (uint32_t i = 0; i < m_outputBufferCount; i++)
     {
         OMX_FreeBuffer(m_OMXHandle, PortIndexOut, m_ppOutputBuffers[i]);
-        usleep(100000);
     }
 
     delete m_ppOutputBuffers;
@@ -215,6 +216,127 @@ VideoEncoder::~VideoEncoder()
 
 }
 
+static const char * colorFormatStr(OMX_COLOR_FORMATTYPE fmt) {
+    switch (fmt){
+        case OMX_COLOR_FormatUnused:
+            return "OMX_COLOR_FormatUnused";
+        case OMX_COLOR_FormatMonochrome:
+            return "OMX_COLOR_FormatMonochrome";
+        case OMX_COLOR_Format8bitRGB332:
+            return "OMX_COLOR_Format8bitRGB332";
+        case OMX_COLOR_Format12bitRGB444:
+            return "OMX_COLOR_Format12bitRGB444";
+        case OMX_COLOR_Format16bitARGB4444:
+            return "OMX_COLOR_Format16bitARGB4444";
+        case OMX_COLOR_Format16bitARGB1555:
+            return "OMX_COLOR_Format16bitARGB1555";
+        case OMX_COLOR_Format16bitRGB565:
+            return "OMX_COLOR_Format16bitRGB565";
+        case OMX_COLOR_Format16bitBGR565:
+            return "OMX_COLOR_Format16bitBGR565";
+        case OMX_COLOR_Format18bitRGB666:
+            return "OMX_COLOR_Format18bitRGB666";
+        case OMX_COLOR_Format18bitARGB1665:
+            return "OMX_COLOR_Format18bitARGB1665";
+        case OMX_COLOR_Format19bitARGB1666:
+            return "OMX_COLOR_Format19bitARGB1666";
+        case OMX_COLOR_Format24bitRGB888:
+            return "OMX_COLOR_Format24bitRGB888";
+        case OMX_COLOR_Format24bitBGR888:
+            return "OMX_COLOR_Format24bitBGR888";
+        case OMX_COLOR_Format24bitARGB1887:
+            return "OMX_COLOR_Format24bitARGB1887";
+        case OMX_COLOR_Format25bitARGB1888:
+            return "OMX_COLOR_Format25bitARGB1888";
+        case OMX_COLOR_Format32bitBGRA8888:
+            return "OMX_COLOR_Format32bitBGRA8888";
+        case OMX_COLOR_Format32bitARGB8888:
+            return "OMX_COLOR_Format32bitARGB8888";
+        case OMX_COLOR_FormatYUV411Planar:
+            return "OMX_COLOR_FormatYUV411Planar";
+        case OMX_COLOR_FormatYUV411PackedPlanar:
+            return "OMX_COLOR_FormatYUV411PackedPlanar";
+        case OMX_COLOR_FormatYUV420Planar:
+            return "OMX_COLOR_FormatYUV420Planar";
+        case OMX_COLOR_FormatYUV420PackedPlanar:
+            return "OMX_COLOR_FormatYUV420PackedPlanar";
+        case OMX_COLOR_FormatYUV420SemiPlanar:
+            return "OMX_COLOR_FormatYUV420SemiPlanar";
+        case OMX_COLOR_FormatYUV422Planar:
+            return "OMX_COLOR_FormatYUV422Planar";
+        case OMX_COLOR_FormatYUV422PackedPlanar:
+            return "OMX_COLOR_FormatYUV422PackedPlanar";
+        case OMX_COLOR_FormatYUV422SemiPlanar:
+            return "OMX_COLOR_FormatYUV422SemiPlanar";
+        case OMX_COLOR_FormatYCbYCr:
+            return "OMX_COLOR_FormatYCbYCr";
+        case OMX_COLOR_FormatYCrYCb:
+            return "OMX_COLOR_FormatYCrYCb";
+        case OMX_COLOR_FormatCbYCrY:
+            return "OMX_COLOR_FormatCbYCrY";
+        case OMX_COLOR_FormatCrYCbY:
+            return "OMX_COLOR_FormatCrYCbY";
+        case OMX_COLOR_FormatYUV444Interleaved:
+            return "OMX_COLOR_FormatYUV444Interleaved";
+        case OMX_COLOR_FormatRawBayer8bit:
+            return "OMX_COLOR_FormatRawBayer8bit";
+        case OMX_COLOR_FormatRawBayer10bit:
+            return "OMX_COLOR_FormatRawBayer10bit";
+        case OMX_COLOR_FormatRawBayer8bitcompressed:
+            return "OMX_COLOR_FormatRawBayer8bitcompressed";
+        case OMX_COLOR_FormatL2:
+            return "OMX_COLOR_FormatL2";
+        case OMX_COLOR_FormatL4:
+            return "OMX_COLOR_FormatL4";
+        case OMX_COLOR_FormatL8:
+            return "OMX_COLOR_FormatL8";
+        case OMX_COLOR_FormatL16:
+            return "OMX_COLOR_FormatL16";
+        case OMX_COLOR_FormatL24:
+            return "OMX_COLOR_FormatL24";
+        case OMX_COLOR_FormatL32:
+            return "OMX_COLOR_FormatL32";
+        case OMX_COLOR_FormatYUV420PackedSemiPlanar:
+            return "OMX_COLOR_FormatYUV420PackedSemiPlanar";
+        case OMX_COLOR_FormatYUV422PackedSemiPlanar:
+            return "OMX_COLOR_FormatYUV422PackedSemiPlanar";
+        case OMX_COLOR_Format18BitBGR666:
+            return "OMX_COLOR_Format18BitBGR666";
+        case OMX_COLOR_Format24BitARGB6666:
+            return "OMX_COLOR_Format24BitARGB6666";
+        case OMX_COLOR_Format24BitABGR6666:
+            return "OMX_COLOR_Format24BitABGR6666";
+        case OMX_COLOR_FormatKhronosExtensions:
+            return "OMX_COLOR_FormatKhronosExtensions";
+        case OMX_COLOR_FormatVendorStartUnused:
+            return "OMX_COLOR_FormatVendorStartUnused";
+        case OMX_COLOR_FormatAndroidOpaque:
+            return "OMX_COLOR_FormatAndroidOpaque";
+        case OMX_COLOR_Format32BitRGBA8888:
+            return "OMX_COLOR_Format32BitRGBA8888";
+        case OMX_COLOR_FormatYUV420Flexible:
+            return "OMX_COLOR_FormatYUV420Flexible";
+        case OMX_COLOR_FormatYUV420Planar16:
+            return "OMX_COLOR_FormatYUV420Planar16";
+        case OMX_COLOR_FormatYUV444Y410:
+            return "OMX_COLOR_FormatYUV444Y410";
+        case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+            return "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar";
+        case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
+            return "OMX_QCOM_COLOR_FormatYVU420SemiPlanar";
+        case OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka:
+            return "OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka";
+        case OMX_SEC_COLOR_FormatNV12Tiled:
+            return "OMX_SEC_COLOR_FormatNV12Tiled";
+        case OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m:
+            return "OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m";
+        case OMX_COLOR_FormatMax:
+            return "OMX_COLOR_FormatMax";
+        default:
+            return "Unknown";
+    }
+}
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // This configures the OMX component i.e. the video encoder's input, output ports and all its parameters and gets it into a
 // ready to use state. After this function we can start sending input buffers to the video encoder and it will start sending
@@ -225,15 +347,13 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     OMX_CALLBACKTYPE                 callbacks = {OMXEventHandler, OMXEmptyBufferHandler, OMXFillHandler};
     OMX_COLOR_FORMATTYPE             omxFormat = OMX_COLOR_FormatMax;
     OMX_VIDEO_PARAM_PORTFORMATTYPE   videoPortFmt;
-    OMX_VIDEO_PARAM_PROFILELEVELTYPE profileLevel;
+    // OMX_VIDEO_PARAM_PROFILELEVELTYPE profileLevel;
     int  codingType;
-    int  profile;
-    int  level;
 
     m_pHALInputBuffers = pVideoEncoderConfig->inputBuffers;
 
     OMX_RESET_STRUCT(&videoPortFmt, OMX_VIDEO_PARAM_PORTFORMATTYPE);
-    OMX_RESET_STRUCT(&profileLevel, OMX_VIDEO_PARAM_PROFILELEVELTYPE);
+    // OMX_RESET_STRUCT(&profileLevel, OMX_VIDEO_PARAM_PROFILELEVELTYPE);
 
     char* pComponentName;
 
@@ -241,15 +361,11 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     {
         pComponentName = (char *)"OMX.qcom.video.encoder.hevc";
         codingType     = OMX_VIDEO_CodingHEVC;
-        profile        = OMX_VIDEO_HEVCProfileMain;
-        level          = OMX_VIDEO_HEVCHighTierLevel3;
     }
     else
     {
         pComponentName = (char *)"OMX.qcom.video.encoder.avc";
         codingType     = OMX_VIDEO_CodingAVC;
-        profile        = OMX_VIDEO_AVCProfileHigh;
-        level          = OMX_VIDEO_AVCLevel51;
     }
 
     if (OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks))
@@ -258,19 +374,18 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
-    if (pVideoEncoderConfig->format == HAL_PIXEL_FORMAT_YCbCr_420_888)
-    {
-        omxFormat = OMX_QCOM_COLOR_FormatYVU420SemiPlanar;
-    }
-    else
+    if (pVideoEncoderConfig->format != HAL_PIXEL_FORMAT_YCbCr_420_888)
     {
         M_ERROR("OMX Unknown video recording format!\n");
         return OMX_ErrorBadParameter;
     }
 
+    omxFormat = OMX_COLOR_FMT;
     bool isFormatSupported = false;
     // Check if OMX component supports the input frame format
     OMX_S32 index = 0;
+
+    M_DEBUG("Available color formats for OMX:\n");
 
     while (!OMX_GetParameter(m_OMXHandle, OMX_IndexParamVideoPortFormat, (OMX_PTR)&videoPortFmt))
     {
@@ -280,15 +395,17 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         if (videoPortFmt.eColorFormat == omxFormat)
         {
             isFormatSupported = true;
-            break;
+            // break;
         }
+
+        M_DEBUG("\t%s (0x%x)\n", colorFormatStr(videoPortFmt.eColorFormat), videoPortFmt.eColorFormat);
 
         index++;
     }
 
     if (!isFormatSupported)
     {
-        M_ERROR("OMX unsupported video input format: %d\n", videoPortFmt.eColorFormat);
+        M_ERROR("OMX unsupported video input format: %s\n", colorFormatStr(omxFormat));
         return OMX_ErrorBadParameter;
     }
 
@@ -306,54 +423,54 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        avc.nPFrames                  = 29;
-        avc.nBFrames                  = 0;
-        avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
-        avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        avc.bUseHadamard              = OMX_FALSE;
-        avc.nRefFrames                = 1;
-        avc.nRefIdx10ActiveMinus1     = 1;
-        avc.nRefIdx11ActiveMinus1     = 0;
-        avc.bEnableUEP                = OMX_FALSE;
-        avc.bEnableFMO                = OMX_FALSE;
-        avc.bEnableASO                = OMX_FALSE;
-        avc.bEnableRS                 = OMX_FALSE;
-        avc.nAllowedPictureTypes      = 2;
-        avc.bFrameMBsOnly             = OMX_FALSE;
-        avc.bMBAFF                    = OMX_FALSE;
-        avc.bWeightedPPrediction      = OMX_FALSE;
-        avc.nWeightedBipredicitonMode = 0;
-        avc.bconstIpred               = OMX_FALSE;
-        avc.bDirect8x8Inference       = OMX_FALSE;
-        avc.bDirectSpatialTemporal    = OMX_FALSE;
-        avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
-        avc.bEntropyCodingCABAC       = OMX_FALSE;
-        avc.nCabacInitIdc             = 0;
-
-
         // avc.nPFrames                  = 29;
         // avc.nBFrames                  = 0;
         // avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
         // avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        // avc.bUseHadamard              = OMX_TRUE;
+        // avc.bUseHadamard              = OMX_FALSE;
         // avc.nRefFrames                = 1;
-        // avc.nRefIdx10ActiveMinus1     = 0;
+        // avc.nRefIdx10ActiveMinus1     = 1;
         // avc.nRefIdx11ActiveMinus1     = 0;
         // avc.bEnableUEP                = OMX_FALSE;
         // avc.bEnableFMO                = OMX_FALSE;
         // avc.bEnableASO                = OMX_FALSE;
         // avc.bEnableRS                 = OMX_FALSE;
-        // avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
-        // avc.bFrameMBsOnly             = OMX_TRUE;
+        // avc.nAllowedPictureTypes      = 2;
+        // avc.bFrameMBsOnly             = OMX_FALSE;
         // avc.bMBAFF                    = OMX_FALSE;
         // avc.bWeightedPPrediction      = OMX_FALSE;
+        // avc.nWeightedBipredicitonMode = 0;
         // avc.bconstIpred               = OMX_FALSE;
         // avc.bDirect8x8Inference       = OMX_FALSE;
         // avc.bDirectSpatialTemporal    = OMX_FALSE;
         // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
         // avc.bEntropyCodingCABAC       = OMX_FALSE;
         // avc.nCabacInitIdc             = 0;
-        // avc.nSliceHeaderSpacing       = 0;
+
+
+        avc.nPFrames                  = pVideoEncoderConfig->frameRate - 1;
+        avc.nBFrames                  = 0;
+        avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
+        avc.eLevel                    = OMX_VIDEO_AVCLevel51;
+        avc.bUseHadamard              = OMX_TRUE;
+        avc.nRefFrames                = 2;
+        avc.nRefIdx10ActiveMinus1     = 0;
+        avc.nRefIdx11ActiveMinus1     = 0;
+        avc.bEnableUEP                = OMX_FALSE;
+        avc.bEnableFMO                = OMX_FALSE;
+        avc.bEnableASO                = OMX_FALSE;
+        avc.bEnableRS                 = OMX_FALSE;
+        avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
+        avc.bFrameMBsOnly             = OMX_TRUE;
+        avc.bMBAFF                    = OMX_FALSE;
+        avc.bWeightedPPrediction      = OMX_TRUE;
+        avc.bconstIpred               = OMX_TRUE;
+        avc.bDirect8x8Inference       = OMX_TRUE;
+        avc.bDirectSpatialTemporal    = OMX_TRUE;
+        avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
+        avc.bEntropyCodingCABAC       = OMX_TRUE;
+        avc.nCabacInitIdc             = 1;
+        avc.nSliceHeaderSpacing       = 1024;
 
 
         OMX_RESET_STRUCT_SIZE_VERSION(&avc, OMX_VIDEO_PARAM_AVCTYPE);
@@ -379,8 +496,8 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        hevc.eProfile = (OMX_VIDEO_HEVCPROFILETYPE)profile;
-        hevc.eLevel   = (OMX_VIDEO_HEVCLEVELTYPE)level;
+        hevc.eProfile = OMX_VIDEO_HEVCProfileMain;
+        hevc.eLevel   = OMX_VIDEO_HEVCHighTierLevel3;
 
         OMX_RESET_STRUCT_SIZE_VERSION(&hevc, OMX_VIDEO_PARAM_HEVCTYPE);
 
@@ -396,6 +513,50 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         M_ERROR("Unsupported coding type!\n");
         return OMX_ErrorBadParameter;
     }
+
+
+    {
+        //SetUp QP parameter.
+        // RC ON
+        QOMX_EXTNINDEX_VIDEO_INITIALQP initqp;
+        OMX_RESET_STRUCT_SIZE_VERSION(&initqp, QOMX_EXTNINDEX_VIDEO_INITIALQP);
+        initqp.nPortIndex = 1;
+        initqp.nQpI = 27;
+        initqp.nQpP = 28;
+        initqp.nQpB = 28;
+        initqp.bEnableInitQp = 0x7; // Intial QP applied to all frame
+        if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
+            static_cast<OMX_INDEXTYPE>(QOMX_IndexParamVideoInitialQp),
+            reinterpret_cast<OMX_PTR>(&initqp))) {
+            M_ERROR("%s Failed to set Initial QP parameter\n", __func__);
+            return ret;
+        }
+
+        OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
+        OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
+        qp_range.nPortIndex = 1;
+
+        if(OMX_ERRORTYPE ret = OMX_GetParameter(m_OMXHandle,
+            static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
+            reinterpret_cast<OMX_PTR>(&qp_range))) {
+            M_ERROR("%s Failed to get IPBQP Range parameter\n", __func__);
+            return ret;
+        }
+        qp_range.minIQP = 10;
+        qp_range.maxIQP = 51;
+        qp_range.minPQP = 10;
+        qp_range.maxPQP = 51;
+        qp_range.minBQP = 10;
+        qp_range.maxBQP = 51;
+
+        if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
+            static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
+            reinterpret_cast<OMX_PTR>(&qp_range))) {
+            M_ERROR("%s Failed to set IPBQP Range parameter\n", __func__);
+            return ret;
+        }
+    }
+
 
     // Set framerate
     OMX_CONFIG_FRAMERATETYPE framerate;
@@ -420,7 +581,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
-    // // Set Color aspect parameters
+    // Set Color aspect parameters
     // android::DescribeColorAspectsParams colorParams;
     // OMX_RESET_STRUCT(&colorParams, android::DescribeColorAspectsParams);
     // colorParams.nPortIndex = PortIndexIn;
@@ -530,7 +691,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             }
             // The OMX component i.e. the video encoder allocates the block, gets the memory from hal
             if (int ret = OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
-                    pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
+                    (OMX_U8*)pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
             {
                 M_ERROR("OMX_UseBuffer on input buffer: %d failed\n", i);
                 OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
@@ -601,12 +762,14 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
     FractionToQ16(sPortDef.format.video.xFramerate,(int)(frameRate * 2), 2);
 
     sPortDef.format.video.nFrameWidth  = width;
+    sPortDef.format.video.nStride      = width;
     sPortDef.format.video.nFrameHeight = height;
     sPortDef.format.video.nBitrate     = bitrate;
 
     if (portIndex == PortIndexIn)
     {
         sPortDef.format.video.eColorFormat = inputFormat;
+        // sPortDef.bBuffersContiguous = OMX_TRUE;
     }
 
     OMX_RESET_STRUCT_SIZE_VERSION(&sPortDef, OMX_PARAM_PORTDEFINITIONTYPE);
@@ -647,6 +810,15 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
         return OMX_ErrorUndefined;
     }
 
+    M_WARN("Port Def %d:\n\tCount Min: %d\n\tCount Actual: %d\n\tSize: 0x%x\n\tBuffers Contiguous: %s\n\tBuffer Alignment: %d\n",
+        portIndex,
+        sPortDef.nBufferCountMin,
+        sPortDef.nBufferCountActual,
+        sPortDef.nBufferSize,
+        sPortDef.bBuffersContiguous ? "Yes" : "No",
+        sPortDef.nBufferAlignment
+        );
+
     *pBufferCount = sPortDef.nBufferCountActual;
     *pBufferSize  = sPortDef.nBufferSize;
 
@@ -673,6 +845,65 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
             }
         }
         M_VERBOSE("Encoder Buffer Hit\n");
+        OMXBuffer->nFilledLen = buffer->width * (buffer->height + 275) * 3 / 2;
+        // OMXBuffer->nFilledLen = buffer->size;
+
+        // const int offset = (buffer->size - (buffer->width * buffer->height * 1.5))/1.5 / buffer->width;
+
+        uint8_t *src = (uint8_t*)buffer->vaddress + 4096 * (2160 + 16);
+        uint8_t *dest = src + 4096 * 384;
+
+        for(int i = 4096 * 2160 / 2; i > 0; i--){
+            dest[i] = src[i];
+        }
+
+        #define ENABLE_MANUAL_DEALIAS
+        #undef ENABLE_MANUAL_DEALIAS
+
+        #ifdef ENABLE_MANUAL_DEALIAS
+            static uint8_t *local;
+
+            if(!local){
+                local = malloc(buffer->size * 4);
+                if(!local){
+                    M_ERROR("Failed to alloc test memory\n");
+                    EStopCameraServer();
+                    return;
+                }
+            }
+
+            memcpy(local, buffer->vaddress, (buffer->width * buffer->height) * 3 / 2);
+            // memset(buffer->vaddress , 255, buffer->size);
+
+            // static int extra_bytes_per_row = buffer->width * 0.6;
+            // static int extra_bytes_per_row = buffer->height * 0.8;
+            // static int extra_bytes_per_row = 384; //640x480 OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m
+            // static int extra_bytes_per_row = 128; //1920x1080 OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m
+            // static int extra_bytes_per_row = 128; //640x480 0x7fa30c0a
+            // static int extra_bytes_per_row = 128; //1920x1080 0x7fa30c0a
+            // static int extra_bytes_per_row = 128;
+            static int extra_bytes_per_row = 0;
+
+            // static int rows_between_layers = 8; //1920x1080 0x7fa30c0a
+            static int rows_between_layers = 0;
+
+            for(int i = 0; i < buffer->height; i++){
+
+                uint8_t * dest = buffer->vaddress + (i * (buffer->width + extra_bytes_per_row));
+                memcpy(dest, local + (i * buffer->width), buffer->width);
+                // memset(dest + buffer->width, 255, extra_bytes_per_row);
+            }
+
+            for(int i = buffer->height; i < buffer->height * 1.5; i++){
+
+                uint8_t * dest = buffer->vaddress + ((i + rows_between_layers) * (buffer->width + extra_bytes_per_row));
+                memcpy(dest, local + (i * buffer->width), buffer->width);
+                // memset(dest + buffer->width, 255, extra_bytes_per_row);
+            }
+
+            OMXBuffer->nFilledLen = ((buffer->height * 1.5) + rows_between_layers) * (buffer->width + extra_bytes_per_row) ;
+        #endif
+
     #else
         OMX_BUFFERHEADERTYPE* OMXBuffer = m_ppInputBuffers[m_nextInputBufferIndex++];
 
@@ -684,22 +915,16 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
         uint8_t*     pDestAddress = (uint8_t*)OMXBuffer->pBuffer;
         uint8_t*     pSrcAddress  = (uint8_t*)buffer->vaddress;
         memcpy(pDestAddress, pSrcAddress, buffer->size);
+        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
+        OMXBuffer->nFilledLen = buffer->size;
     #endif
 
-    OMXBuffer->nFilledLen = buffer->size;
     OMXBuffer->nTimeStamp = meta.timestamp_ns;
 
     if (OMX_EmptyThisBuffer(m_OMXHandle, OMXBuffer))
     {
         M_ERROR("OMX_EmptyThisBuffer failed for framebuffer: %d\n", meta.frame_id);
     }
-    #ifndef USE_HAL_INPUT_BUFFERS
-        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
-    #endif
-
-    #ifdef USE_HAL_INPUT_BUFFERS
-        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
-    #endif
 
 }
 
@@ -922,10 +1147,9 @@ OMX_ERRORTYPE OMXEmptyBufferHandler(OMX_IN OMX_HANDLETYPE        hComponent,    
                                     OMX_IN OMX_PTR               pAppData,      ///< Any private app data
                                     OMX_IN OMX_BUFFERHEADERTYPE* pBuffer)       ///< Buffer that has been emptied
 {
-    // #ifdef USE_HAL_INPUT_BUFFERS
-    //     VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
-    //     bufferPushAddress(*pVideoEncoder->m_pHALInputBuffers, pBuffer->pBuffer);
-    // #endif
+
+    VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
+    bufferPushAddress(*pVideoEncoder->m_pHALInputBuffers, pBuffer->pBuffer);
 
     return OMX_ErrorNone;
 }
@@ -1000,7 +1224,7 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
 
         pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
-        M_WARN("Sent encoded frame: %d\n", frameNumber);
+        M_VERBOSE("Sent encoded frame: %d\n", frameNumber);
 
         // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX
         // component

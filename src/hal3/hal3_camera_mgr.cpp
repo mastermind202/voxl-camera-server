@@ -58,7 +58,7 @@
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS 16
-#define NUM_ENCODE_BUFFERS 11
+#define NUM_ENCODE_BUFFERS 10
 #define NUM_SNAPSHOT_BUFFERS 16
 
 #define JPEG_DEFUALT_QUALITY        85
@@ -66,6 +66,9 @@
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
 #define MAX_STEREO_DISCREPENCY_NS ((1000000000/configInfo.fps)*0.9)
+
+#define DISABLE_PREVIEW_STREAM
+// #undef DISABLE_PREVIEW_STREAM
 
 // Platform Specific Flags
 #ifdef APQ8096
@@ -100,7 +103,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     p_halFmt          (HalFmtFromType(pCameraInfo.p_format)),
     e_width           (pCameraInfo.e_width),
     e_height          (pCameraInfo.e_height),
-    e_halFmt          (HAL3_FMT_YUV),
+    e_halFmt          (HAL_PIXEL_FORMAT_YCbCr_420_888),
     s_width           (pCameraInfo.s_width),
     s_height          (pCameraInfo.s_height),
     s_halFmt          (HAL_PIXEL_FORMAT_BLOB),
@@ -195,10 +198,10 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .width =             (uint32_t)e_width,   ///< Image width
                 .height =            (uint32_t)e_height,  ///< Image height
                 .format =            (uint32_t)e_halFmt,  ///< Image format
-                .isBitRateConstant = true,      ///< Is the bit rate constant
-                .targetBitRate =     50000000,      ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            true,       ///< Is it H265 encoding or H264
+                .isBitRateConstant = true,                ///< Is the bit rate constant
+                .targetBitRate =     10000000,            ///< Desired target bitrate
+                .frameRate =         pCameraInfo.fps,     ///< Frame rate
+                .isH265 =            false,               ///< Is it H265 encoding or H264
                 .inputBuffers =      &e_bufferGroup,
                 .outputPipe =        encodeOutputChannel
             };
@@ -278,8 +281,10 @@ int PerCameraMgr::ConfigureStreams()
     p_stream.max_buffers = NUM_PREVIEW_BUFFERS;
     p_stream.priv        = 0;
 
-    streams.push_back(&p_stream);
-    streamConfig.num_streams ++;
+    #ifndef DISABLE_PREVIEW_STREAM
+        streams.push_back(&p_stream);
+        streamConfig.num_streams ++;
+    #endif
 
     if(en_encode) {
         e_stream.stream_type = CAMERA3_STREAM_OUTPUT;
@@ -287,8 +292,8 @@ int PerCameraMgr::ConfigureStreams()
         e_stream.height      = e_height;
         e_stream.format      = e_halFmt;
         e_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-        e_stream.usage       = GRALLOC_USAGE_HW_VIDEO_ENCODER;
-        // e_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+        // e_stream.usage       = GRALLOC_USAGE_HW_VIDEO_ENCODER;
+        e_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
         e_stream.rotation    = ROTATION_MODE;
         e_stream.max_buffers = NUM_ENCODE_BUFFERS;
         e_stream.priv        = 0;
@@ -763,7 +768,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     fclose(file_descriptor);
 }
 
-static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint16_t *raw16Buf) 
+static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint16_t *raw16Buf)
 {
     // Convert image buffer from MIPI RAW12 to RAW16 format
     // ToF MIPI RAW12 is stored in the format of:
@@ -1072,7 +1077,7 @@ void PerCameraMgr::ProcessEncodeFrame(image_result result)
 
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&e_bufferGroup, result.second.buffer);
 
-    fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
+    // fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
@@ -1085,7 +1090,19 @@ void PerCameraMgr::ProcessEncodeFrame(image_result result)
 
     // bufferMakeYUVContiguous(bufferBlockInfo);
 
+    #ifdef DISABLE_PREVIEW_STREAM
+    meta.magic_number = CAMERA_MAGIC_NUMBER;
+    meta.format = IMAGE_FORMAT_NV12;
+    meta.size_bytes = meta.width * meta.height * 3 / 2;
+    pipe_server_write_camera_frame(outputChannel, meta, bufferBlockInfo->vaddress);
+    // pipe_server_write(outputChannel, &meta, sizeof(camera_image_metadata_t));
+    // pipe_server_write(outputChannel, bufferBlockInfo->vaddress, e_width * e_height);
+    // pipe_server_write(outputChannel, bufferBlockInfo->vaddress + e_width * e_height, e_width * e_height / 2);
+
+    #endif
+
     pVideoEncoder->ProcessFrameToEncode(meta, bufferBlockInfo);
+
 }
 
 void PerCameraMgr::ProcessSnapshotFrame(image_result result)
@@ -1324,21 +1341,25 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
-    camera3_stream_buffer_t pstreamBuffer;
-    if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(p_bufferGroup)) == NULL) {
-        M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
-        EStopCameraServer();
-        return -1;
-    }
-    pstreamBuffer.stream        = &p_stream;
-    pstreamBuffer.status        = 0;
-    pstreamBuffer.acquire_fence = -1;
-    pstreamBuffer.release_fence = -1;
+    #ifndef DISABLE_PREVIEW_STREAM
+        camera3_stream_buffer_t pstreamBuffer;
+        if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(p_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            EStopCameraServer();
+            return -1;
+        }
+        pstreamBuffer.stream        = &p_stream;
+        pstreamBuffer.status        = 0;
+        pstreamBuffer.acquire_fence = -1;
+        pstreamBuffer.release_fence = -1;
 
-    request.num_output_buffers ++;
-    streamBufferList.push_back(pstreamBuffer);
+        request.num_output_buffers ++;
+        streamBufferList.push_back(pstreamBuffer);
+    #endif
 
-    if(en_encode && pipe_server_get_num_clients(encodeOutputChannel)){
+    #ifndef DISABLE_PREVIEW_STREAM
+        if(en_encode && pipe_server_get_num_clients(encodeOutputChannel)){
+    #endif
 
         camera3_stream_buffer_t estreamBuffer;
         if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(e_bufferGroup)) == NULL) {
@@ -1355,7 +1376,9 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         request.num_output_buffers ++;
         streamBufferList.push_back(estreamBuffer);
 
-    }
+    #ifndef DISABLE_PREVIEW_STREAM
+        }
+    #endif
 
     if(en_snapshot && numNeededSnapshots > 0){
         numNeededSnapshots --;
@@ -1454,6 +1477,13 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
+        if(!getNumClients() && !numNeededSnapshots){
+
+            //TODODODODODODOD THIS NEEDS TO BE A COND SLEEP
+            usleep(100000);
+
+            if(stopped || EStopped) break;
+        }
         ProcessOneCaptureRequest(++frame_number);
     }
 
@@ -1747,7 +1777,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         if(ae_mode != AE_OFF) {
             ae_mode = AE_OFF;
             ConstructDefaultRequestSettings();
-            
+
             if(otherMgr){
                 otherMgr->ae_mode = AE_OFF;
                 otherMgr->ConstructDefaultRequestSettings();
