@@ -70,6 +70,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonFpsString          "frame_rate"               ///< Fps
 #define JsonIndExpString       "independent_exposure"     ///< Independent exposure for a stereo pair
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
+#define JsonAEModeString       "ae_mode"                  ///< AE Mode
 #define JsonAEFilterAlpha      "ae_filter_alpha"          ///< Modal AE MSV Algo filter alpha
 #define JsonAEIgnoreFraction   "ae_ignore_fraction"       ///< Modal AE MSV algo ignore frac for most saturated
 #define JsonAESlope            "ae_slope"                 ///< Modal AE MSV algo Exp/Gain Slope
@@ -98,6 +99,9 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 
     std::list<int> cameraIds;
     std::list<string> cameraNames;
+
+    // If we should re-write the file to populate new fields i.e. different AE params
+    bool need_rewrite = false;
 
     int numCameras;
     for(cJSON *cur = json_fetch_array(head, "cameras", &numCameras)->child;
@@ -166,6 +170,28 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonSWidthString,        &info.s_width,   info.s_width);
         json_fetch_int_with_default  (cur, JsonSHeightString,       &info.s_height,  info.s_height);
 
+        // See if the user has defined a specific AE mode,
+        //    though we have the default so don't need to error out if they didnt
+        if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
+            if (strcasecmp(buffer,"off") == 0) {
+                info.ae_mode = AE_OFF;
+            }
+            else if (strcasecmp(buffer,"isp") == 0) {
+                info.ae_mode = AE_ISP;
+            }
+            else if (strcasecmp(buffer,"lme_hist") == 0) {
+                info.ae_mode = AE_LME_HIST;
+            }
+            else if (strcasecmp(buffer,"lme_msv") == 0) {
+                info.ae_mode = AE_LME_MSV;
+            }
+            else {
+                M_ERROR("Reading config file: invalid ae_mode: %s\n\tOptions are: 'off' 'isp' 'lme_hist' lme_msv'\n", buffer);
+                goto ERROR_EXIT;
+            }
+            need_rewrite = true;
+        }
+
         json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
         json_fetch_float_with_default (cur, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
         json_fetch_float_with_default (cur, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
@@ -182,6 +208,8 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         cameras.push_back(info);
 
     }
+
+    if(need_rewrite) WriteConfigFile(cameras);
 
     cJSON_free(head);
     return S_OK;
@@ -233,6 +261,20 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         }
 
         if(info.camId2 != -1) cJSON_AddBoolToObject(node, JsonIndExpString, info.ind_exp);
+        switch (info.ae_mode) {
+            case AE_OFF:
+                cJSON_AddStringToObject(node, JsonAEModeString, "off");
+                break;
+            case AE_ISP:
+                cJSON_AddStringToObject(node, JsonAEModeString, "isp");
+                break;
+            case AE_LME_HIST:
+                cJSON_AddStringToObject(node, JsonAEModeString, "lme_hist");
+                break;
+            case AE_LME_MSV:
+                cJSON_AddStringToObject(node, JsonAEModeString, "lme_msv");
+                break;
+        }
 
         if(info.ae_mode == AE_LME_HIST){
             cJSON_AddNumberToObject (node, JsonAEDesiredMSVString ,  info.ae_hist_info.desired_msv);
