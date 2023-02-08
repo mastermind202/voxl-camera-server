@@ -49,9 +49,14 @@ static const PerCameraInfo OV7251Defaults =
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_RAW8,                   //< Preview Frame format
+        false,                      //< Enable Video Stream
+        -1,                         //< Video Stream Width of the frame
+        -1,                         //< Video Stream Height of the frame
+        -1,                         //< Video Stream Bitrate
         false,                      //< Enable Video Record
         -1,                         //< Video Record Width of the frame
         -1,                         //< Video Record Height of the frame
+        -1,                         //< Video Record Bitrate
         false,                      //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -100,9 +105,14 @@ static const PerCameraInfo OV9782Defaults =
         1280,                       //< Preview Width of the frame
         800,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
+        false,                      //< Enable Video Stream
+        -1,                         //< Video Stream Width of the frame
+        -1,                         //< Video Stream Height of the frame
+        -1,                         //< Video Stream Bitrate
         false,                      //< Enable Video Record
         -1,                         //< Video Record Width of the frame
         -1,                         //< Video Record Height of the frame
+        -1,                         //< Video Record Bitrate
         false,                      //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -152,9 +162,25 @@ static const PerCameraInfo IMX214Defaults =
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
+    #ifdef APQ8096
+        true,                       //< Enable Video Stream
+        1280,                       //< Video Stream Width of the frame
+        720,                        //< Video Stream Height of the frame
+        3000000,                    //< Video Stream Bitrate
         true,                       //< Enable Video Record
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
+        10000000,                   //< Video Record Bitrate
+    #elif QRB5165
+        true,                       //< Enable Video Stream
+        1024,                       //< Video Stream Width of the frame
+        768,                        //< Video Stream Height of the frame
+        3000000,                    //< Video Stream Bitrate
+        true,                       //< Enable Video Record
+        4096,                       //< Video Record Width of the frame
+        2160,                       //< Video Record Height of the frame
+        120000000,                  //< Video Record Bitrate
+    #endif
         true,                       //< Enable Snapshot mode?
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
@@ -190,9 +216,14 @@ static const PerCameraInfo TOFDefaults =
         224,                        //< Preview Width of the frame
         1557,                       //< Preview Height of the frame
         FMT_TOF,                    //< Preview Frame format
+        false,                      //< Enable Video Stream
+        -1,                         //< Video Stream Width of the frame
+        -1,                         //< Video Stream Height of the frame
+        -1,                         //< Video Stream Bitrate
         false,                      //< Enable Video Record
         -1,                         //< Video Record Width of the frame
         -1,                         //< Video Record Height of the frame
+        -1,                         //< Video Record Bitrate
         false,                      //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -213,9 +244,14 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Preview Width of the frame
         -1,                         //< Preview Height of the frame
         FMT_INVALID,                //< Preview Frame format
+        false,                      //< Enable Video Stream
+        -1,                         //< Video Stream Width of the frame
+        -1,                         //< Video Stream Height of the frame
+        -1,                         //< Video Stream Bitrate
         false,                      //< Enable Video Record
         -1,                         //< Video Record Width of the frame
         -1,                         //< Video Record Height of the frame
+        -1,                         //< Video Record Bitrate
         false,                      //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame

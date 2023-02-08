@@ -25,6 +25,7 @@
 
 typedef struct _BufferBlock {
     void*             vaddress;
+    void*             uvHead;
     unsigned long int size;
     unsigned int      width;
     unsigned int      height;
@@ -48,7 +49,6 @@ int bufferAllocateBuffers(
     unsigned long int consumerFlags);
 
 void bufferDeleteBuffers(BufferGroup& buffer);
-void bufferMakeYUVContiguous(BufferBlock* pBufferInfo);
 void bufferPush(BufferGroup& bufferGroup, buffer_handle_t* buffer);
 void bufferPushAddress(BufferGroup& bufferGroup, void* vaddress);
 buffer_handle_t* bufferPop(BufferGroup& bufferGroup);

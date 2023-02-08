@@ -57,27 +57,27 @@
 
 #define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
-#define NUM_PREVIEW_BUFFERS 16
-#define NUM_ENCODE_BUFFERS 10
+#define NUM_PREVIEW_BUFFERS  16
+#define NUM_STREAM_BUFFERS   16
+#define NUM_RECORD_BUFFERS   16
 #define NUM_SNAPSHOT_BUFFERS 16
 
-#define JPEG_DEFUALT_QUALITY        85
+#define JPEG_DEFUALT_QUALITY        75
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
 #define MAX_STEREO_DISCREPENCY_NS ((1000000000/configInfo.fps)*0.9)
 
-#define DISABLE_PREVIEW_STREAM
-// #undef DISABLE_PREVIEW_STREAM
-
 // Platform Specific Flags
 #ifdef APQ8096
     #define ROTATION_MODE  CAMERA3_STREAM_ROTATION_0
     #define OPERATION_MODE QCAMERA3_VENDOR_STREAM_CONFIGURATION_RAW_ONLY_MODE
+    #define ENCODER_USAGE  GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE
     #define SNAPSHOT_DS    HAL_DATASPACE_JFIF
 #elif QRB5165
     #define ROTATION_MODE  2
     #define OPERATION_MODE CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE
+    #define ENCODER_USAGE  GRALLOC_USAGE_HW_VIDEO_ENCODER
     #define SNAPSHOT_DS    HAL_DATASPACE_V0_JFIF
 #else
     #error "No Platform defined"
@@ -96,17 +96,23 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
-    en_encode         (pCameraInfo.en_encode),
+    en_stream         (pCameraInfo.en_stream),
+    en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
-    p_width           (pCameraInfo.p_width),
-    p_height          (pCameraInfo.p_height),
-    p_halFmt          (HalFmtFromType(pCameraInfo.p_format)),
-    e_width           (pCameraInfo.e_width),
-    e_height          (pCameraInfo.e_height),
-    e_halFmt          (HAL_PIXEL_FORMAT_YCbCr_420_888),
-    s_width           (pCameraInfo.s_width),
-    s_height          (pCameraInfo.s_height),
-    s_halFmt          (HAL_PIXEL_FORMAT_BLOB),
+    pre_width         (pCameraInfo.pre_width),
+    pre_height        (pCameraInfo.pre_height),
+    pre_halfmt        (HalFmtFromType(pCameraInfo.pre_format)),
+    str_width         (pCameraInfo.str_width),
+    str_height        (pCameraInfo.str_height),
+    str_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
+    str_bitrate       (pCameraInfo.str_bitrate),
+    rec_width         (pCameraInfo.rec_width),
+    rec_height        (pCameraInfo.rec_height),
+    rec_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
+    rec_bitrate       (pCameraInfo.rec_bitrate),
+    snap_width        (pCameraInfo.snap_width),
+    snap_height       (pCameraInfo.snap_height),
+    snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
     ae_mode           (pCameraInfo.ae_mode),
     pCameraModule     (HAL3_get_camera_module()),
     expHistInterface  (pCameraInfo.ae_hist_info),
@@ -126,21 +132,27 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
     // we just exit. The stream configuration is checked into the static metadata associated with every camera.
-    if (!HAL3_is_config_supported(cameraId, p_width, p_height, p_halFmt))
+    if (!HAL3_is_config_supported(cameraId, pre_width, pre_height, pre_halfmt))
     {
-        M_ERROR("Camera %d failed to find supported preview config: %dx%d\n", cameraId, p_width, p_height);
+        M_ERROR("Camera %d failed to find supported preview config: %dx%d\n", cameraId, pre_width, pre_height);
 
         throw -EINVAL;
     }
-    if (en_encode && !HAL3_is_config_supported(cameraId, e_width, e_height, e_halFmt))
+    if (en_stream && !HAL3_is_config_supported(cameraId, str_width, str_height, str_halfmt))
     {
-        M_ERROR("Camera %d failed to find supported encode config: %dx%d\n", cameraId, e_width, e_height);
+        M_ERROR("Camera %d failed to find supported stream config: %dx%d\n", cameraId, str_width, str_height);
 
         throw -EINVAL;
     }
-    if (en_snapshot && !HAL3_is_config_supported(cameraId, s_width, s_height, s_halFmt))
+    if (en_record && !HAL3_is_config_supported(cameraId, rec_width, rec_height, rec_halfmt))
     {
-        M_ERROR("Camera %d failed to find supported snapshot config: %dx%d\n", cameraId, s_width, s_height);
+        M_ERROR("Camera %d failed to find supported record config: %dx%d\n", cameraId, rec_width, rec_height);
+
+        throw -EINVAL;
+    }
+    if (en_snapshot && !HAL3_is_config_supported(cameraId, snap_width, snap_height, snap_halfmt))
+    {
+        M_ERROR("Camera %d failed to find supported snapshot config: %dx%d\n", cameraId, snap_width, snap_height);
 
         throw -EINVAL;
     }
@@ -169,48 +181,82 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         throw -EINVAL;
     }
 
-    if (bufferAllocateBuffers(p_bufferGroup,
+    if (bufferAllocateBuffers(pre_bufferGroup,
                               NUM_PREVIEW_BUFFERS,
-                              p_stream.width,
-                              p_stream.height,
-                              p_stream.format,
-                              p_stream.usage)) {
+                              pre_stream.width,
+                              pre_stream.height,
+                              pre_stream.format,
+                              pre_stream.usage)) {
         M_ERROR("Failed to allocate preview buffers for camera: %s\n", name);
 
         throw -EINVAL;
     }
+    M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
 
-    if (en_encode) {
+    if (en_stream) {
 
-        if (bufferAllocateBuffers(e_bufferGroup,
-                                  NUM_ENCODE_BUFFERS,
-                                  e_stream.width,
-                                  e_stream.height,
-                                  e_stream.format,
-                                  e_stream.usage)) {
+        if (bufferAllocateBuffers(str_bufferGroup,
+                                  NUM_STREAM_BUFFERS,
+                                  str_stream.width,
+                                  str_stream.height,
+                                  str_stream.format,
+                                  str_stream.usage)) {
             M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
             throw -EINVAL;
         }
 
         try{
-            encodeOutputChannel = pipe_server_get_next_available_channel();
+            streamOutputChannel = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)e_width,   ///< Image width
-                .height =            (uint32_t)e_height,  ///< Image height
-                .format =            (uint32_t)e_halFmt,  ///< Image format
-                .isBitRateConstant = true,                ///< Is the bit rate constant
-                .targetBitRate =     10000000,            ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,     ///< Frame rate
-                .isH265 =            false,               ///< Is it H265 encoding or H264
-                .inputBuffers =      &e_bufferGroup,
-                .outputPipe =        encodeOutputChannel
+                .width =             (uint32_t)str_width,   ///< Image width
+                .height =            (uint32_t)str_height,  ///< Image height
+                .format =            (uint32_t)str_halfmt,  ///< Image format
+                .isBitRateConstant = true,                  ///< Is the bit rate constant
+                .targetBitRate =     str_bitrate,           ///< Desired target bitrate
+                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .isH265 =            false,                 ///< Is it H265 encoding or H264
+                .inputBuffers =      &str_bufferGroup,
+                .outputPipe =        streamOutputChannel
             };
-            pVideoEncoder = new VideoEncoder(&enc_info);
+            pVideoEncoderStream = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
         }
+        M_DEBUG("Successfully set up pipeline for stream: STREAM\n\n");
+    }
 
+    if (en_record) {
+
+        if (bufferAllocateBuffers(rec_bufferGroup,
+                                  NUM_RECORD_BUFFERS,
+                                  rec_stream.width,
+                                  rec_stream.height,
+                                  rec_stream.format,
+                                  rec_stream.usage)) {
+            M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
+            throw -EINVAL;
+        }
+
+        try{
+            recordOutputChannel = pipe_server_get_next_available_channel();
+            VideoEncoderConfig enc_info = {
+                .width =             (uint32_t)rec_width,   ///< Image width
+                .height =            (uint32_t)rec_height,  ///< Image height
+                .format =            (uint32_t)rec_halfmt,  ///< Image format
+                .isBitRateConstant = true,                  ///< Is the bit rate constant
+                .targetBitRate =     rec_bitrate,           ///< Desired target bitrate
+                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .isH265 =            false,                 ///< Is it H265 encoding or H264
+                .inputBuffers =      &rec_bufferGroup,
+                .outputPipe =        recordOutputChannel
+            };
+            pVideoEncoderRecord = new VideoEncoder(&enc_info);
+        } catch(int) {
+            M_ERROR("Failed to initialize encoder for camera: %s\n", name);
+            throw -EINVAL;
+        }
+        M_DEBUG("Successfully set up pipeline for stream: RECORD\n\n");
     }
 
     if (en_snapshot) {
@@ -219,18 +265,19 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         pCameraModule->get_camera_info(cameraId, &halCameraInfo);
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
 
-        int blobWidth = estimateJpegBufferSize(pStaticMetadata, s_width, s_height);
+        int blobWidth = estimateJpegBufferSize(pStaticMetadata, snap_width, snap_height);
 
-        if(bufferAllocateBuffers(s_bufferGroup,
+        if(bufferAllocateBuffers(snap_bufferGroup,
                                  NUM_SNAPSHOT_BUFFERS,
                                  blobWidth,
                                  1,
-                                 s_stream.format,
-                                 s_stream.usage)) {
+                                 snap_stream.format,
+                                 snap_stream.usage)) {
             M_ERROR("Failed to allocate snapshot buffers for camera: %s\n", name);
 
             throw -EINVAL;
         }
+        M_DEBUG("Successfully set up pipeline for stream: SNAPSHOT\n\n");
     }
 
     if(configInfo.camId2 == -1){
@@ -244,7 +291,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         newInfo.camId2 = -1;
 
         // These are disabled until(if) we figure out a good way to handle them
-        newInfo.en_encode = false;
+        newInfo.en_stream = false;
+        newInfo.en_record = false;
         newInfo.en_snapshot = false;
 
         otherMgr = new PerCameraMgr(newInfo);
@@ -271,49 +319,61 @@ int PerCameraMgr::ConfigureStreams()
 
     streamConfig.num_streams    = 0;
 
-    p_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-    p_stream.width       = p_width;
-    p_stream.height      = p_height;
-    p_stream.format      = p_halFmt;
-    p_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-    p_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    p_stream.rotation    = ROTATION_MODE;
-    p_stream.max_buffers = NUM_PREVIEW_BUFFERS;
-    p_stream.priv        = 0;
+    pre_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+    pre_stream.width       = pre_width;
+    pre_stream.height      = pre_height;
+    pre_stream.format      = pre_halfmt;
+    pre_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+    pre_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+    pre_stream.rotation    = ROTATION_MODE;
+    pre_stream.max_buffers = NUM_PREVIEW_BUFFERS;
+    pre_stream.priv        = 0;
 
-    #ifndef DISABLE_PREVIEW_STREAM
-        streams.push_back(&p_stream);
+    streams.push_back(&pre_stream);
+    streamConfig.num_streams ++;
+
+    if(en_stream) {
+        str_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        str_stream.width       = str_width;
+        str_stream.height      = str_height;
+        str_stream.format      = str_halfmt;
+        str_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        str_stream.usage       = ENCODER_USAGE;
+        str_stream.rotation    = ROTATION_MODE;
+        str_stream.max_buffers = NUM_STREAM_BUFFERS;
+        str_stream.priv        = 0;
+
+        streams.push_back(&str_stream);
         streamConfig.num_streams ++;
-    #endif
+    }
 
-    if(en_encode) {
-        e_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        e_stream.width       = e_width;
-        e_stream.height      = e_height;
-        e_stream.format      = e_halFmt;
-        e_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-        // e_stream.usage       = GRALLOC_USAGE_HW_VIDEO_ENCODER;
-        e_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-        e_stream.rotation    = ROTATION_MODE;
-        e_stream.max_buffers = NUM_ENCODE_BUFFERS;
-        e_stream.priv        = 0;
+    if(en_record) {
+        rec_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        rec_stream.width       = rec_width;
+        rec_stream.height      = rec_height;
+        rec_stream.format      = rec_halfmt;
+        rec_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        rec_stream.usage       = ENCODER_USAGE;
+        rec_stream.rotation    = ROTATION_MODE;
+        rec_stream.max_buffers = NUM_RECORD_BUFFERS;
+        rec_stream.priv        = 0;
 
-        streams.push_back(&e_stream);
+        streams.push_back(&rec_stream);
         streamConfig.num_streams ++;
     }
 
     if(en_snapshot) {
-        s_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        s_stream.width       = s_width;
-        s_stream.height      = s_height;
-        s_stream.format      = s_halFmt;
-        s_stream.data_space  = SNAPSHOT_DS;
-        s_stream.usage       = GRALLOC_USAGE_SW_READ_OFTEN;
-        s_stream.rotation    = ROTATION_MODE;
-        s_stream.max_buffers = NUM_SNAPSHOT_BUFFERS;
-        s_stream.priv        = 0;
+        snap_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        snap_stream.width       = snap_width;
+        snap_stream.height      = snap_height;
+        snap_stream.format      = snap_halfmt;
+        snap_stream.data_space  = SNAPSHOT_DS;
+        snap_stream.usage       = GRALLOC_USAGE_SW_READ_OFTEN;
+        snap_stream.rotation    = ROTATION_MODE;
+        snap_stream.max_buffers = NUM_SNAPSHOT_BUFFERS;
+        snap_stream.priv        = 0;
 
-        streams.push_back(&s_stream);
+        streams.push_back(&snap_stream);
         streamConfig.num_streams ++;
     }
 
@@ -469,8 +529,12 @@ void PerCameraMgr::Start()
         }
     }
 
-    if(pVideoEncoder) {
-        pVideoEncoder->Start();
+    if(pVideoEncoderStream) {
+        pVideoEncoderStream->Start();
+    }
+
+    if(pVideoEncoderRecord) {
+        pVideoEncoderRecord->Start();
     }
 
     pthread_condattr_t condAttr;
@@ -524,14 +588,20 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-    if(pVideoEncoder) {
-        pVideoEncoder->Stop();
-        delete pVideoEncoder;
+    if(pVideoEncoderStream) {
+        pVideoEncoderStream->Stop();
+        delete pVideoEncoderStream;
     }
 
-    bufferDeleteBuffers(p_bufferGroup);
-    bufferDeleteBuffers(e_bufferGroup);
-    bufferDeleteBuffers(s_bufferGroup);
+    if(pVideoEncoderRecord) {
+        pVideoEncoderRecord->Stop();
+        delete pVideoEncoderRecord;
+    }
+
+    bufferDeleteBuffers(pre_bufferGroup);
+    bufferDeleteBuffers(str_bufferGroup);
+    bufferDeleteBuffers(rec_bufferGroup);
+    bufferDeleteBuffers(snap_bufferGroup);
 
     if (pDevice != NULL)
     {
@@ -786,19 +856,18 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
 
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&p_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
 
-    fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
     camera_image_metadata_t imageInfo;
     if(getMeta(result.first, &imageInfo)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        // bufferPush(e_bufferGroup, bufferBlockInfo);
+        // bufferPush(rec_bufferGroup, bufferBlockInfo);
         return;
     }
 
     imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
-    imageInfo.width        = p_width;
-    imageInfo.height       = p_height;
+    imageInfo.width        = pre_width;
+    imageInfo.height       = pre_height;
 
     uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
 
@@ -811,10 +880,10 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                         imageInfo.timestamp_ns);
         #elif QRB5165
 
-            uint16_t srcPixel16[p_width * p_height] = {0};
+            uint16_t srcPixel16[pre_width * pre_height] = {0};
             imageInfo.format     = IMAGE_FORMAT_RAW8;
-            imageInfo.size_bytes = p_width * p_height;
-            imageInfo.stride     = p_width;
+            imageInfo.size_bytes = pre_width * pre_height;
+            imageInfo.stride     = pre_width;
 
             // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
             Mipi12ToRaw16(imageInfo, (uint8_t *)srcPixel, srcPixel16);
@@ -825,7 +894,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     }
 
 
-    if (p_halFmt == HAL_PIXEL_FORMAT_RAW10)
+    if (pre_halfmt == HAL_PIXEL_FORMAT_RAW10)
     {
         M_VERBOSE("Preview format HAL_PIXEL_FORMAT_RAW10\n");
 
@@ -833,7 +902,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         if(imageInfo.frame_id == 1){
             M_DEBUG("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
-            if((is10bit = Check10bit(srcPixel, p_width, p_height))){
+            if((is10bit = Check10bit(srcPixel, pre_width, pre_height))){
                 M_WARN("Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
             } else {
                 M_DEBUG("Frame was actually 8 bit, sending as is\n");
@@ -841,22 +910,27 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         }
 
         imageInfo.format     = IMAGE_FORMAT_RAW8;
-        imageInfo.size_bytes = p_width * p_height;
-        imageInfo.stride     = p_width;
+        imageInfo.size_bytes = pre_width * pre_height;
+        imageInfo.stride     = pre_width;
 
         if(is10bit){
             ConvertTo8bitRaw(srcPixel,
-                             p_width,
-                             p_height);
+                             pre_width,
+                             pre_height);
         }
     }
-    else if (p_halFmt == HAL3_FMT_YUV)
+    else if (pre_halfmt == HAL3_FMT_YUV)
     {
-        M_VERBOSE("Preview format HAL3_FMT_YUV\n");
         imageInfo.format     = IMAGE_FORMAT_NV12;
-        bufferMakeYUVContiguous(bufferBlockInfo);
+        // bufferMakeYUVContiguous(bufferBlockInfo);
         ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
         imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
+
+        pipe_server_write_list(outputChannel,
+                    &imageInfo,                sizeof(camera_image_metadata_t),
+                    bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
+                    bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2);
+        return ;
 
     } else {
         M_ERROR("Camera: %s received invalid preview format, stopping\n", name);
@@ -874,8 +948,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 srcPixel,
-                p_width,
-                p_height,
+                pre_width,
+                pre_height,
                 imageInfo.exposure_ns,
                 imageInfo.gain,
                 &new_exposure_ns,
@@ -887,8 +961,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
                 srcPixel,
-                p_width,
-                p_height,
+                pre_width,
+                pre_height,
                 imageInfo.exposure_ns,
                 imageInfo.gain,
                 &new_exposure_ns,
@@ -904,11 +978,11 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         switch (imageInfo.format){
             case IMAGE_FORMAT_NV12:
                 imageInfo.format = IMAGE_FORMAT_STEREO_NV12;
-                imageInfo.size_bytes = p_width * p_height * 1.5 * 2;
+                imageInfo.size_bytes = pre_width * pre_height * 1.5 * 2;
                 break;
             case IMAGE_FORMAT_RAW8:
                 imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
-                imageInfo.size_bytes = p_width * p_height * 2;
+                imageInfo.size_bytes = pre_width * pre_height * 2;
                 break;
             case IMAGE_FORMAT_STEREO_RAW8:
             case IMAGE_FORMAT_STEREO_NV21:
@@ -979,8 +1053,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 srcPixel,
-                p_width,
-                p_height,
+                pre_width,
+                pre_height,
                 imageInfo.exposure_ns,
                 imageInfo.gain,
                 &new_exposure_ns,
@@ -998,8 +1072,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
                 srcPixel,
-                p_width,
-                p_height,
+                pre_width,
+                pre_height,
                 imageInfo.exposure_ns,
                 imageInfo.gain,
                 &new_exposure_ns,
@@ -1040,8 +1114,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             pthread_mutex_lock(&aeMutex);
             if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                     srcPixel,
-                    p_width,
-                    p_height,
+                    pre_width,
+                    pre_height,
                     imageInfo.exposure_ns,
                     imageInfo.gain,
                     &new_exposure_ns,
@@ -1053,8 +1127,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
             if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
                     srcPixel,
-                    p_width,
-                    p_height,
+                    pre_width,
+                    pre_height,
                     imageInfo.exposure_ns,
                     imageInfo.gain,
                     &new_exposure_ns,
@@ -1072,50 +1146,55 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
 }
 
-void PerCameraMgr::ProcessEncodeFrame(image_result result)
+void PerCameraMgr::ProcessStreamFrame(image_result result)
 {
 
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&e_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&str_bufferGroup, result.second.buffer);
 
-    // fprintf(stderr, "%s, %d\n", __FUNCTION__, result.first );
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
-        M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(e_bufferGroup, result.second.buffer);
+        M_WARN("Trying to process record buffer without metadata\n");
+        bufferPush(str_bufferGroup, result.second.buffer);
         return;
     }
 
-    meta.width = e_width;
-    meta.height = e_height;
+    meta.width =  str_width;
+    meta.height = str_height;
 
-    // bufferMakeYUVContiguous(bufferBlockInfo);
+    pVideoEncoderStream->ProcessFrameToEncode(meta, bufferBlockInfo);
 
-    #ifdef DISABLE_PREVIEW_STREAM
-    meta.magic_number = CAMERA_MAGIC_NUMBER;
-    meta.format = IMAGE_FORMAT_NV12;
-    meta.size_bytes = meta.width * meta.height * 3 / 2;
-    pipe_server_write_camera_frame(outputChannel, meta, bufferBlockInfo->vaddress);
-    // pipe_server_write(outputChannel, &meta, sizeof(camera_image_metadata_t));
-    // pipe_server_write(outputChannel, bufferBlockInfo->vaddress, e_width * e_height);
-    // pipe_server_write(outputChannel, bufferBlockInfo->vaddress + e_width * e_height, e_width * e_height / 2);
+}
 
-    #endif
+void PerCameraMgr::ProcessRecordFrame(image_result result)
+{
 
-    pVideoEncoder->ProcessFrameToEncode(meta, bufferBlockInfo);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&rec_bufferGroup, result.second.buffer);
+
+    camera_image_metadata_t meta;
+    if(getMeta(result.first, &meta)) {
+        M_WARN("Trying to process record buffer without metadata\n");
+        bufferPush(rec_bufferGroup, result.second.buffer);
+        return;
+    }
+
+    meta.width = rec_width;
+    meta.height = rec_height;
+
+    pVideoEncoderRecord->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
 void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
 
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&s_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&snap_bufferGroup, result.second.buffer);
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
         snapshotQueue.pop_front();
 
         M_PRINT("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
-        WriteSnapshot(bufferBlockInfo, s_halFmt, filename);
+        WriteSnapshot(bufferBlockInfo, snap_halfmt, filename);
 
         free(filename);
     }
@@ -1290,9 +1369,14 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
-            case STREAM_ENCODED: // Not Ready
-                M_VERBOSE("Camera: %s processing encode frame\n", name);
-                ProcessEncodeFrame(result);
+            case STREAM_STREAM: // Not Ready
+                M_VERBOSE("Camera: %s processing stream frame\n", name);
+                ProcessStreamFrame(result);
+                break;
+
+            case STREAM_RECORD: // Not Ready
+                M_VERBOSE("Camera: %s processing record frame\n", name);
+                ProcessRecordFrame(result);
                 break;
 
             case STREAM_SNAPSHOT:
@@ -1341,55 +1425,66 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
-    #ifndef DISABLE_PREVIEW_STREAM
-        camera3_stream_buffer_t pstreamBuffer;
-        if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(p_bufferGroup)) == NULL) {
-            M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
-            EStopCameraServer();
-            return -1;
-        }
-        pstreamBuffer.stream        = &p_stream;
-        pstreamBuffer.status        = 0;
-        pstreamBuffer.acquire_fence = -1;
-        pstreamBuffer.release_fence = -1;
+    camera3_stream_buffer_t pstreamBuffer;
+    if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
+        M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+        EStopCameraServer();
+        return -1;
+    }
+    pstreamBuffer.stream        = &pre_stream;
+    pstreamBuffer.status        = 0;
+    pstreamBuffer.acquire_fence = -1;
+    pstreamBuffer.release_fence = -1;
 
-        request.num_output_buffers ++;
-        streamBufferList.push_back(pstreamBuffer);
-    #endif
+    request.num_output_buffers ++;
+    streamBufferList.push_back(pstreamBuffer);
 
-    #ifndef DISABLE_PREVIEW_STREAM
-        if(en_encode && pipe_server_get_num_clients(encodeOutputChannel)){
-    #endif
+    if(en_stream && pipe_server_get_num_clients(streamOutputChannel)){
 
         camera3_stream_buffer_t estreamBuffer;
-        if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(e_bufferGroup)) == NULL) {
-            M_ERROR("Failed to get buffer for encoder stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+        if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(str_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for stream stream: Cam(%s), Frame(%d)\n", name, frameNumber);
             EStopCameraServer();
             return -1;
         }
 
-        estreamBuffer.stream        = &e_stream;
+        estreamBuffer.stream        = &str_stream;
         estreamBuffer.status        = 0;
         estreamBuffer.acquire_fence = -1;
         estreamBuffer.release_fence = -1;
 
         request.num_output_buffers ++;
         streamBufferList.push_back(estreamBuffer);
+    }
 
-    #ifndef DISABLE_PREVIEW_STREAM
+    if(en_record && pipe_server_get_num_clients(recordOutputChannel)){
+
+        camera3_stream_buffer_t rstreamBuffer;
+        if ((rstreamBuffer.buffer   = (const native_handle_t**)bufferPop(rec_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for record stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            EStopCameraServer();
+            return -1;
         }
-    #endif
+
+        rstreamBuffer.stream        = &rec_stream;
+        rstreamBuffer.status        = 0;
+        rstreamBuffer.acquire_fence = -1;
+        rstreamBuffer.release_fence = -1;
+
+        request.num_output_buffers ++;
+        streamBufferList.push_back(rstreamBuffer);
+    }
 
     if(en_snapshot && numNeededSnapshots > 0){
         numNeededSnapshots --;
 
         camera3_stream_buffer_t sstreamBuffer;
-        if((sstreamBuffer.buffer    = (const native_handle_t**)bufferPop(s_bufferGroup)) == NULL) {
+        if((sstreamBuffer.buffer    = (const native_handle_t**)bufferPop(snap_bufferGroup)) == NULL) {
             M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, frameNumber);
             EStopCameraServer();
             return -1;
         }
-        sstreamBuffer.stream        = &s_stream;
+        sstreamBuffer.stream        = &snap_stream;
         sstreamBuffer.status        = 0;
         sstreamBuffer.acquire_fence = -1;
         sstreamBuffer.release_fence = -1;
@@ -1477,13 +1572,13 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
-        if(!getNumClients() && !numNeededSnapshots){
+        // if(!getNumClients() && !numNeededSnapshots){
 
-            //TODODODODODODOD THIS NEEDS TO BE A COND SLEEP
-            usleep(100000);
+        //     //TODODODODODODOD THIS NEEDS TO BE A COND SLEEP
+        //     usleep(100000);
 
-            if(stopped || EStopped) break;
-        }
+        //     if(stopped || EStopped) break;
+        // }
         ProcessOneCaptureRequest(++frame_number);
     }
 
@@ -1544,11 +1639,18 @@ int PerCameraMgr::SetupPipes()
 
         pipe_server_set_available_control_commands(outputChannel, cont_cmds);
 
-        if(en_encode){
+        if(en_stream){
             char encode_name[32];
-            snprintf(encode_name, 31, "%s_encoded", name);
+            snprintf(encode_name, 31, "%s_stream", name);
             strcpy(info.name, encode_name);
-            pipe_server_create(encodeOutputChannel, info, 0);
+            pipe_server_create(streamOutputChannel, info, 0);
+        }
+
+        if(en_record){
+            char encode_name[32];
+            snprintf(encode_name, 31, "%s_record", name);
+            strcpy(info.name, encode_name);
+            pipe_server_create(recordOutputChannel, info, 0);
         }
 
     } else {

@@ -51,10 +51,6 @@
 #include "common_defs.h"
 #include "voxl_camera_server.h"
 
-#define USE_HAL_INPUT_BUFFERS
-// #undef USE_HAL_INPUT_BUFFERS
-
-#define NUM_INPUT_BUFFERS  11
 #define NUM_OUTPUT_BUFFERS 16
 
 #ifdef APQ8096
@@ -63,15 +59,11 @@
 #elif QRB5165
     const char* OMX_LIB_NAME = "/usr/lib/libmm-omxcore.so";
     const OMX_COLOR_FORMATTYPE   OMX_COLOR_FMT = OMX_COLOR_FormatYUV420SemiPlanar;
-    // const OMX_COLOR_FORMATTYPE   OMX_COLOR_FMT = 0x7fa30c0a;
 #endif
 
 ///<@todo Make these functions
 #define Log2(number, power) {OMX_U32 temp = number; power = 0; while ((0 == (temp & 0x1)) && power < 16) {temp >>=0x1; power++;}}
 #define FractionToQ16(q,num,den) { OMX_U32 power; Log2(den,power); q = num << (16 - power); }
-
-///<@todo Need to come up with a better way
-void* g_pOmxCoreHandle = NULL;
 
 static const int32_t OMXSpecVersion = 0x00000101;
 
@@ -123,12 +115,12 @@ static OMXFreeHandleFunc OMXFreeHandle;
 static void __attribute__((constructor)) setupOMXFuncs()
 {
 
-    g_pOmxCoreHandle = dlopen(OMX_LIB_NAME, RTLD_NOW);
+    void *OmxCoreHandle = dlopen(OMX_LIB_NAME, RTLD_NOW);
 
-    OMXInit =   (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Init");
-    OMXDeinit = (OMX_ERRORTYPE (*)(void))dlsym(g_pOmxCoreHandle, "OMX_Deinit");
-    OMXGetHandle =     (OMXGetHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_GetHandle");
-    OMXFreeHandle =   (OMXFreeHandleFunc)dlsym(g_pOmxCoreHandle, "OMX_FreeHandle");
+    OMXInit =   (OMX_ERRORTYPE (*)(void))dlsym(OmxCoreHandle, "OMX_Init");
+    OMXDeinit = (OMX_ERRORTYPE (*)(void))dlsym(OmxCoreHandle, "OMX_Deinit");
+    OMXGetHandle =     (OMXGetHandleFunc)dlsym(OmxCoreHandle, "OMX_GetHandle");
+    OMXFreeHandle =   (OMXFreeHandleFunc)dlsym(OmxCoreHandle, "OMX_FreeHandle");
 }
 
 
@@ -192,7 +184,12 @@ VideoEncoder::VideoEncoder(VideoEncoderConfig* pVideoEncoderConfig)
 VideoEncoder::~VideoEncoder()
 {
 
-    OMXDeinit();
+
+    if (OMX_SendCommand(m_OMXHandle, OMX_CommandStateSet, (OMX_U32)OMX_StatePause, NULL))
+    {
+        M_ERROR("OMX Set state pause failed!\n");
+        throw -EINVAL;
+    }
 
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
@@ -207,6 +204,8 @@ VideoEncoder::~VideoEncoder()
     }
 
     delete m_ppOutputBuffers;
+
+    OMXDeinit();
 
     // if (m_OMXHandle != NULL)
     // {
@@ -312,6 +311,8 @@ static const char * colorFormatStr(OMX_COLOR_FORMATTYPE fmt) {
             return "OMX_COLOR_FormatVendorStartUnused";
         case OMX_COLOR_FormatAndroidOpaque:
             return "OMX_COLOR_FormatAndroidOpaque";
+    // QRB only???
+    #ifdef QRB5165
         case OMX_COLOR_Format32BitRGBA8888:
             return "OMX_COLOR_Format32BitRGBA8888";
         case OMX_COLOR_FormatYUV420Flexible:
@@ -320,6 +321,7 @@ static const char * colorFormatStr(OMX_COLOR_FORMATTYPE fmt) {
             return "OMX_COLOR_FormatYUV420Planar16";
         case OMX_COLOR_FormatYUV444Y410:
             return "OMX_COLOR_FormatYUV444Y410";
+    #endif
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
             return "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar";
         case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
@@ -422,30 +424,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             M_ERROR("OMX Get parameter of OMX_IndexParamVideoAvc failed\n");
             return OMX_ErrorUndefined;
         }
-
-        // avc.nPFrames                  = 29;
-        // avc.nBFrames                  = 0;
-        // avc.eProfile                  = (OMX_VIDEO_AVCPROFILETYPE)profile;
-        // avc.eLevel                    = (OMX_VIDEO_AVCLEVELTYPE)level;
-        // avc.bUseHadamard              = OMX_FALSE;
-        // avc.nRefFrames                = 1;
-        // avc.nRefIdx10ActiveMinus1     = 1;
-        // avc.nRefIdx11ActiveMinus1     = 0;
-        // avc.bEnableUEP                = OMX_FALSE;
-        // avc.bEnableFMO                = OMX_FALSE;
-        // avc.bEnableASO                = OMX_FALSE;
-        // avc.bEnableRS                 = OMX_FALSE;
-        // avc.nAllowedPictureTypes      = 2;
-        // avc.bFrameMBsOnly             = OMX_FALSE;
-        // avc.bMBAFF                    = OMX_FALSE;
-        // avc.bWeightedPPrediction      = OMX_FALSE;
-        // avc.nWeightedBipredicitonMode = 0;
-        // avc.bconstIpred               = OMX_FALSE;
-        // avc.bDirect8x8Inference       = OMX_FALSE;
-        // avc.bDirectSpatialTemporal    = OMX_FALSE;
-        // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
-        // avc.bEntropyCodingCABAC       = OMX_FALSE;
-        // avc.nCabacInitIdc             = 0;
 
 
         avc.nPFrames                  = pVideoEncoderConfig->frameRate - 1;
@@ -641,11 +619,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     if (SetPortParams((OMX_U32)PortIndexIn,
                       (OMX_U32)(pVideoEncoderConfig->width),
                       (OMX_U32)(pVideoEncoderConfig->height),
-                      #ifdef USE_HAL_INPUT_BUFFERS
                       (OMX_U32)(pVideoEncoderConfig->inputBuffers->totalBuffers),
-                      #else
-                      (OMX_U32)NUM_INPUT_BUFFERS,
-                      #endif
                       (OMX_U32)(pVideoEncoderConfig->frameRate),
                       paramBitRate.nTargetBitrate,
                       (OMX_U32*)&m_inputBufferSize,
@@ -683,29 +657,19 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
 
     for (uint32_t i = 0; i < m_inputBufferCount; i++)
     {
-        #ifdef USE_HAL_INPUT_BUFFERS
-            if(!pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress)
-            {
-                M_WARN("Encoder expecting(%d) more buffers than module allocated(%d)\n", m_inputBufferCount, i);
-                return OMX_ErrorUndefined;
-            }
-            // The OMX component i.e. the video encoder allocates the block, gets the memory from hal
-            if (int ret = OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
-                    (OMX_U8*)pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
-            {
-                M_ERROR("OMX_UseBuffer on input buffer: %d failed\n", i);
-                OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
-                return OMX_ErrorUndefined;
-            }
-        #else
-            // The OMX component i.e. the video encoder allocates the memory residing behind these buffers
-            if (int ret = OMX_AllocateBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize))
-            {
-                M_ERROR("OMX_AllocateBuffer on input buffer: %d failed\n", i);
-                OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
-                return OMX_ErrorUndefined;
-            }
-        #endif
+        if(!pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress)
+        {
+            M_WARN("Encoder expecting(%d) more buffers than module allocated(%d)\n", m_inputBufferCount, i);
+            return OMX_ErrorUndefined;
+        }
+        // The OMX component i.e. the video encoder allocates the block, gets the memory from hal
+        if (int ret = OMX_UseBuffer (m_OMXHandle, &m_ppInputBuffers[i], PortIndexIn, this, m_inputBufferSize,
+                (OMX_U8*)pVideoEncoderConfig->inputBuffers->bufferBlocks[i].vaddress))
+        {
+            M_ERROR("OMX_UseBuffer on input buffer: %d failed\n", i);
+            OMXEventHandler(NULL, NULL, OMX_EventError, ret, 1, NULL);
+            return OMX_ErrorUndefined;
+        }
     }
 
     for (uint32_t i = 0; i < m_outputBufferCount; i++)
@@ -824,6 +788,7 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
 
     return OMX_ErrorNone;
 }
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // The client calls this interface function to pass in a YUV image frame to be encoded
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -835,88 +800,26 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
     pthread_cond_signal(&out_cond);
     pthread_mutex_unlock(&out_mutex);
 
-    #ifdef USE_HAL_INPUT_BUFFERS
-        OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
-        for(unsigned int i = 0; (OMXBuffer = m_ppInputBuffers[i])->pBuffer != buffer->vaddress; i++) {
-            M_VERBOSE("Encoder Buffer Miss\n");
-            if(i == m_pHALInputBuffers->totalBuffers - 1){
-                M_ERROR("Encoder did not find omx-ready buffer for buffer: 0x%lx, skipping encoding\n", buffer->vaddress);
-                return;
-            }
+    OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
+    for(unsigned int i = 0; (OMXBuffer = m_ppInputBuffers[i])->pBuffer != buffer->vaddress; i++) {
+        M_VERBOSE("Encoder Buffer Miss\n");
+        if(i == m_pHALInputBuffers->totalBuffers - 1){
+            M_ERROR("Encoder did not find omx-ready buffer for buffer: 0x%lx, skipping encoding\n", buffer->vaddress);
+            return;
         }
-        M_VERBOSE("Encoder Buffer Hit\n");
-        OMXBuffer->nFilledLen = buffer->width * (buffer->height + 275) * 3 / 2;
-        // OMXBuffer->nFilledLen = buffer->size;
+    }
+    M_VERBOSE("Encoder Buffer Hit\n");
+    // 4096x2160
+    // OMXBuffer->nFilledLen = buffer->width * (buffer->height + 267) * 3 / 2;
+    // 2048x1536
+    // OMXBuffer->nFilledLen = buffer->width * buffer->height * 3 / 2;
+    // 1024x768
+    // OMXBuffer->nFilledLen = buffer->width * (buffer->height + 171) * 3 / 2;
 
-        // const int offset = (buffer->size - (buffer->width * buffer->height * 1.5))/1.5 / buffer->width;
-
-        uint8_t *src = (uint8_t*)buffer->vaddress + 4096 * (2160 + 16);
-        uint8_t *dest = src + 4096 * 384;
-
-        for(int i = 4096 * 2160 / 2; i > 0; i--){
-            dest[i] = src[i];
-        }
-
-        #define ENABLE_MANUAL_DEALIAS
-        #undef ENABLE_MANUAL_DEALIAS
-
-        #ifdef ENABLE_MANUAL_DEALIAS
-            static uint8_t *local;
-
-            if(!local){
-                local = malloc(buffer->size * 4);
-                if(!local){
-                    M_ERROR("Failed to alloc test memory\n");
-                    EStopCameraServer();
-                    return;
-                }
-            }
-
-            memcpy(local, buffer->vaddress, (buffer->width * buffer->height) * 3 / 2);
-            // memset(buffer->vaddress , 255, buffer->size);
-
-            // static int extra_bytes_per_row = buffer->width * 0.6;
-            // static int extra_bytes_per_row = buffer->height * 0.8;
-            // static int extra_bytes_per_row = 384; //640x480 OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m
-            // static int extra_bytes_per_row = 128; //1920x1080 OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m
-            // static int extra_bytes_per_row = 128; //640x480 0x7fa30c0a
-            // static int extra_bytes_per_row = 128; //1920x1080 0x7fa30c0a
-            // static int extra_bytes_per_row = 128;
-            static int extra_bytes_per_row = 0;
-
-            // static int rows_between_layers = 8; //1920x1080 0x7fa30c0a
-            static int rows_between_layers = 0;
-
-            for(int i = 0; i < buffer->height; i++){
-
-                uint8_t * dest = buffer->vaddress + (i * (buffer->width + extra_bytes_per_row));
-                memcpy(dest, local + (i * buffer->width), buffer->width);
-                // memset(dest + buffer->width, 255, extra_bytes_per_row);
-            }
-
-            for(int i = buffer->height; i < buffer->height * 1.5; i++){
-
-                uint8_t * dest = buffer->vaddress + ((i + rows_between_layers) * (buffer->width + extra_bytes_per_row));
-                memcpy(dest, local + (i * buffer->width), buffer->width);
-                // memset(dest + buffer->width, 255, extra_bytes_per_row);
-            }
-
-            OMXBuffer->nFilledLen = ((buffer->height * 1.5) + rows_between_layers) * (buffer->width + extra_bytes_per_row) ;
-        #endif
-
+    #ifdef QRB5165
+    OMXBuffer->nFilledLen = buffer->width * (buffer->height + 171) * 3 / 2;
     #else
-        OMX_BUFFERHEADERTYPE* OMXBuffer = m_ppInputBuffers[m_nextInputBufferIndex++];
-
-        m_nextInputBufferIndex %= m_inputBufferCount;
-
-        // Copy the YUV frame data into the OMX component input port OMX buffer. The data needs to be provided to the encoder
-        // in the way in which it was allocated by gralloc. Gralloc may introduce gaps between the Y and UV data and that's
-        // exactly how we have to provide the buffer to the encoder (with the gaps between the Y and UV).
-        uint8_t*     pDestAddress = (uint8_t*)OMXBuffer->pBuffer;
-        uint8_t*     pSrcAddress  = (uint8_t*)buffer->vaddress;
-        memcpy(pDestAddress, pSrcAddress, buffer->size);
-        bufferPushAddress(*m_pHALInputBuffers, buffer->vaddress);
-        OMXBuffer->nFilledLen = buffer->size;
+    OMXBuffer->nFilledLen = buffer->width * buffer->height;
     #endif
 
     OMXBuffer->nTimeStamp = meta.timestamp_ns;
@@ -1162,7 +1065,6 @@ OMX_ERRORTYPE OMXFillHandler(OMX_OUT OMX_HANDLETYPE        hComponent,  ///< OMX
                              OMX_OUT OMX_PTR               pAppData,    ///< Any private app data
                              OMX_OUT OMX_BUFFERHEADERTYPE* pBuffer)     ///< Buffer that has been filled by OMX component
 {
-
     VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
 
     pthread_mutex_lock(&pVideoEncoder->out_mutex);

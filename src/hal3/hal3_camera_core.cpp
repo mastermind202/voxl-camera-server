@@ -198,6 +198,18 @@ void HAL3_print_camera_resolutions(int camId){
         }
         M_PRINT("\n");
 
+        //get video sizes
+        find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT, &entry);
+        M_PRINT("ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT:");
+        for (uint32_t i = 0 ; i < entry.count; i += 4) {
+            if (i%32==0)
+                M_PRINT("\n\t");
+            width = entry.data.i32[i+2];
+            height = entry.data.i32[i+1];
+            M_PRINT("%4dx%4d, ",width ,height);
+        }
+        M_PRINT("\n");
+
         find_camera_metadata_ro_entry(meta, ANDROID_SENSOR_INFO_SENSITIVITY_RANGE, &entry);
         uint32_t min_sensitivity = entry.data.i32[0];
         uint32_t max_sensitivity = entry.data.i32[1];

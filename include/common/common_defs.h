@@ -116,18 +116,23 @@ struct PerCameraInfo
     int           camId2;                ///< id of second camera (if stereo)
     bool          isEnabled;             ///< Is the camera enabled/disabled
 
-    int     fps;                ///< Frame rate - number of frames per second
-    int     p_width;            ///< Preview Width of the frame
-    int     p_height;           ///< Preview Height of the frame
-    int     p_format;           ///< Preview Frame format
-    bool    en_encode;
-    int     e_width;            ///< Video Encode Width of the frame
-    int     e_height;           ///< Video Encode Height of the frame
+    int     fps;                  ///< Frame rate - number of frames per second
+    int     pre_width;            ///< Preview Width of the frame
+    int     pre_height;           ///< Preview Height of the frame
+    int     pre_format;           ///< Preview Frame format
+    bool    en_stream;
+    int     str_width;            ///< Video Stream Width of the frame
+    int     str_height;           ///< Video Stream Height of the frame
+    int     str_bitrate;          ///< Video Stream Bitrate
+    bool    en_record;
+    int     rec_width;            ///< Video Record Width of the frame
+    int     rec_height;           ///< Video Record Height of the frame
+    int     rec_bitrate;          ///< Video Record Bitrate
     bool    en_snapshot;
-    int     s_width;            ///< Snapshot Width of the frame
-    int     s_height;           ///< Snapshot Height of the frame
-    bool    flip;               ///< Flip?
-    bool    ind_exp;            ///< For stereo pairs, run exposure independently?
+    int     snap_width;            ///< Snapshot Width of the frame
+    int     snap_height;           ///< Snapshot Height of the frame
+    bool    flip;                  ///< Flip?
+    bool    ind_exp;               ///< For stereo pairs, run exposure independently?
 
     AE_MODE ae_mode;
     modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)

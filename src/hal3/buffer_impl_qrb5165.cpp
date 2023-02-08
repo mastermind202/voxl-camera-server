@@ -30,18 +30,18 @@ static int ionFd;
 // -----------------------------------------------------------------------------------------------------------------------------
 // Moves the UV planes to be contiguous with the y plane
 // -----------------------------------------------------------------------------------------------------------------------------
-void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
-{
+// void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
+// {
 
-    const int height = pBufferInfo->height;
-    const int width  = pBufferInfo->width;
-    //(Total size - expected size) / 1.5 because there's padding at the end as well
-    const int offset = (pBufferInfo->size - (width * height * 1.5))/1.5;
+//     const int height = pBufferInfo->height;
+//     const int width  = pBufferInfo->width;
+//     //(Total size - expected size) / 1.5 because there's padding at the end as well
+//     const int offset = (pBufferInfo->size - (width * height * 1.5))/1.5;
 
-    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height),
-           (uint8_t*)(pBufferInfo->vaddress) + (width*height) + offset,
-           width*height/2);
-}
+//     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height),
+//            (uint8_t*)(pBufferInfo->vaddress) + (width*height) + offset,
+//            width*height/2);
+// }
 
 int allocateOneBuffer(
         BufferGroup&       bufferGroup,
@@ -52,7 +52,7 @@ int allocateOneBuffer(
         unsigned long int  consumerFlags,
         buffer_handle_t*   pBuffer)
 {
-    int ret = 0;
+    BufferBlock &block = bufferGroup.bufferBlocks[index];
     struct ion_allocation_data allocation_data;
     native_handle_t* native_handle = nullptr;
     size_t buffer_size;
@@ -74,49 +74,45 @@ int allocateOneBuffer(
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
         stride = ALIGN_BYTE(width, 256);
         slice = ALIGN_BYTE(height, 64);
-        // stride = width;
-        // slice = height;
-        buffer_size = (size_t)(stride * slice * 3 / 2) + (4096 * 400);
-        // buffer_size = (size_t)(stride * slice * 4 / 2);
+        buffer_size = (size_t)(stride * slice * 2);
 
-
-
-        M_DEBUG("Allocating Buffer: %dx%d stride: %d %s\n",
+        M_DEBUG("Allocating Buffer: %dx%d stride: %d slice: %d %s\n",
                     width,
                     height,
                     stride,
-                    "HAL_PIXEL_FORMAT_YCBCR_420_888");
+                    slice,
+                    "YCBCR_420_888");
     } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
         buffer_size = width;
 
         M_DEBUG("Allocating Buffer: %dx%d : %s\n",
                     width,
                     height,
-                    "HAL_PIXEL_FORMAT_BLOB" );
+                    "BLOB" );
     }
 
     allocation_data.len = ((size_t)(buffer_size) + 4095U) & (~4095U);
 
     allocation_data.flags = 1;
     allocation_data.heap_id_mask = (1U << ION_SYSTEM_HEAP_ID);
-    ret = ioctl(ionFd, _IOWR('I', 0, struct ion_allocation_data), &allocation_data);
-    if (ret < 0) {
+    if (int ret = ioctl(ionFd, _IOWR('I', 0, struct ion_allocation_data), &allocation_data)) {
         M_PRINT("ION allocation failed. ret=%d Error=%d fd=%d\n", ret, errno, ionFd);
         return ret;
     }
 
+    block.vaddress = mmap(NULL,
+                        allocation_data.len,
+                        PROT_READ  | PROT_WRITE,
+                        MAP_SHARED,
+                        allocation_data.fd,
+                        0);
+    block.size     = allocation_data.len;
+    block.width    = width;
+    block.height   = height;
+    block.stride   = stride;
+    block.slice    = slice;
 
-    bufferGroup.bufferBlocks[index].vaddress       = mmap(NULL,
-                                                        allocation_data.len,
-                                                        PROT_READ  | PROT_WRITE,
-                                                        MAP_SHARED,
-                                                        allocation_data.fd,
-                                                        0);
-    bufferGroup.bufferBlocks[index].size           = allocation_data.len;
-    bufferGroup.bufferBlocks[index].width          = width;
-    bufferGroup.bufferBlocks[index].height         = height;
-    bufferGroup.bufferBlocks[index].stride         = stride;
-    bufferGroup.bufferBlocks[index].slice          = slice;
+    block.uvHead   = (block.vaddress) + (width * slice);
 
     native_handle = native_handle_create(1, 4);
     (native_handle)->data[0] = allocation_data.fd;
@@ -128,7 +124,7 @@ int allocateOneBuffer(
 
     *pBuffer = native_handle;
 
-    return ret;
+    return 0;
 }
 
 void deleteOneBuffer(

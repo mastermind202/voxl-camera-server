@@ -63,10 +63,14 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonFlipString         "flip"                     ///< Camera flip?
 #define JsonPWidthString       "preview_width"            ///< Preview Frame width
 #define JsonPHeightString      "preview_height"           ///< Preview Frame height
-#define JsonEWidthString       "encode_width"             ///< Encode Frame width
-#define JsonEHeightString      "encode_height"            ///< Encode Frame height
-#define JsonSWidthString       "snapshot_width"           ///< Snapshot Frame width
-#define JsonSHeightString      "snapshot_height"          ///< Snapshot Frame height
+#define JsonSTWidthString      "stream_width"             ///< Stream Frame width
+#define JsonSTHeightString     "stream_height"            ///< Stream Frame height
+#define JsonSTBitrateString    "stream_bitrate"           ///< Stream Frame bitrate
+#define JsonRWidthString       "record_width"             ///< Record Frame width
+#define JsonRHeightString      "record_height"            ///< Record Frame height
+#define JsonRBitrateString     "record_bitrate"           ///< Record Frame bitrate
+#define JsonSNWidthString      "snapshot_width"           ///< Snapshot Frame width
+#define JsonSNHeightString     "snapshot_height"          ///< Snapshot Frame height
 #define JsonFpsString          "frame_rate"               ///< Fps
 #define JsonIndExpString       "independent_exposure"     ///< Independent exposure for a stereo pair
 #define JsonAEDesiredMSVString "ae_desired_msv"           ///< Modal AE Algorithm Desired MSV
@@ -163,33 +167,47 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_bool_with_default(cur, JsonIndExpString,  &tmp, false);
         info.ind_exp = tmp;
 
-        json_fetch_int_with_default  (cur, JsonPWidthString,        &info.p_width,   info.p_width);
-        json_fetch_int_with_default  (cur, JsonPHeightString,       &info.p_height,  info.p_height);
-        json_fetch_int_with_default  (cur, JsonEWidthString,        &info.e_width,   info.e_width);
-        json_fetch_int_with_default  (cur, JsonEHeightString,       &info.e_height,  info.e_height);
-        json_fetch_int_with_default  (cur, JsonSWidthString,        &info.s_width,   info.s_width);
-        json_fetch_int_with_default  (cur, JsonSHeightString,       &info.s_height,  info.s_height);
+        json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
+        json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
+        json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.str_width,   info.str_width);
+        json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.str_height,  info.str_height);
+        json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.str_bitrate, info.str_bitrate);
+        json_fetch_int_with_default  (cur, JsonRWidthString,        &info.rec_width,   info.rec_width);
+        json_fetch_int_with_default  (cur, JsonRHeightString,       &info.rec_height,  info.rec_height);
+        json_fetch_int_with_default  (cur, JsonRBitrateString,      &info.rec_bitrate, info.rec_bitrate);
+        json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
+        json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
 
-        // See if the user has defined a specific AE mode,
-        //    though we have the default so don't need to error out if they didnt
+        // See which AE mode the user has defined
         if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
-            if (strcasecmp(buffer,"off") == 0) {
+            if (! strcasecmp(buffer,"off")) {
+                if(info.ae_mode != AE_OFF) {
+                    need_rewrite = true;
+                }
                 info.ae_mode = AE_OFF;
             }
-            else if (strcasecmp(buffer,"isp") == 0) {
+            else if (! strcasecmp(buffer,"isp")) {
+                if(info.ae_mode != AE_ISP) {
+                    need_rewrite = true;
+                }
                 info.ae_mode = AE_ISP;
             }
-            else if (strcasecmp(buffer,"lme_hist") == 0) {
+            else if (! strcasecmp(buffer,"lme_hist")) {
+                if(info.ae_mode != AE_LME_HIST) {
+                    need_rewrite = true;
+                }
                 info.ae_mode = AE_LME_HIST;
             }
-            else if (strcasecmp(buffer,"lme_msv") == 0) {
+            else if (! strcasecmp(buffer,"lme_msv")) {
+                if(info.ae_mode != AE_LME_MSV) {
+                    need_rewrite = true;
+                }
                 info.ae_mode = AE_LME_MSV;
             }
             else {
                 M_ERROR("Reading config file: invalid ae_mode: %s\n\tOptions are: 'off' 'isp' 'lme_hist' lme_msv'\n", buffer);
                 goto ERROR_EXIT;
             }
-            need_rewrite = true;
         }
 
         json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
@@ -247,17 +265,24 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        cJSON_AddNumberToObject  (node, JsonPWidthString,        info.p_width);
-        cJSON_AddNumberToObject  (node, JsonPHeightString,       info.p_height);
+        cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
+        cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
 
-        if (info.en_encode) {
-            cJSON_AddNumberToObject  (node, JsonEWidthString,        info.e_width);
-            cJSON_AddNumberToObject  (node, JsonEHeightString,       info.e_height);
+        if (info.en_stream) {
+            cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.str_width);
+            cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.str_height);
+            cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.str_bitrate);
+        }
+
+        if (info.en_record) {
+            cJSON_AddNumberToObject  (node, JsonRWidthString,        info.rec_width);
+            cJSON_AddNumberToObject  (node, JsonRHeightString,       info.rec_height);
+            cJSON_AddNumberToObject  (node, JsonRBitrateString,      info.rec_bitrate);
         }
 
         if (info.en_snapshot) {
-            cJSON_AddNumberToObject  (node, JsonSWidthString,        info.s_width);
-            cJSON_AddNumberToObject  (node, JsonSHeightString,       info.s_height);
+            cJSON_AddNumberToObject  (node, JsonSNWidthString,        info.snap_width);
+            cJSON_AddNumberToObject  (node, JsonSNHeightString,       info.snap_height);
         }
 
         if(info.camId2 != -1) cJSON_AddBoolToObject(node, JsonIndExpString, info.ind_exp);

@@ -49,21 +49,21 @@ static int SetupGrallocInterface()
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Moves the UV planes to be contiguous with the y plane
+// Finds the head of the
 // -----------------------------------------------------------------------------------------------------------------------------
-void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
-{
+// void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
+// {
 
-    const int height = pBufferInfo->height;
-    const int width  = pBufferInfo->width;
+//     const int height = pBufferInfo->height;
+//     const int width  = pBufferInfo->width;
 
-    if((uint8_t*)(pBufferInfo->vaddress) + (width*height) == offsetMap.at(pBufferInfo)){
-        M_VERBOSE("Buffer already continuous\n");
-        return;
-    }
+//     if((uint8_t*)(pBufferInfo->vaddress) + (width*height) == offsetMap.at(pBufferInfo)){
+//         M_VERBOSE("Buffer already continuous\n");
+//         return;
+//     }
 
-    memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
-}
+//     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
+// }
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Call the Gralloc interface to do the actual memory allocation for one single buffer
@@ -131,11 +131,11 @@ int allocateOneBuffer(
         bufferGroup.bufferBlocks[index].vaddress  = ycbcr.y;
         if (ycbcr.cr < ycbcr.cb)
         {
-            offsetMap.insert(pair<BufferBlock*, void*> (&(bufferGroup.bufferBlocks[index]), ycbcr.cb) );
+            bufferGroup.bufferBlocks[index].uvHead = ycbcr.cb;
         }
         else
         {
-            offsetMap.insert(pair<BufferBlock*, void*> (&(bufferGroup.bufferBlocks[index]), ycbcr.cr) );
+            bufferGroup.bufferBlocks[index].uvHead = ycbcr.cr;
         }
 
         bufferGroup.bufferBlocks[index].size =

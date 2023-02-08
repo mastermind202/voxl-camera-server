@@ -100,17 +100,23 @@ public:
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
           char                 name[MAX_NAME_LENGTH];
-    const bool                 en_encode;
+    const bool                 en_stream;
+    const bool                 en_record;
     const bool                 en_snapshot;
-    const int32_t              p_width;                        ///< Preview Width
-    const int32_t              p_height;                       ///< Preview Height
-    const int32_t              p_halFmt;                       ///< Preview HAL format
-    const int32_t              e_width;                        ///< Encode Width
-    const int32_t              e_height;                       ///< Encode Height
-    const int32_t              e_halFmt;                       ///< Encode HAL format
-    const int32_t              s_width;                        ///< Snapshot Width
-    const int32_t              s_height;                       ///< Snapshot Height
-    const int32_t              s_halFmt;                       ///< Snapshot HAL format
+    const int32_t              pre_width;                        ///< Preview Width
+    const int32_t              pre_height;                       ///< Preview Height
+    const int32_t              pre_halfmt;                       ///< Preview HAL format
+    const int32_t              str_width;                        ///< Stream Width
+    const int32_t              str_height;                       ///< Stream Height
+    const int32_t              str_halfmt;                       ///< Stream HAL format
+    const int32_t              str_bitrate;                      ///< Stream Bitrate
+    const int32_t              rec_width;                        ///< Record Width
+    const int32_t              rec_height;                       ///< Record Height
+    const int32_t              rec_halfmt;                       ///< Record HAL format
+    const int32_t              rec_bitrate;                      ///< Record Bitrate
+    const int32_t              snap_width;                        ///< Snapshot Width
+    const int32_t              snap_height;                       ///< Snapshot Height
+    const int32_t              snap_halfmt;                       ///< Snapshot HAL format
           AE_MODE              ae_mode;
 
 private:
@@ -132,7 +138,8 @@ private:
     typedef std::pair<int, camera3_stream_buffer> image_result;
 
     void ProcessPreviewFrame (image_result result);
-    void ProcessEncodeFrame  (image_result result);
+    void ProcessStreamFrame  (image_result result);
+    void ProcessRecordFrame  (image_result result);
     void ProcessSnapshotFrame(image_result result);
 
     int getMeta(int frameNumber, camera_image_metadata_t *retMeta){
@@ -170,17 +177,20 @@ private:
 
     enum STREAM_ID {
         STREAM_PREVIEW,
-        STREAM_ENCODED,
+        STREAM_STREAM,
+        STREAM_RECORD,
         STREAM_SNAPSHOT,
         STREAM_INVALID
     };
 
     STREAM_ID GetStreamId(camera3_stream_t *stream){
-        if (stream == &p_stream) {
+        if (stream == &pre_stream) {
             return STREAM_PREVIEW;
-        } else if (stream == &e_stream) {
-            return STREAM_ENCODED;
-        } else if (stream == &s_stream) {
+        } else if (stream == &str_stream) {
+            return STREAM_STREAM;
+        } else if (stream == &rec_stream) {
+            return STREAM_RECORD;
+        } else if (stream == &snap_stream) {
             return STREAM_SNAPSHOT;
         } else {
             return STREAM_INVALID;
@@ -193,30 +203,35 @@ private:
     BufferGroup *GetBufferGroup(STREAM_ID stream){
         switch (stream){
             case STREAM_PREVIEW:
-                return &p_bufferGroup;
-            case STREAM_ENCODED:
-                return &e_bufferGroup;
+                return &pre_bufferGroup;
+            case STREAM_STREAM:
+                return &str_bufferGroup;
+            case STREAM_RECORD:
+                return &rec_bufferGroup;
             case STREAM_SNAPSHOT:
-                return &s_bufferGroup;
+                return &snap_bufferGroup;
             default:
                 return NULL;
         }
     }
 
     camera_module_t*                    pCameraModule;               ///< Camera module
-    VideoEncoder*                       pVideoEncoder;
+    VideoEncoder*                       pVideoEncoderStream;
+    VideoEncoder*                       pVideoEncoderRecord;
     ModalExposureHist                   expHistInterface;
     ModalExposureMSV                    expMSVInterface;
     Camera3Callbacks                    cameraCallbacks;             ///< Camera callbacks
     camera3_device_t*                   pDevice;                     ///< HAL3 device
     uint8_t                             num_streams;
-    camera3_stream_t                    p_stream;                    ///< Stream to be used for the preview request
-    camera3_stream_t                    e_stream;                    ///< Stream to be used for the encoded request
-    camera3_stream_t                    s_stream;                    ///< Stream to be used for the snapshots request
+    camera3_stream_t                    pre_stream;                  ///< Stream to be used for the preview request
+    camera3_stream_t                    str_stream;                  ///< Stream to be used for the stream request
+    camera3_stream_t                    rec_stream;                  ///< Stream to be used for the record request
+    camera3_stream_t                    snap_stream;                 ///< Stream to be used for the snapshots request
     android::CameraMetadata             requestMetadata;             ///< Per request metadata
-    BufferGroup                         p_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                         e_bufferGroup;               ///< Buffer manager per stream
-    BufferGroup                         s_bufferGroup;               ///< Buffer manager per stream
+    BufferGroup                         pre_bufferGroup;             ///< Buffer manager per stream
+    BufferGroup                         str_bufferGroup;             ///< Buffer manager per stream
+    BufferGroup                         rec_bufferGroup;             ///< Buffer manager per stream
+    BufferGroup                         snap_bufferGroup;            ///< Buffer manager per stream
     pthread_t                           requestThread;               ///< Request thread private data
     pthread_t                           resultThread;                ///< Result Thread private data
     pthread_mutex_t                     resultMutex;                 ///< Mutex for list access
@@ -225,7 +240,7 @@ private:
     bool                                is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
     int64_t                             setExposure = 5259763;       ///< Exposure
     int32_t                             setGain     = 800;           ///< Gain
-    std::list<image_result>             resultMsgQueue;
+    list<image_result>                  resultMsgQueue;
     RingBuffer<camera_image_metadata_t> resultMetaRing;
     pthread_mutex_t                     stereoMutex;                 ///< Mutex for stereo comms
     pthread_cond_t                      stereoCond;                  ///< Condition variable for wake up
@@ -239,7 +254,8 @@ private:
     list<char *>                        snapshotQueue;
     atomic_int                          numNeededSnapshots {0};
     int                                 lastSnapshotNumber = 0;
-    int                                 encodeOutputChannel = -1;
+    int                                 streamOutputChannel = -1;
+    int                                 recordOutputChannel = -1;
 
     ///< TOF Specific members
 
