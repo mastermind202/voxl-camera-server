@@ -733,7 +733,7 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
     if (portIndex == PortIndexIn)
     {
         sPortDef.format.video.eColorFormat = inputFormat;
-        // sPortDef.bBuffersContiguous = OMX_TRUE;
+        sPortDef.bBuffersContiguous = OMX_TRUE;
     }
 
     OMX_RESET_STRUCT_SIZE_VERSION(&sPortDef, OMX_PARAM_PORTDEFINITIONTYPE);
@@ -819,7 +819,14 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
     #ifdef QRB5165
     OMXBuffer->nFilledLen = buffer->width * (buffer->height + 171) * 3 / 2;
     #else
-    OMXBuffer->nFilledLen = buffer->width * buffer->height;
+
+    int offset = 0;
+    switch (buffer->height) {
+        case 720 : offset = 16; break;
+        case 1080: offset = 8;  break;
+    }
+    // bufferMakeYUVContiguous(buffer);
+    OMXBuffer->nFilledLen = buffer->width * (buffer->height + offset) * 3 / 2;
     #endif
 
     OMXBuffer->nTimeStamp = meta.timestamp_ns;

@@ -165,7 +165,7 @@ static const PerCameraInfo IMX214Defaults =
     #ifdef APQ8096
         true,                       //< Enable Video Stream
         1280,                       //< Video Stream Width of the frame
-        720,                        //< Video Stream Height of the frame
+        768,                        //< Video Stream Height of the frame
         3000000,                    //< Video Stream Bitrate
         true,                       //< Enable Video Record
         1920,                       //< Video Record Width of the frame
@@ -182,8 +182,8 @@ static const PerCameraInfo IMX214Defaults =
         120000000,                  //< Video Record Bitrate
     #endif
         true,                       //< Enable Snapshot mode?
-        3840,                       //< Snapshot Width of the frame
-        2160,                       //< Snapshot Height of the frame
+        1920,                       //< Snapshot Width of the frame
+        1080,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
         AE_ISP,                     //< AE Mode

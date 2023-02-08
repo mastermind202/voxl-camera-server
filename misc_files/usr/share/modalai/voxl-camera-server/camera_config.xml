@@ -244,6 +244,7 @@ LensType :
   <!-- IMX214 in camera slot 0 -->
   <CameraModuleConfig>
     <CameraId>0</CameraId>
+    <!-- <SensorName>imx214_rot180_sum</SensorName> -->
     <SensorName>imx214_rot180</SensorName>
     <ChromatixName>imx214_chromatix</ChromatixName>
     <I2CFrequencyMode>FAST</I2CFrequencyMode>
@@ -269,7 +270,8 @@ LensType :
   <!-- IMX214 in camera slot 1 -->                                               
   <CameraModuleConfig>                                                            
     <CameraId>1</CameraId>                       
-    <SensorName>imx214_rot180</SensorName>       
+    <!-- <SensorName>imx214_rot180_sum</SensorName> -->
+    <SensorName>imx214_rot180</SensorName>
     <ChromatixName>imx214_chromatix</ChromatixName>
     <I2CFrequencyMode>FAST</I2CFrequencyMode>      
     <ModesSupported>1</ModesSupported>                                        

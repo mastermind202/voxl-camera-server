@@ -21,8 +21,6 @@ using namespace std;
 static gralloc_module_t* grallocModule = NULL;
 static alloc_device_t*   grallocDevice = NULL;
 
-static map<BufferBlock*, void*> offsetMap;
-
 // -----------------------------------------------------------------------------------------------------------------------------
 // Sets up the gralloc interface to be used for making the buffer memory allocation and lock/unlock/free calls
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -49,7 +47,7 @@ static int SetupGrallocInterface()
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Finds the head of the
+// Makes buffer contiguous
 // -----------------------------------------------------------------------------------------------------------------------------
 // void bufferMakeYUVContiguous(BufferBlock* pBufferInfo)
 // {
@@ -57,12 +55,12 @@ static int SetupGrallocInterface()
 //     const int height = pBufferInfo->height;
 //     const int width  = pBufferInfo->width;
 
-//     if((uint8_t*)(pBufferInfo->vaddress) + (width*height) == offsetMap.at(pBufferInfo)){
+//     if((uint8_t*)(pBufferInfo->vaddress) + (width*height) == pBufferInfo->uvHead){
 //         M_VERBOSE("Buffer already continuous\n");
 //         return;
 //     }
 
-//     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), offsetMap.at(pBufferInfo), (width * height / 2));
+//     memcpy((uint8_t*)(pBufferInfo->vaddress) + (width*height), pBufferInfo->uvHead, (width * height / 2));
 // }
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -114,7 +112,7 @@ int allocateOneBuffer(
                              &bufferGroup.bufferBlocks[index].vaddress);
 
         bufferGroup.bufferBlocks[index].size =
-        bufferGroup.bufferBlocks[index].stride * height;
+            bufferGroup.bufferBlocks[index].stride * height;
 
     } else if (format == HAL3_FMT_YUV)
     {
