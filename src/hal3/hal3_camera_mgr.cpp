@@ -1425,20 +1425,6 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
-    camera3_stream_buffer_t pstreamBuffer;
-    if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
-        M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
-        EStopCameraServer();
-        return -1;
-    }
-    pstreamBuffer.stream        = &pre_stream;
-    pstreamBuffer.status        = 0;
-    pstreamBuffer.acquire_fence = -1;
-    pstreamBuffer.release_fence = -1;
-
-    request.num_output_buffers ++;
-    streamBufferList.push_back(pstreamBuffer);
-
     if(en_stream && pipe_server_get_num_clients(streamOutputChannel)){
 
         camera3_stream_buffer_t estreamBuffer;
@@ -1492,6 +1478,25 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         request.num_output_buffers ++;
         streamBufferList.push_back(sstreamBuffer);
 
+    }
+
+    if (pipe_server_get_num_clients(outputChannel) ||
+        (ae_mode == AE_ISP && !request.num_output_buffers) ||
+        (ae_mode != AE_OFF && ae_mode != AE_ISP)){
+
+        camera3_stream_buffer_t pstreamBuffer;
+        if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
+            M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            EStopCameraServer();
+            return -1;
+        }
+        pstreamBuffer.stream        = &pre_stream;
+        pstreamBuffer.status        = 0;
+        pstreamBuffer.acquire_fence = -1;
+        pstreamBuffer.release_fence = -1;
+
+        request.num_output_buffers ++;
+        streamBufferList.push_back(pstreamBuffer);
     }
 
     request.output_buffers      = streamBufferList.data();
