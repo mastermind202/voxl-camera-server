@@ -809,6 +809,8 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
         }
     }
     M_VERBOSE("Encoder Buffer Hit\n");
+
+    // QRB Testing
     // 4096x2160
     // OMXBuffer->nFilledLen = buffer->width * (buffer->height + 267) * 3 / 2;
     // 2048x1536
@@ -816,19 +818,21 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
     // 1024x768
     // OMXBuffer->nFilledLen = buffer->width * (buffer->height + 171) * 3 / 2;
 
-    #ifdef QRB5165
-    OMXBuffer->nFilledLen = buffer->width * (buffer->height + 171) * 3 / 2;
-    #else
-
     int offset = 0;
-    switch (buffer->height) {
-        case 720 : offset = 16; break;
-        case 1080: offset = 8;  break;
-    }
+    #ifdef QRB5165
+        switch (buffer->height) {
+            case 2160: offset = 267; break;
+            case 768 : offset = 171; break;
+        }
+    #else
+        switch (buffer->height) {
+            case 720 : offset = 16; break;
+            case 1080: offset = 8;  break;
+        }
     // bufferMakeYUVContiguous(buffer);
-    OMXBuffer->nFilledLen = buffer->width * (buffer->height + offset) * 3 / 2;
     #endif
 
+    OMXBuffer->nFilledLen = buffer->width * (buffer->height + offset) * 3 / 2;
     OMXBuffer->nTimeStamp = meta.timestamp_ns;
 
     if (OMX_EmptyThisBuffer(m_OMXHandle, OMXBuffer))
