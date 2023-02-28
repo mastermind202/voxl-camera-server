@@ -48,6 +48,9 @@
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
 #include <modal_journal.h>
+#include <modal_pipe.h>
+
+#include <cpu_monitor_interface.h>
 
 #include "buffer_manager.h"
 #include "common_defs.h"
@@ -67,6 +70,7 @@
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
 #define MAX_STEREO_DISCREPENCY_NS ((1000000000/configInfo.fps)*0.9)
+#define CPU_CH	3
 
 // Platform Specific Flags
 #ifdef APQ8096
@@ -87,7 +91,47 @@ static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
+// Code base to monitor CPU
+static int standby_active = 0;
 
+static void _cpu_connect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
+{
+	printf("Connected to cpu-monitor\n");
+	return;
+}
+
+static void _cpu_disconnect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
+{
+	fprintf(stderr, "Disconnected from cpu-monitor\n");
+	return;
+}
+
+
+// called whenever the simple helper has data for us to process
+static void _cpu_helper_cb(__attribute__((unused))int ch, char* raw_data, int bytes, __attribute__((unused)) void* context)
+{
+	int n_packets;
+	cpu_stats_t *data_array = modal_cpu_validate_pipe_data(raw_data, bytes, &n_packets);
+	if (data_array == NULL) return;
+
+	// only use most recent packet
+	cpu_stats_t data = data_array[n_packets-1];
+
+	if(data.flags&CPU_STATS_FLAG_STANDBY_ACTIVE){
+		if(!standby_active){
+			printf("Entering standby mode\n");
+			standby_active = 1;
+		}
+	}
+	else{
+		if(standby_active){
+			printf("Exiting standby mode\n");
+			standby_active = 0;
+		}
+	}
+
+	return;
+}
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Constructor
@@ -468,6 +512,14 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
     if(configInfo.type == CAMTYPE_TOF) {
+        if(configInfo.standby_enabled){
+            pipe_client_set_connect_cb(CPU_CH, _cpu_connect_cb, NULL);
+            pipe_client_set_disconnect_cb(CPU_CH, _cpu_disconnect_cb, NULL);
+            pipe_client_set_simple_helper_cb(CPU_CH, _cpu_helper_cb, NULL);
+            printf("waiting for cpu_monitor\n");
+            (void) pipe_client_open(CPU_CH, "cpu_monitor", PROCESS_NAME, \
+                    CLIENT_FLAG_EN_SIMPLE_HELPER, CPU_STATS_RECOMMENDED_READ_BUF_SIZE);
+        }
 
         setExposure = 2259763;
         setGain     = 200;
@@ -853,7 +905,6 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
     }
 }
 
-
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
@@ -872,6 +923,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
     //Tof is different from the rest, pass the data off to spectre then send it out
     if(configInfo.type == CAMTYPE_TOF) {
+        if(standby_active && TOFFrameNumber % (int)configInfo.decimator != 0){
+            return;
+        }
         #ifdef APQ8096
             TOFProcessRAW16(tof_interface,
                         (uint16_t *)bufferBlockInfo->vaddress,
