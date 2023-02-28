@@ -260,6 +260,8 @@ static const PerCameraInfo emptyDefaults =
         false,                      //< Flip
         false,                      //< Independent Exposure
         AE_OFF,                     //< AE Mode
+        false,                      //< Standby Enabled
+        1,                          //< Standby Decimator
     };
 
 const PerCameraInfo getDefaultCameraInfo(CameraType t) {
