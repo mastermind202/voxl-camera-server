@@ -112,7 +112,7 @@ static void _cpu_helper_cb(__attribute__((unused))int ch, char* raw_data, int by
 {
 	int n_packets;
 	cpu_stats_t *data_array = modal_cpu_validate_pipe_data(raw_data, bytes, &n_packets);
-	if (data_array == NULL){
+    if (data_array == NULL){
         M_DEBUG("Data array is null");
         return;
     }
