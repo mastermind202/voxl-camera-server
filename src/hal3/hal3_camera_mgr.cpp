@@ -931,7 +931,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
     //Tof is different from the rest, pass the data off to spectre then send it out
     if(configInfo.type == CAMTYPE_TOF) {
-        if(standby_active && TOFFrameNumber % (int)configInfo.decimator != 0){
+        tofFrameCounter++;
+        if(standby_active && tofFrameCounter % (int)configInfo.decimator != 0){
             return;
         }
         #ifdef APQ8096

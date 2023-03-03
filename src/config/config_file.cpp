@@ -181,7 +181,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonRBitrateString,      &info.rec_bitrate, info.rec_bitrate);
         json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
         json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
-        json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.decimator, info.decimator);
+        json_fetch_int_with_default  (cur, JsonDecimator,           &info.decimator, info.decimator);
 
         // See which AE mode the user has defined
         if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
