@@ -443,20 +443,6 @@ int PerCameraMgr::ConfigureStreams()
 // -----------------------------------------------------------------------------------------------------------------------------
 int PerCameraMgr::ConstructDefaultRequestSettings()
 {
-    if(configInfo.standby_enabled){
-        pipe_client_set_connect_cb(CPU_CH, _cpu_connect_cb, NULL);
-        pipe_client_set_disconnect_cb(CPU_CH, _cpu_disconnect_cb, NULL);
-        pipe_client_set_simple_helper_cb(CPU_CH, _cpu_helper_cb, NULL);
-        int ret = pipe_client_open(CPU_CH, "cpu_monitor", PROCESS_NAME, \
-                CLIENT_FLAG_EN_SIMPLE_HELPER, CPU_STATS_RECOMMENDED_READ_BUF_SIZE);
-        // check for error
-		if(ret<0){
-			M_DEBUG("Failed to open CPU pipe\n");
-			pipe_print_error(ret);
-		} else {
-            M_DEBUG("Starting CPU pipe monitor\n");
-        }
-    }
 
     // Get the default baseline settings
     camera_metadata_t* pDefaultMetadata =
@@ -528,6 +514,20 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
     if(configInfo.type == CAMTYPE_TOF) {
+        if(configInfo.standby_enabled){
+            pipe_client_set_connect_cb(CPU_CH, _cpu_connect_cb, NULL);
+            pipe_client_set_disconnect_cb(CPU_CH, _cpu_disconnect_cb, NULL);
+            pipe_client_set_simple_helper_cb(CPU_CH, _cpu_helper_cb, NULL);
+            int ret = pipe_client_open(CPU_CH, "cpu_monitor", PROCESS_NAME, \
+                CLIENT_FLAG_EN_SIMPLE_HELPER, CPU_STATS_RECOMMENDED_READ_BUF_SIZE);
+            // check for error
+            if(ret<0){
+                M_DEBUG("Failed to open CPU pipe\n");
+                pipe_print_error(ret);
+            } else {
+                M_DEBUG("Starting CPU pipe monitor\n");
+            }
+        }
 
         setExposure = 2259763;
         setGain     = 200;
