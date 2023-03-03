@@ -96,43 +96,43 @@ static int standby_active = 0;
 
 static void _cpu_connect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
 {
-	M_DEBUG("Connected to cpu-monitor\n");
-	return;
+    M_DEBUG("Connected to cpu-monitor\n");
+    return;
 }
 
 static void _cpu_disconnect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
 {
-	M_DEBUG("Disconnected from cpu-monitor\n");
-	return;
+    M_DEBUG("Disconnected from cpu-monitor\n");
+    return;
 }
 
 
 // called whenever the simple helper has data for us to process
 static void _cpu_helper_cb(__attribute__((unused))int ch, char* raw_data, int bytes, __attribute__((unused)) void* context)
 {
-	int n_packets;
-	cpu_stats_t *data_array = modal_cpu_validate_pipe_data(raw_data, bytes, &n_packets);
+    int n_packets;
+    cpu_stats_t *data_array = modal_cpu_validate_pipe_data(raw_data, bytes, &n_packets);
     if (data_array == NULL){
         M_DEBUG("Data array is null");
         return;
     }
-	// only use most recent packet
-	cpu_stats_t data = data_array[n_packets-1];
-
-	if(data.flags&CPU_STATS_FLAG_STANDBY_ACTIVE){
-		if(!standby_active){
-			M_DEBUG("Entering standby mode\n");
-			standby_active = 1;
-		}
-	}
-	else{
-		if(standby_active){
-			M_DEBUG("Exiting standby mode\n");
-			standby_active = 0;
-		}
-	}
+    // only use most recent packet
+    cpu_stats_t data = data_array[n_packets-1];
+    
+    if(data.flags&CPU_STATS_FLAG_STANDBY_ACTIVE){
+        if(!standby_active){
+            M_DEBUG("Entering standby mode\n");
+            standby_active = 1;
+        }
+    }
+    else{
+        if(standby_active){
+            M_DEBUG("Exiting standby mode\n");
+            standby_active = 0;
+        }
+    }
     M_DEBUG("Value of standby_active is: %i \n", standby_active);
-	return;
+    return;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
