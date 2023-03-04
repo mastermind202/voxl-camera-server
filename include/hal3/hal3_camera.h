@@ -119,6 +119,7 @@ public:
     const int32_t              snap_halfmt;                       ///< Snapshot HAL format
           AE_MODE              ae_mode;
 
+
 private:
 
     void* ThreadPostProcessResult();
@@ -247,6 +248,7 @@ private:
     PerCameraMgr*                       otherMgr;                    ///< Pointer to the partner manager in a stereo pair
     PCM_MODE                            partnerMode;                 ///< Mode for mono/stereo
     uint8_t*                            childFrame = NULL;           ///< Pointer to the child frame, guarded with stereoMutex
+    uint8_t*                            childFrame_uvHead = NULL;
     camera_image_metadata_t             childInfo;                   ///< Copy of the child frame info
     bool                                stopped = false;             ///< Indication for the thread to terminate
     bool                                EStopped = false;            ///< Emergency Stop, terminate without any cleanup

@@ -869,14 +869,12 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     imageInfo.width        = pre_width;
     imageInfo.height       = pre_height;
 
-    uint8_t* srcPixel      = (uint8_t*)bufferBlockInfo->vaddress;
-
 
     //Tof is different from the rest, pass the data off to spectre then send it out
     if(configInfo.type == CAMTYPE_TOF) {
         #ifdef APQ8096
             TOFProcessRAW16(tof_interface,
-                        (uint16_t *)srcPixel,
+                        (uint16_t *)bufferBlockInfo->vaddress,
                         imageInfo.timestamp_ns);
         #elif QRB5165
 
@@ -886,7 +884,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             imageInfo.stride     = pre_width;
 
             // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
-            Mipi12ToRaw16(imageInfo, (uint8_t *)srcPixel, srcPixel16);
+            Mipi12ToRaw16(imageInfo, (uint8_t *)bufferBlockInfo->vaddress, srcPixel16);
             tof_interface->ProcessRAW16(srcPixel16, imageInfo.timestamp_ns);
         #endif
         M_VERBOSE("Sent tof data to royale for processing\n");
@@ -902,7 +900,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         if(imageInfo.frame_id == 1){
             M_DEBUG("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
-            if((is10bit = Check10bit(srcPixel, pre_width, pre_height))){
+            if((is10bit = Check10bit((uint8_t*)bufferBlockInfo->vaddress, pre_width, pre_height))){
                 M_WARN("Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
             } else {
                 M_DEBUG("Frame was actually 8 bit, sending as is\n");
@@ -914,7 +912,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         imageInfo.stride     = pre_width;
 
         if(is10bit){
-            ConvertTo8bitRaw(srcPixel,
+            ConvertTo8bitRaw((uint8_t*)bufferBlockInfo->vaddress,
                              pre_width,
                              pre_height);
         }
@@ -922,15 +920,10 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     else if (pre_halfmt == HAL3_FMT_YUV)
     {
         imageInfo.format     = IMAGE_FORMAT_NV12;
+        // no need to make contiguous anymore, better method with pipe_server_write_list
         // bufferMakeYUVContiguous(bufferBlockInfo);
         ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
         imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
-
-        pipe_server_write_list(outputChannel,
-                    &imageInfo,                sizeof(camera_image_metadata_t),
-                    bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
-                    bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2);
-        return ;
 
     } else {
         M_ERROR("Camera: %s received invalid preview format, stopping\n", name);
@@ -938,8 +931,17 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     }
 
     if (partnerMode == MODE_MONO){
-        // Ship the frame out of the camera server
-        pipe_server_write_camera_frame(outputChannel, imageInfo, srcPixel);
+
+        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10){
+            // Ship the frame out of the camera server
+            pipe_server_write_camera_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress);
+        }
+        else if (pre_halfmt == HAL3_FMT_YUV){
+            pipe_server_write_list(outputChannel, 6,
+                        &imageInfo,                sizeof(camera_image_metadata_t),
+                        bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
+                        bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2);
+        }
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
         int64_t    new_exposure_ns;
@@ -947,7 +949,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
-                srcPixel,
+                (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
                 imageInfo.exposure_ns,
@@ -960,7 +962,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         }
 
         if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
-                srcPixel,
+                (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
                 imageInfo.exposure_ns,
@@ -1043,7 +1045,26 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         }
 
         // Ship the frame out of the camera server
-        pipe_server_write_stereo_frame(outputChannel, imageInfo, srcPixel, childFrame);
+        // pipe_server_write_stereo_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress, childFrame);
+        // M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+
+        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10){
+           pipe_server_write_list(outputChannel, 6,
+                        &imageInfo,                sizeof(camera_image_metadata_t),
+                        (uint8_t*)bufferBlockInfo->vaddress,     bufferBlockInfo->width * bufferBlockInfo->height,
+                        childFrame,   bufferBlockInfo->width * bufferBlockInfo->height);
+
+        }
+        else if (pre_halfmt == HAL3_FMT_YUV){
+            pipe_server_write_list(outputChannel, 10,
+                        &imageInfo,                sizeof(camera_image_metadata_t),
+                        (uint8_t*)bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
+                        bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2,\
+                        childFrame, \
+                        bufferBlockInfo->width * bufferBlockInfo->height,
+                        childFrame_uvHead,   \
+                        bufferBlockInfo->width * bufferBlockInfo->height / 2);
+        }
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
         // Run Auto Exposure
@@ -1052,7 +1073,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         pthread_mutex_lock(&aeMutex);
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
-                srcPixel,
+                (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
                 imageInfo.exposure_ns,
@@ -1071,7 +1092,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         }
 
         if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
-                srcPixel,
+                (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
                 imageInfo.exposure_ns,
@@ -1099,7 +1120,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         pthread_mutex_lock(&(otherMgr->stereoMutex));
 
-        otherMgr->childFrame = srcPixel;
+        otherMgr->childFrame = (uint8_t*)bufferBlockInfo->vaddress;
+        otherMgr->childFrame_uvHead = (uint8_t*)bufferBlockInfo->uvHead;
         otherMgr->childInfo  = imageInfo;
 
         pthread_cond_signal(&(otherMgr->stereoCond));
@@ -1113,7 +1135,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
             pthread_mutex_lock(&aeMutex);
             if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
-                    srcPixel,
+                    (uint8_t*)bufferBlockInfo->vaddress,
                     pre_width,
                     pre_height,
                     imageInfo.exposure_ns,
@@ -1126,7 +1148,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             }
 
             if (ae_mode == AE_LME_MSV && expMSVInterface.update_exposure(
-                    srcPixel,
+                    (uint8_t*)bufferBlockInfo->vaddress,
                     pre_width,
                     pre_height,
                     imageInfo.exposure_ns,
