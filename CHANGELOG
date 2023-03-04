@@ -1,3 +1,5 @@
+1.4.2
+    * fix color stereo frames with pipe_server_write_list
 1.4.1
     * Add logic to disable the preview stream if it's not needed
 1.4.0
