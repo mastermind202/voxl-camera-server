@@ -937,10 +937,11 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             pipe_server_write_camera_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress);
         }
         else if (pre_halfmt == HAL3_FMT_YUV){
-            pipe_server_write_list(outputChannel, 6,
-                        &imageInfo,                sizeof(camera_image_metadata_t),
-                        bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
-                        bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2);
+            size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
+            size_t uvlen = ylen/2;
+            const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
+            size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
+            pipe_server_write_list(outputChannel, 3, bufs, lens);
         }
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
@@ -1048,23 +1049,26 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         // pipe_server_write_stereo_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress, childFrame);
         // M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
-        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10){
-           pipe_server_write_list(outputChannel, 6,
-                        &imageInfo,                sizeof(camera_image_metadata_t),
-                        (uint8_t*)bufferBlockInfo->vaddress,     bufferBlockInfo->width * bufferBlockInfo->height,
-                        childFrame,   bufferBlockInfo->width * bufferBlockInfo->height);
+        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10)
+        {
+            size_t len = bufferBlockInfo->width * bufferBlockInfo->height;
+            const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, childFrame};
+            size_t lens[] = {sizeof(camera_image_metadata_t), len, len};
+            pipe_server_write_list(outputChannel, 3, bufs, lens);
+        }
+        else if (pre_halfmt == HAL3_FMT_YUV)
+        {
+            size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
+            size_t uvlen = ylen/2;
+            const void* bufs[] = {  &imageInfo,
+                                    bufferBlockInfo->vaddress,
+                                    bufferBlockInfo->uvHead,
+                                    childFrame,
+                                    childFrame_uvHead};
+            size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen, ylen, uvlen};
+            pipe_server_write_list(outputChannel, 5, bufs, lens);
+        }
 
-        }
-        else if (pre_halfmt == HAL3_FMT_YUV){
-            pipe_server_write_list(outputChannel, 10,
-                        &imageInfo,                sizeof(camera_image_metadata_t),
-                        (uint8_t*)bufferBlockInfo->vaddress, bufferBlockInfo->width * bufferBlockInfo->height,
-                        bufferBlockInfo->uvHead,   bufferBlockInfo->width * bufferBlockInfo->height / 2,\
-                        childFrame, \
-                        bufferBlockInfo->width * bufferBlockInfo->height,
-                        childFrame_uvHead,   \
-                        bufferBlockInfo->width * bufferBlockInfo->height / 2);
-        }
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
         // Run Auto Exposure
