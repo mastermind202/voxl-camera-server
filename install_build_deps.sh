@@ -15,6 +15,7 @@ libmodal-json
 libmodal-exposure
 libvoxl-cci-direct
 libvoxl-cutils
+voxl-cpu-monitor
 qrb5165-proprietary
 royale-331-spectre-4-7" )
 
@@ -24,6 +25,7 @@ libmodal-journal
 libmodal-json
 libmodal-exposure
 libvoxl-cutils
+voxl-cpu-monitor
 /data/offline_ipk_packages/apq8096-proprietary*.ipk" )
 
 

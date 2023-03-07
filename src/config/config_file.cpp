@@ -86,6 +86,8 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonCameraIdString     "camera_id"                ///< Camera id
 #define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
+#define JsonStandbyEnabled     "standby_enabled"          ///< Standby Enabled
+#define JsonDecimator          "decimator"                ///< Decimator is standby enabled
 
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
 
@@ -166,6 +168,8 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         info.flip = tmp;
         json_fetch_bool_with_default(cur, JsonIndExpString,  &tmp, false);
         info.ind_exp = tmp;
+        json_fetch_bool_with_default(cur, JsonStandbyEnabled, &tmp, false);
+        info.standby_enabled = tmp;
 
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
@@ -177,6 +181,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonRBitrateString,      &info.rec_bitrate, info.rec_bitrate);
         json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
         json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
+        json_fetch_int_with_default  (cur, JsonDecimator,           &info.decimator, info.decimator);
 
         // See which AE mode the user has defined
         if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
@@ -283,6 +288,11 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         if (info.en_snapshot) {
             cJSON_AddNumberToObject  (node, JsonSNWidthString,        info.snap_width);
             cJSON_AddNumberToObject  (node, JsonSNHeightString,       info.snap_height);
+        }
+
+        if (info.standby_enabled){
+            cJSON_AddBoolToObject    (node, JsonStandbyEnabled,       info.standby_enabled);
+            cJSON_AddNumberToObject  (node, JsonDecimator,            info.decimator);
         }
 
         if(info.camId2 != -1) cJSON_AddBoolToObject(node, JsonIndExpString, info.ind_exp);

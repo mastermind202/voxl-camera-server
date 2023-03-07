@@ -137,6 +137,9 @@ struct PerCameraInfo
     AE_MODE ae_mode;
     modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)
     modal_exposure_msv_config_t  ae_msv_info;  ///< ModalAI AE data (MSV)
+
+    bool    standby_enabled;       ///< Standby enabled for lidar
+    int     decimator;             ///< Decimator to use for standby
 };
 
 

@@ -275,6 +275,7 @@ private:
     uint8_t                            ConfOutputChannel;
     uint8_t                            PCOutputChannel;
     uint8_t                            FullOutputChannel;
+    int                                tofFrameCounter = 0;
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;
