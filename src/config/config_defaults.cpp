@@ -231,7 +231,7 @@ static const PerCameraInfo TOFDefaults =
         false,                      //< Independent Exposure
         AE_OFF,                     //< AE Mode
         false,                      //< Standby Enabled
-        1,                          //< Standby Decimator
+        5,                          //< Standby Decimator
     };
 
 static const PerCameraInfo emptyDefaults =
