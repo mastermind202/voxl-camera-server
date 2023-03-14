@@ -171,6 +171,9 @@ static const PerCameraInfo IMX214Defaults =
         1920,                       //< Video Record Width of the frame
         1080,                       //< Video Record Height of the frame
         10000000,                   //< Video Record Bitrate
+        true,                       //< Enable Snapshot mode?
+        1920,                       //< Snapshot Width of the frame
+        1080,                       //< Snapshot Height of the frame
     #elif QRB5165
         true,                       //< Enable Video Stream
         1024,                       //< Video Stream Width of the frame
@@ -180,10 +183,10 @@ static const PerCameraInfo IMX214Defaults =
         4096,                       //< Video Record Width of the frame
         2160,                       //< Video Record Height of the frame
         120000000,                  //< Video Record Bitrate
+        false,                       //< Enable Snapshot mode?
+        -1,                       //< Snapshot Width of the frame
+        -1,                       //< Snapshot Height of the frame
     #endif
-        true,                       //< Enable Snapshot mode?
-        1920,                       //< Snapshot Width of the frame
-        1080,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
         AE_ISP,                     //< AE Mode
