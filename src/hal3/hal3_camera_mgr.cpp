@@ -161,6 +161,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
     ae_mode           (pCameraInfo.ae_mode),
     pCameraModule     (HAL3_get_camera_module()),
+    pVideoEncoderStream(NULL),
+    pVideoEncoderRecord(NULL),
     expHistInterface  (pCameraInfo.ae_hist_info),
     expMSVInterface   (pCameraInfo.ae_msv_info)
 {
