@@ -1,3 +1,8 @@
+1.4.5
+    * fix some uninitialized variables
+    * increase # of hal3 buffers
+1.4.4
+    * add optional decimator to TOF
 1.4.3
     * depends on new libmodal_pipe 2.8.1
 1.4.2
