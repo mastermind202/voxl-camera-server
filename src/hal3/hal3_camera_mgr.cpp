@@ -58,7 +58,7 @@
 #include "voxl_camera_server.h"
 #include "voxl_cutils.h"
 
-#define CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
+#define CAM_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS  16
 #define NUM_SNAPSHOT_BUFFERS 16
@@ -1725,7 +1725,7 @@ int PerCameraMgr::SetupPipes()
 
         char cont_cmds[256];
         snprintf(cont_cmds, 255, "%s%s",
-            CONTROL_COMMANDS,
+            CAM_CONTROL_COMMANDS,
             en_snapshot ? ",snapshot" : "");
 
         pipe_info_t info;
@@ -1736,7 +1736,7 @@ int PerCameraMgr::SetupPipes()
 
         pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
 
-        pipe_server_set_available_control_commands(outputChannel, cont_cmds);
+        pipe_server_set_available_CAM_CONTROL_COMMANDS(outputChannel, cont_cmds);
 
         if(en_stream){
             char encode_name[32];

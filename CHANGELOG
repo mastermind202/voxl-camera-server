@@ -1,3 +1,5 @@
+1.4.6
+    * set explicity dependency on cpu-monitor version
 1.4.5
     * fix some uninitialized variables
     * increase # of hal3 buffers
