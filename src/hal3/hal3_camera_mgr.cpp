@@ -1736,7 +1736,7 @@ int PerCameraMgr::SetupPipes()
 
         pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
 
-        pipe_server_set_available_CAM_CONTROL_COMMANDS(outputChannel, cont_cmds);
+        pipe_server_set_available_control_commands(outputChannel, cont_cmds);
 
         if(en_stream){
             char encode_name[32];
