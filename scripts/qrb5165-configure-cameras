@@ -40,25 +40,6 @@ ENABLE_CAMERA_SERVER=1
 
 . /home/root/.profile.d/modal_bash_formatting.sh
 
-print_configurations () {
-    echo -e ""
-    echo -e "0  None"
-    echo -e "1  Tracking + Stereo(OV7251)"
-    echo -e "2  Tracking Only"
-    echo -e "3  Hires + Stereo(OV7251) + Tracking"
-    echo -e "4  Hires + Tracking"
-    echo -e "5  TOF + Tracking"
-    echo -e "6  Hires + TOF + Tracking"
-    echo -e "7  TOF + Stereo(OV7251) + Tracking"
-    echo -e "8  Hires Only"
-    echo -e "9  TOF Only"
-    echo -e "10 Stereo(OV7251) only"
-    echo -e "11 Tracking + Hires + Dual Stereo(OV7251) Pairs"
-    echo -e "12 Stereo(OV9782) only"
-    echo -e "13 Hires + Stereo(OV7251)"
-    echo -e "14 Stereo(OV9782) + TOF + Tracking"
-
-}
 
 print_usage () {
     echo ""
@@ -75,7 +56,8 @@ print_usage () {
     echo "prompted with questions to help complete configuration"
     echo ""
     echo "available camera configurations are as follows:"
-    print_configurations
+    echo ""
+    qrb5165-print-camera-configs
     echo ""
     exit 0
 }
@@ -135,6 +117,8 @@ fi
 echo "Camera Configuration: $CAM_CONFIG_ID"
 
 CAM_LIST=()
+NEEDS_REBOOT=""
+
 case $CAM_CONFIG_ID in
     0) # none
         ENABLE_CAMERA_SERVER=0;
@@ -159,10 +143,20 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         ;;
-    6) # Hires + TOF + Tracking
+    6) # D0005 Starling V2 Hires + TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
-        CAM_LIST+=("tracking:ov7251:1")
-        CAM_LIST+=("hires:imx214:2")
+        CAM_LIST+=("hires:imx214:1")
+        CAM_LIST+=("tracking:ov7251:2")
+
+        ## this needs a new kernel to work!
+        if [ -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin ]; then
+            NEEDS_REBOOT=true
+        fi
+        if [ ! -f /usr/share/modalai/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin ]; then
+            echo "ERROR can't do Starling V2 camera config without kernel >= 1.5.5 && <1.6.0"
+        fi
+        cp -f /usr/share/modalai/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin /usr/lib/camera/
+        rm -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin
         ;;
     7) # TOF + Stereo + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
@@ -201,7 +195,7 @@ case $CAM_CONFIG_ID in
         echo "Please provide a camera configuration-id"
         echo ""
         echo "available camera configurations are as follows:"
-        print_configurations
+        qrb5165-print-camera-configs
         exit -1
         ;;
 esac
@@ -220,6 +214,11 @@ else
 fi
 
 echo "Done Configuring Cameras"
+
+if [ $NEEDS_REBOOT ]; then
+    echo "Please reboot VOXL to load new drivers"
+fi
+
 
 
 exit 0

@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Copyright 2021 ModalAI Inc.
+# Copyright 2023 ModalAI Inc.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -52,25 +52,6 @@ ROTATE_TRACKING=0
 ROTATE_STEREO=0
 ENABLE_CAMERA_SERVER=1
 
-print_configurations () {
-    echo -e ""
-    echo -e "0  None"
-    echo -e "1  Tracking + Stereo(OV7251)"
-    echo -e "2  Tracking Only"
-    echo -e "3  Hires + Stereo(OV7251) + Tracking"
-    echo -e "4  Hires + Tracking"
-    echo -e "5  TOF + Tracking"
-    echo -e "6  Hires + TOF + Tracking"
-    echo -e "7  TOF + Stereo(OV7251) + Tracking"
-    echo -e "8  Hires Only"
-    echo -e "9  TOF Only"
-    echo -e "10 Stereo(OV7251) only"
-    echo -e "${SET_STRIKETHROUGH}11 Tracking + Hires + Dual Stereo(OV7251) Pairs${RESET_ALL}"
-    echo -e "12 Stereo(OV9782) only"
-    echo -e "13 Hires + Stereo(OV7251)"
-    echo -e "14 Stereo(OV9782) + TOF + Tracking"
-
-}
 
 print_usage () {
     echo ""
@@ -94,7 +75,8 @@ print_usage () {
     echo "prompted with questions to help complete configuration"
     echo ""
     echo "available camera configurations are as follows:"
-    print_configurations
+    echo ""
+    apq8096-print-camera-configs
     echo ""
     exit 0
 }
@@ -232,7 +214,7 @@ case $CAM_CONFIG_ID in
         echo "Please provide a camera configuration-id"
         echo ""
         echo "available camera configurations are as follows:"
-        print_configurations
+        apq8096-print-camera-configs
         exit -1
         ;;
 esac
