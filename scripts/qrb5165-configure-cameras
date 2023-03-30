@@ -152,10 +152,10 @@ case $CAM_CONFIG_ID in
         if [ -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin ]; then
             NEEDS_REBOOT=true
         fi
-        if [ ! -f /usr/share/modalai/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin ]; then
+        if [ ! -f /usr/share/modalai/chi-cdk/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin ]; then
             echo "ERROR can't do Starling V2 camera config without kernel >= 1.5.6 && <1.6.0"
         fi
-        cp -f /usr/share/modalai/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin /usr/lib/camera/
+        cp -f /usr/share/modalai/chi-cdk/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin /usr/lib/camera/
         rm -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin
         ;;
     7) # TOF + Stereo + Tracking
@@ -216,6 +216,9 @@ else
     systemctl enable voxl-camera-server
     systemctl restart voxl-camera-server
 fi
+
+# make sure changes got written to disk!!!
+sync
 
 echo "Done Configuring Cameras"
 
