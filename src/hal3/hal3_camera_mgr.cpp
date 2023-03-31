@@ -1519,7 +1519,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
-    if(en_stream && pipe_server_get_num_clients(streamOutputChannel)){
+    if(en_stream && pipe_server_get_num_clients(streamOutputChannel)>0){
 
         camera3_stream_buffer_t estreamBuffer;
         if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(str_bufferGroup)) == NULL) {
@@ -1537,7 +1537,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         streamBufferList.push_back(estreamBuffer);
     }
 
-    if(en_record && pipe_server_get_num_clients(recordOutputChannel)){
+    if(en_record && pipe_server_get_num_clients(recordOutputChannel)>0){
 
         camera3_stream_buffer_t rstreamBuffer;
         if ((rstreamBuffer.buffer   = (const native_handle_t**)bufferPop(rec_bufferGroup)) == NULL) {
@@ -1574,7 +1574,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
     }
 
-    if (pipe_server_get_num_clients(outputChannel) ||
+    if (pipe_server_get_num_clients(outputChannel)>0 ||
         (ae_mode == AE_ISP && !request.num_output_buffers) ||
         (ae_mode != AE_OFF && ae_mode != AE_ISP)){
 
@@ -1597,6 +1597,15 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.frame_number        = frameNumber;
     request.settings            = requestMetadata.getAndLock();
     request.input_buffer        = nullptr;
+
+    // If there are no output buffers just do nothing
+    // Without this an illigal zero output buffer request will be made
+    if (request.num_output_buffers == 0){
+        // Output buffers are full delay the next request
+        // Without this wait at high CPU loads the loop will runn away with CPU usage
+        std::this_thread::sleep_for (std::chrono::milliseconds(10));
+        return S_OK;
+    }
 
     /* Return values (from hardware/camera3.h):
      *
@@ -1671,13 +1680,16 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
 
     while (!stopped && !EStopped)
     {
-        // if(!getNumClients() && !numNeededSnapshots){
 
-        //     //TODODODODODODOD THIS NEEDS TO BE A COND SLEEP
-        //     usleep(100000);
-
-        //     if(stopped || EStopped) break;
-        // }
+        /** This is an old TODO comment, I think ProcessOneCaptureRequest handles
+          * this now, but leaving the comment here in case it misbahves and better
+          * behavior is needed in the future
+                    // if(!getNumClients() && !numNeededSnapshots){
+                    //     //TODODODODODODOD THIS NEEDS TO BE A COND SLEEP
+                    //     usleep(100000);
+                    //     if(stopped || EStopped) break;
+                    // }
+        **/
         ProcessOneCaptureRequest(++frame_number);
     }
 

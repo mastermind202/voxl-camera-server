@@ -55,6 +55,7 @@ class RingBuffer {
         RingBuffer(int size = 25) : size(size){
             current = (DataNode<T> *)calloc(sizeof(DataNode<T>), 1);
             current->next = current;
+            current->prev = current; //prevent segfault on immediate deconstruction
         }
 
         // Free the ring
