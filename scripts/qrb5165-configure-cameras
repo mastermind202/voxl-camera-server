@@ -43,19 +43,20 @@ ENABLE_CAMERA_SERVER=1
 
 print_usage () {
     echo ""
-    echo "For more flexibility, use the general use case:"
-    echo "voxl-configure-cameras <configuration-id>"
+    echo "Tool to configure camera server"
     echo ""
-    echo "arguments are as follows:"
+    echo "Usage:"
+    echo "voxl-configure-cameras <config-id>  - set up a specific cam config"
+    echo "voxl-configure-cameras sentinel_v1  - setup for Sentinel drone"
+    echo "voxl-configure-cameras fpv_revB     - setup for fpv_revB"
+    echo "voxl-configure-cameras starling_v2  - setup for Starling V2"
+    echo "voxl-configure-cameras disable      - disables voxl-camera-server"
+    echo "voxl-configure-cameras help         - show this help text"
     echo ""
-    echo "sentinel          - default for sentinel drone, no config ID needed"
-    echo "disable           - disables voxl-camera-server"
-    echo "help              - show this help text"
-    echo ""
-    echo "If no configuration-id or arguments are given, the user will be"
+    echo "If no config-id or arguments are given, the user will be"
     echo "prompted with questions to help complete configuration"
     echo ""
-    echo "available camera configurations are as follows:"
+    echo "available camera config IDs are as follows:"
     echo ""
     qrb5165-print-camera-configs
     echo ""
@@ -81,8 +82,16 @@ parse_opts(){
                 fi
                 ENABLE_CAMERA_SERVER=0
                 ;;
-            "sentinel")
+            "sentinel_v1")
                 CAM_CONFIG_ID=11 # 6-cam
+                ENABLE_CAMERA_SERVER=1
+                ;;
+            "starling_v2")
+                CAM_CONFIG_ID=6 # tof hires tracking
+                ENABLE_CAMERA_SERVER=1
+                ;;
+            "fpv_revB")
+                CAM_CONFIG_ID=15
                 ENABLE_CAMERA_SERVER=1
                 ;;
             *)
@@ -212,9 +221,9 @@ if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
     systemctl disable voxl-camera-server
     systemctl stop voxl-camera-server
 else
-    echo "enabling and starting voxl-camera-server"
+    echo "enabling voxl-camera-server"
     systemctl enable voxl-camera-server
-    systemctl restart voxl-camera-server
+    echo "run systemctl restart voxl-camera-server to restart the service"
 fi
 
 # make sure changes got written to disk!!!

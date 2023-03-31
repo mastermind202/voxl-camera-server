@@ -7,7 +7,7 @@ _voxl-configure-cameras(){
     case $(voxl-platform) in
 
         M0054 | M0052)
-            OPTS+=" sentinel"
+            OPTS+=" sentinel_v1 fpv_revB starling_v2"
             ;;
 
         VOXL)
