@@ -31,28 +31,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************/
 
-#include <errno.h>
 #include <getopt.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <mutex>
 #include <list>
-#include <condition_variable>
 #include <modal_start_stop.h>
 #include <modal_pipe.h>
-#include <voxl_cutils.h>
 
 #include "hal3_camera.h"
 #include "common_defs.h"
 #include "config_file.h"
 #include <modal_journal.h>
-#include "hal3_camera.h"
 #include "voxl_camera_server.h"
-
-#include "config_defaults.h"
 
 // Function prototypes
 static void   PrintHelpMessage();
@@ -85,7 +76,7 @@ int main(int argc, char* const argv[])
 
     // make sure another instance isn't running
     // if return value is -3 then a background process is running with
-    // higher privaledges and we couldn't kill it, in which case we should
+    // higher privileges, and we couldn't kill it, in which case we should
     // not continue or there may be hardware conflicts. If it returned -4
     // then there was an invalid argument that needs to be fixed.
     if(kill_existing_process(PROCESS_NAME, 2.0)<-2) return -1;
@@ -137,14 +128,12 @@ int main(int argc, char* const argv[])
         } catch(int) {
             M_ERROR("Failed to start camera: %s, exiting\n", info.name);
             cleanManagers();
-            cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
             return -1;
         }
 
         M_DEBUG("Started Camera: %s\n", info.name);
 
     }
-    cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
 
     M_PRINT("\n------ voxl-camera-server: Camera server is now running\n");
 

@@ -11,3 +11,5 @@ pkg/data
 .vscode
 proprietary
 .gitconfig
+.idea
+cmake-build-debug
