@@ -1626,6 +1626,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
      *          called by the framework.
      *
      */
+    M_VERBOSE("Sending request for frame %d for camera %s\n", frameNumber, name);
 
     if (int status = pDevice->ops->process_capture_request(pDevice, &request))
     {
@@ -1648,11 +1649,13 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         EStopCameraServer();
         return -EINVAL;
-
     }
+
+    M_VERBOSE("finished sending request for frame %d for camera %s\n", frameNumber, name);
+
     requestMetadata.unlock(request.settings);
 
-    M_VERBOSE("Processed request for frame %d for camera %s\n", frameNumber, name);
+    M_VERBOSE("returning from ProcessOneCaptureRequest for frame %d for camera %s\n", frameNumber, name);
 
     return S_OK;
 }

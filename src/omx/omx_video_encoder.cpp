@@ -840,6 +840,7 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
         M_ERROR("OMX_EmptyThisBuffer failed for framebuffer: %d\n", meta.frame_id);
     }
 
+    M_VERBOSE("OMX emptied a buffer\n");
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
