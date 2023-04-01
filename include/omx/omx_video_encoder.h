@@ -77,6 +77,8 @@ public:
 
     void* ThreadProcessOMXOutputPort();
 
+    int ItemsInQueue(); // return how many frames are still in the process queue
+
     // Set the OMX component configuration
     OMX_ERRORTYPE SetConfig(VideoEncoderConfig* pVideoEncoderConfig);
     // Set input / output port parameters

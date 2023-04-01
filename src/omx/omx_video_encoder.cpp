@@ -789,6 +789,11 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
     return OMX_ErrorNone;
 }
 
+int VideoEncoder::ItemsInQueue()
+{
+    return out_metaQueue.size();
+}
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // The client calls this interface function to pass in a YUV image frame to be encoded
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -802,7 +807,7 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
 
     OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
     for(unsigned int i = 0; (OMXBuffer = m_ppInputBuffers[i])->pBuffer != buffer->vaddress; i++) {
-        M_VERBOSE("Encoder Buffer Miss\n");
+        //M_VERBOSE("Encoder Buffer Miss\n");
         if(i == m_pHALInputBuffers->totalBuffers - 1){
             M_ERROR("Encoder did not find omx-ready buffer for buffer: 0x%lx, skipping encoding\n", buffer->vaddress);
             return;

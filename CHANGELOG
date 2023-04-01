@@ -1,3 +1,7 @@
+1.4.8
+    * prevent segfault when we run out of buffers
+    * drop frames when we run out of buffers
+    * drop frames when OMX gets backed up
 1.4.7
     * break cam config list printing into its own script for configure-mpa
     * support for starling and fpv

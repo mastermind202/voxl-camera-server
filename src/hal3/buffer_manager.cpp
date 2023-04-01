@@ -97,7 +97,10 @@ buffer_handle_t* bufferPop(BufferGroup& bufferGroup)
 {
     unique_lock<mutex> lock(bufferMutex);
     if (bufferGroup.freeBuffers.size() == 0) {
-        bufferConditionVar.wait(lock);
+        // used to wait for a free buffer, but this is dangerous if we
+        // are really getting backed up, so just return NULL to indicate failure
+        //bufferConditionVar.wait(lock);
+        return NULL;
     }
 
     buffer_handle_t* buffer = bufferGroup.freeBuffers.front();
@@ -115,4 +118,12 @@ BufferBlock* bufferGetBufferInfo(BufferGroup* bufferGroup, buffer_handle_t* buff
     }
     M_ERROR("%s wan't able to successfully find the requested buffer\n", __FUNCTION__ );
     return NULL;
+}
+
+int bufferNumFree(BufferGroup& bufferGroup)
+{
+    int ret;
+    unique_lock<mutex> lock(bufferMutex);
+    ret = bufferGroup.freeBuffers.size();
+    return ret;
 }
