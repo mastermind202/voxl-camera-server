@@ -1649,7 +1649,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     if (request.num_output_buffers == 0){
         // Output buffers are full delay the next request
         // Without this wait at high CPU loads the loop will runn away with CPU usage
-        std::this_thread::sleep_for (std::chrono::milliseconds(10));
+        usleep(10000);
         return S_OK;
     }
 
