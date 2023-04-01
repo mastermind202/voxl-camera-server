@@ -53,5 +53,6 @@ void bufferPush(BufferGroup& bufferGroup, buffer_handle_t* buffer);
 void bufferPushAddress(BufferGroup& bufferGroup, void* vaddress);
 buffer_handle_t* bufferPop(BufferGroup& bufferGroup);
 BufferBlock* bufferGetBufferInfo(BufferGroup* bufferGroup, buffer_handle_t* buffer);
+int bufferNumFree(BufferGroup& bufferGroup);
 
 #endif // CAMXHAL3BUFFER_H
