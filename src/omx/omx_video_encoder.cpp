@@ -112,6 +112,21 @@ static OMX_ERRORTYPE (*OMXDeinit)(void);
 static OMXGetHandleFunc OMXGetHandle;
 static OMXFreeHandleFunc OMXFreeHandle;
 
+
+
+///////////////////////////////////////////
+// from qmmf
+///////////////////////////////////////////
+#define OMX_SPEC_VERSION 0x00000101
+template<class T>
+static void InitOMXParams(T *params) {
+  memset(params, 0x0, sizeof(T));
+  params->nSize = sizeof(T);
+  params->nVersion.nVersion = OMX_SPEC_VERSION;
+}
+///////////////////////////////////////////
+
+
 static void __attribute__((constructor)) setupOMXFuncs()
 {
 
@@ -614,6 +629,17 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorUndefined;
     }
 
+
+
+
+
+
+
+
+
+
+
+
     OMX_SendCommand(m_OMXHandle, OMX_CommandPortEnable, PortIndexIn, NULL);
     // Set/Get input port parameters
     if (SetPortParams((OMX_U32)PortIndexIn,
@@ -687,6 +713,55 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         M_ERROR("------voxl-camera-server ERROR: OMX_SendCommand OMX_StateIdle failed\n");\
         return OMX_ErrorUndefined;
     }
+
+
+        // try setting turbo mode config
+    OMX_QCOM_VIDEO_CONFIG_PERF_LEVEL perf_config;
+    InitOMXParams(&perf_config);
+    //perf_config.ePerfLevel = OMX_QCOM_PerfLevelTurbo;
+    perf_config.ePerfLevel = OMX_QCOM_PerfLevelNominal;
+    auto ret = OMX_SetConfig(m_OMXHandle, (OMX_INDEXTYPE)(OMX_QcomIndexConfigPerfLevel),
+                                      (OMX_PTR)(&perf_config));
+    if (ret != 0) {
+        M_ERROR("%s Failed to set OMX Turbo Config: %d\n", __func__, ret);
+        return OMX_ErrorUndefined;
+    }
+    M_PRINT("%s Encoder is set to turbo mode!!\n", __func__);
+
+
+    // try setting real time priority
+    OMX_PARAM_U32TYPE rt_config;
+    int32_t priority = 0;
+    InitOMXParams(&rt_config);
+    rt_config.nU32 = static_cast<OMX_U32> (priority);
+    ret = OMX_SetConfig(m_OMXHandle,
+              (OMX_INDEXTYPE)(OMX_IndexConfigPriority),
+              (OMX_PTR)(&rt_config));
+    if (ret != 0) {
+        M_ERROR("%s Failed to set OMX RT Priority: %d\n", __func__, ret);
+        return OMX_ErrorUndefined;
+    }
+    M_PRINT("%s Encoder is set to RT Priority!!\n", __func__);
+
+
+    // try setting low latency mode
+    QOMX_EXTNINDEX_VIDEO_LOW_LATENCY_MODE latency;
+    InitOMXParams(&latency);
+    // latency.bEnableLowLatencyMode = OMX_FALSE;
+    // latency.nNumFrames = 2;
+    latency.bEnableLowLatencyMode = OMX_TRUE;
+    latency.nNumFrames = 0;
+
+    ret = OMX_SetConfig(m_OMXHandle,
+              (OMX_INDEXTYPE)(OMX_QTIIndexParamLowLatencyMode),
+              (OMX_PTR)(&latency));
+    if (ret != 0) {
+        M_ERROR("%s Failed to set OMX low latency mode: %d\n", __func__, ret);
+        return OMX_ErrorUndefined;
+    }
+    M_PRINT("%s Encoder is set to low latency mode!!\n", __func__);
+
+
 
     return OMX_ErrorNone;
 }
