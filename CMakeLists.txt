@@ -31,28 +31,43 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #*****************************************************************************/
 
-project(QRB5165-camera-server)
-
-cmake_minimum_required(VERSION 3.3)
+# change cmake policy to allow versioning in `project(...)`
+cmake_policy(SET CMP0048 NEW)
+project(QRB5165-camera-server VERSION 1.4.7)
+cmake_minimum_required(VERSION 3.11)
 
 option(PLATFORM "platform APQ8096 or QRB5165" NONE)
 option(DEBUG_SYM "whether to build with debug symbols" FALSE)
 
 if(PLATFORM MATCHES APQ8096)
-    message(STATUS "Building for platform APQ8096")
+    message(STATUS "[MODALAI] Building for platform APQ8096")
     add_definitions(-DAPQ8096 )
 elseif(PLATFORM MATCHES QRB5165)
-    message(STATUS "Building for platform QRB5165")
+    message(STATUS "[MODALAI] Building for platform QRB5165")
     add_definitions(-DQRB5165 )
 else()
     message(FATAL_ERROR "Platform not specified")
 endif()
 
 if (DEBUG_SYM)
-    message(STATUS "Building with debug configuration")
+    message(STATUS "[MODALAI] Building with debug configuration")
     set(CMAKE_BUILD_TYPE "Debug")
+
+    # Include unit test framework in debug builds
+    Include(FetchContent)
+
+    FetchContent_Declare(
+            Catch2
+            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+            GIT_TAG        v3.0.1 # or a later release
+    )
+
+    FetchContent_MakeAvailable(Catch2)
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    include(CTest)
+    include(Catch)
 else()
-    message(STATUS "Building with release configuration")
+    message(STATUS "[MODALAI] Building with release configuration")
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
@@ -74,6 +89,14 @@ set(CONFSOURCE "config/camera_server_config_helper.cpp")
 
 file(GLOB_RECURSE all_src_files "src/*.c*")
 add_executable(${SERVERNAME} ${all_src_files})
+
+# add test target for debug builds
+if (DEBUG_SYM)
+    file(GLOB_RECURSE all_test_files "tests/*.cpp")
+    add_executable(tests src/c2d/c2d_transformer.cpp ${all_test_files})
+    target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
+    catch_discover_tests(tests)
+endif()
 
 include_directories(
     include/
