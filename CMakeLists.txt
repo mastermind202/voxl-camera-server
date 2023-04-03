@@ -36,6 +36,7 @@ project(QRB5165-camera-server)
 cmake_minimum_required(VERSION 3.3)
 
 option(PLATFORM "platform APQ8096 or QRB5165" NONE)
+option(DEBUG_SYM "whether to build with debug symbols" FALSE)
 
 if(PLATFORM MATCHES APQ8096)
     message(STATUS "Building for platform APQ8096")
@@ -47,9 +48,17 @@ else()
     message(FATAL_ERROR "Platform not specified")
 endif()
 
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -fpermissive -L/usr/lib -Wl,--unresolved-symbols=ignore-in-shared-libs ${CMAKE_CXX_FLAGS}")
+if (DEBUG_SYM)
+    message(STATUS "Building with debug configuration")
+    set(CMAKE_BUILD_TYPE "Debug")
+else()
+    message(STATUS "Building with release configuration")
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+set(CMAKE_CXX_FLAGS "-std=c++14 -L/usr/lib -Wl,--unresolved-symbols=ignore-in-shared-libs ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -Wno-unused-function -Wno-format-overflow -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_RELEASE}")
+set(CMAKE_CXX_FLAGS_DEBUG  "-g -pthread -Wall -Werror -Wno-unused-function -Wno-format-overflow -Wno-delete-non-virtual-dtor -fPIC ${CMAKE_CXX_FLAGS_DEBUG}")
 set(SERVERNAME voxl-camera-server)
 
 # We know what we're doing
