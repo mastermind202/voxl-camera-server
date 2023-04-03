@@ -10,7 +10,8 @@
 #include <condition_variable>
 #include <mutex>
 
-using namespace std;
+using std::unique_lock;
+using std::mutex;
 
 static std::mutex bufferMutex;
 static std::condition_variable bufferConditionVar;
@@ -75,7 +76,7 @@ int bufferAllocateBuffers(
 
 void bufferPush(BufferGroup& bufferGroup, buffer_handle_t* buffer)
 {
-    unique_lock<mutex> lock(bufferMutex);
+    std::unique_lock<mutex> lock(bufferMutex);
     bufferGroup.freeBuffers.push_back(buffer);
     bufferConditionVar.notify_all();
 }

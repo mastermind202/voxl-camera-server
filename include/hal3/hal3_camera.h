@@ -56,11 +56,12 @@
 //HAL3 will lag the framerate if we attempt autoexposure any more frequently than this
 #define NUM_SKIPPED_FRAMES 4
 
-using namespace std;
 
 #ifdef APQ8096
 using namespace modalai;
 #endif
+
+using std::list;
 
 // Forward Declaration
 class BufferManager;
@@ -155,7 +156,7 @@ private:
         return -1;
     }
 
-    // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
+    // camera3_callback_ops is returned to us in every result callback. We piggyback any private information we may need at
     // the time of processing the frame result. When we register the callbacks with the camera module, we register the starting
     // address of this structure (which is camera3_callbacks_ops) but followed by our private information. When we receive a
     // pointer to this structure at the time of capture result, we typecast the incoming pointer to this structure type pointer
@@ -254,7 +255,7 @@ private:
     bool                                EStopped = false;            ///< Emergency Stop, terminate without any cleanup
     int                                 lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
     list<char *>                        snapshotQueue;
-    atomic_int                          numNeededSnapshots {0};
+    std::atomic_int                          numNeededSnapshots {0};
     int                                 lastSnapshotNumber = 0;
     int                                 streamOutputChannel = -1;
     int                                 recordOutputChannel = -1;

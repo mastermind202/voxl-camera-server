@@ -19,8 +19,6 @@
 #include "common_defs.h"
 #include <modal_journal.h>
 
-using namespace std;
-
 static const char* ion_dev_file = "/dev/ion";
 
 static int ionFd;

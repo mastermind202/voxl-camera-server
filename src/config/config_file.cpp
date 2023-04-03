@@ -46,7 +46,8 @@
 #define CURRENT_VERSION 0.1
 #define CONFIG_FILE_NAME "/etc/modalai/voxl-camera-server.conf"
 
-using namespace std;
+using std::list;
+using std::string;
 
 // Parse the JSON entries from the linked list represented by pJsonParent
 static Status GetCameraInfo(cJSON*          pJsonParent,       ///< Main Json linked list
