@@ -1347,7 +1347,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
     DepthMeta = IRMeta;
     ConfMeta  = IRMeta;
 
-    if(pipe_server_get_num_clients(IROutputChannel>0)){
+    if(pipe_server_get_num_clients(IROutputChannel)>0){
         IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
         IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
         IRMeta.format         = IMAGE_FORMAT_RAW8;
@@ -1363,7 +1363,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
         pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
     }
 
-    if(pipe_server_get_num_clients(DepthOutputChannel>0)){
+    if(pipe_server_get_num_clients(DepthOutputChannel)>0){
         DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
         DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
         DepthMeta.format      = IMAGE_FORMAT_RAW8;
@@ -1375,7 +1375,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
         pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
     }
 
-    if(pipe_server_get_num_clients(ConfOutputChannel>0)){
+    if(pipe_server_get_num_clients(ConfOutputChannel)>0){
         ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
         ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
         ConfMeta.format       = IMAGE_FORMAT_RAW8;
@@ -1388,7 +1388,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
         pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
     }
 
-    if(pipe_server_get_num_clients(PCOutputChannel>0)){
+    if(pipe_server_get_num_clients(PCOutputChannel)>0){
         PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
         PCMeta.n_points       = numPoints;
         float PointCloud[numPoints*3];
@@ -1402,7 +1402,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
         pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
     }
 
-    if(pipe_server_get_num_clients(FullOutputChannel>0)){
+    if(pipe_server_get_num_clients(FullOutputChannel)>0){
         tof_data_t FullData;
         FullData.magic_number = TOF_MAGIC_NUMBER;
         FullData.timestamp_ns = IRMeta.timestamp_ns;
@@ -1533,7 +1533,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
 int PerCameraMgr::HasClientForPreviewFrame()
 {
-    if(configInfo.type != CAMTYPE_TOF){
+    if(configInfo.type == CAMTYPE_TOF){
         if(pipe_server_get_num_clients(IROutputChannel   )>0) return 1;
         if(pipe_server_get_num_clients(DepthOutputChannel)>0) return 1;
         if(pipe_server_get_num_clients(ConfOutputChannel )>0) return 1;
