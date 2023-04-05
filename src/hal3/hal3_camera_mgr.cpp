@@ -1337,83 +1337,90 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
     camera_image_metadata_t IRMeta, DepthMeta, ConfMeta;
     point_cloud_metadata_t PCMeta;
 
+    // set up some common metadata
     IRMeta.timestamp_ns = pDepthData->timeStamp.count();
     IRMeta.gain         = 0;
     IRMeta.exposure_ns  = 0;
     IRMeta.frame_id     = ++TOFFrameNumber;
     IRMeta.width        = pDepthData->width;
     IRMeta.height       = pDepthData->height;
-
     DepthMeta = IRMeta;
     ConfMeta  = IRMeta;
 
-    IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
-    IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
-    IRMeta.format         = IMAGE_FORMAT_RAW8;
-    uint8_t IRData[numPoints];
-    for (int i = 0; i < numPoints; i++)
-    {
-        royale::DepthPoint point = pointIn[i];
-        uint32_t longval = point.grayValue;
-        longval *= MAX_IR_VALUE_OUT;
-        longval /= MAX_IR_VALUE_IN;
-        IRData[i]    = longval;
+    if(pipe_server_get_num_clients(IROutputChannel>0)){
+        IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
+        IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
+        IRMeta.format         = IMAGE_FORMAT_RAW8;
+        uint8_t IRData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            uint32_t longval = point.grayValue;
+            longval *= MAX_IR_VALUE_OUT;
+            longval /= MAX_IR_VALUE_IN;
+            IRData[i]    = longval;
+        }
+        pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
     }
-    pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
 
-    DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
-    DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
-    DepthMeta.format      = IMAGE_FORMAT_RAW8;
-    uint8_t DepthData[numPoints];
-    for (int i = 0; i < numPoints; i++)
-    {
-        DepthData[i] = (uint8_t)((pointIn[i].z / 5) * 255);
+    if(pipe_server_get_num_clients(DepthOutputChannel>0)){
+        DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
+        DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
+        DepthMeta.format      = IMAGE_FORMAT_RAW8;
+        uint8_t DepthData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            DepthData[i] = (uint8_t)((pointIn[i].z / 5) * 255);
+        }
+        pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
     }
-    pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
 
-    ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
-    ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
-    ConfMeta.format       = IMAGE_FORMAT_RAW8;
-    uint8_t ConfData[numPoints];
-    for (int i = 0; i < numPoints; i++)
-    {
-        royale::DepthPoint point = pointIn[i];
-        ConfData[i] = point.depthConfidence;
+    if(pipe_server_get_num_clients(ConfOutputChannel>0)){
+        ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
+        ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
+        ConfMeta.format       = IMAGE_FORMAT_RAW8;
+        uint8_t ConfData[numPoints];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            ConfData[i] = point.depthConfidence;
+        }
+        pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
     }
-    pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
 
-
-    PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
-    PCMeta.n_points       = numPoints;
-    float PointCloud[numPoints*3];
-    for (int i = 0; i < numPoints; i++)
-    {
-        royale::DepthPoint point = pointIn[i];
-        PointCloud[(i*3)]   = point.x;
-        PointCloud[(i*3)+1] = point.y;
-        PointCloud[(i*3)+2] = point.z;
+    if(pipe_server_get_num_clients(PCOutputChannel>0)){
+        PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
+        PCMeta.n_points       = numPoints;
+        float PointCloud[numPoints*3];
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            PointCloud[(i*3)]   = point.x;
+            PointCloud[(i*3)+1] = point.y;
+            PointCloud[(i*3)+2] = point.z;
+        }
+        pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
     }
-    pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
 
-
-    tof_data_t FullData;
-
-    FullData.magic_number = TOF_MAGIC_NUMBER;
-    FullData.timestamp_ns = IRMeta.timestamp_ns;
-    for (int i = 0; i < numPoints; i++)
-    {
-        royale::DepthPoint point = pointIn[i];
-        FullData.points     [i][0] = point.x;
-        FullData.points     [i][1] = point.y;
-        FullData.points     [i][2] = point.z;
-        FullData.noises     [i]    = point.noise;
-        uint32_t longval = point.grayValue;
-        longval *= MAX_IR_VALUE_OUT;
-        longval /= MAX_IR_VALUE_IN;
-        FullData.grayValues [i]    = longval;
-        FullData.confidences[i]    = point.depthConfidence;
+    if(pipe_server_get_num_clients(FullOutputChannel>0)){
+        tof_data_t FullData;
+        FullData.magic_number = TOF_MAGIC_NUMBER;
+        FullData.timestamp_ns = IRMeta.timestamp_ns;
+        for (int i = 0; i < numPoints; i++)
+        {
+            royale::DepthPoint point = pointIn[i];
+            FullData.points     [i][0] = point.x;
+            FullData.points     [i][1] = point.y;
+            FullData.points     [i][2] = point.z;
+            FullData.noises     [i]    = point.noise;
+            uint32_t longval = point.grayValue;
+            longval *= MAX_IR_VALUE_OUT;
+            longval /= MAX_IR_VALUE_IN;
+            FullData.grayValues [i]    = longval;
+            FullData.confidences[i]    = point.depthConfidence;
+        }
+        pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
     }
-    pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
 
     return true;
 }
@@ -1524,6 +1531,22 @@ void* PerCameraMgr::ThreadPostProcessResult()
 }
 
 
+int PerCameraMgr::HasClientForPreviewFrame()
+{
+    if(configInfo.type != CAMTYPE_TOF){
+        if(pipe_server_get_num_clients(IROutputChannel   )>0) return 1;
+        if(pipe_server_get_num_clients(DepthOutputChannel)>0) return 1;
+        if(pipe_server_get_num_clients(ConfOutputChannel )>0) return 1;
+        if(pipe_server_get_num_clients(PCOutputChannel   )>0) return 1;
+        if(pipe_server_get_num_clients(FullOutputChannel )>0) return 1;
+    }
+    else{
+        if(pipe_server_get_num_clients(outputChannel)>0) return 1;
+    }
+    return 0;
+}
+
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Send one capture request to the camera module
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -1614,7 +1637,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
     }
 
-    if (pipe_server_get_num_clients(outputChannel)>0 ||
+    if(  HasClientForPreviewFrame() ||
         (ae_mode == AE_ISP && !request.num_output_buffers) ||
         (ae_mode != AE_OFF && ae_mode != AE_ISP))
     {

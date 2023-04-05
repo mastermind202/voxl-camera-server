@@ -1,3 +1,6 @@
+1.4.9
+    * make sure TOF requests are sent when at least one tof subscriber exists
+    * skip copying out data from tof to unused pip channels
 1.4.8
     * prevent segfault when we run out of buffers
     * drop frames when we run out of buffers

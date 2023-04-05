@@ -134,6 +134,11 @@ private:
 
     // Call the camera module to get the default camera settings
     int ConstructDefaultRequestSettings();
+
+    // called by ProcessOneCaptureRequest to decide if we need to send requests
+    // for the preview stream, snapshot, record, and stream streams handled separately
+    int HasClientForPreviewFrame();
+
     // Send one capture request to the camera module
     int  ProcessOneCaptureRequest(int frameNumber);
 
