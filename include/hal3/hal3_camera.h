@@ -99,7 +99,6 @@ public:
     const PerCameraInfo        configInfo;                     ///< Per camera config information
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
-    const camera_metadata_t*   pHalInfoChars;
           char                 name[MAX_NAME_LENGTH];
     const bool                 en_stream;
     const bool                 en_record;
