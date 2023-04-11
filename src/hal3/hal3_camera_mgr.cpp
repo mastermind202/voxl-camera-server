@@ -149,6 +149,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     en_stream         (pCameraInfo.en_stream),
     en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
+    fps               (pCameraInfo.fps),
     pre_width         (pCameraInfo.pre_width),
     pre_height        (pCameraInfo.pre_height),
     pre_halfmt        (HalFmtFromType(pCameraInfo.pre_format)),
@@ -433,6 +434,14 @@ int PerCameraMgr::ConfigureStreams()
     streamConfig.streams        = streams.data();
     streamConfig.operation_mode = OPERATION_MODE;
 
+    pSessionParams = allocate_camera_metadata(2, 8);
+    int32_t frame_rate_rate[] = {fps,fps};
+    add_camera_metadata_entry(pSessionParams,
+                              ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
+                              frame_rate_rate, 2);
+
+    streamConfig.session_parameters = pSessionParams;
+
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
     if (pDevice->ops->configure_streams(pDevice, &streamConfig))
     {
@@ -673,6 +682,11 @@ void PerCameraMgr::Stop()
     {
         pDevice->common.close(&pDevice->common);
         pDevice = NULL;
+    }
+
+    if (pSessionParams != NULL)
+    {
+        free_camera_metadata(pSessionParams);
     }
 
     pthread_mutex_destroy(&stereoMutex);

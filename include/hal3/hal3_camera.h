@@ -104,6 +104,7 @@ public:
     const bool                 en_stream;
     const bool                 en_record;
     const bool                 en_snapshot;
+    const int32_t              fps;                              ///< FPS
     const int32_t              pre_width;                        ///< Preview Width
     const int32_t              pre_height;                       ///< Preview Height
     const int32_t              pre_halfmt;                       ///< Preview HAL format
@@ -115,11 +116,10 @@ public:
     const int32_t              rec_height;                       ///< Record Height
     const int32_t              rec_halfmt;                       ///< Record HAL format
     const int32_t              rec_bitrate;                      ///< Record Bitrate
-    const int32_t              snap_width;                        ///< Snapshot Width
-    const int32_t              snap_height;                       ///< Snapshot Height
-    const int32_t              snap_halfmt;                       ///< Snapshot HAL format
-          AE_MODE              ae_mode;
-
+    const int32_t              snap_width;                       ///< Snapshot Width
+    const int32_t              snap_height;                      ///< Snapshot Height
+    const int32_t              snap_halfmt;                      ///< Snapshot HAL format
+          AE_MODE              ae_mode;                          ///< AE mode
 
 private:
 
@@ -264,6 +264,7 @@ private:
     int                                 lastSnapshotNumber = 0;
     int                                 streamOutputChannel = -1;
     int                                 recordOutputChannel = -1;
+    camera_metadata_t*                  pSessionParams = NULL;
 
     ///< TOF Specific members
 
