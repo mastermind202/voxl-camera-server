@@ -228,36 +228,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         throw -EINVAL;
     }
 
-    // get camera meta data
-    struct camera_info info;
-    pCameraModule->get_camera_info(cameraId, &info);
-    camera_metadata_t * static_metadata = (camera_metadata_t *)info.static_camera_characteristics;
-    if(static_metadata != NULL) {
-        M_DEBUG("Success getting camera HAL3 metadata for sensorId: %d\n", cameraId);
-
-        // struct HFRConfigurationParams
-        // {
-        //     INT32 width;                ///< Width
-        //     INT32 height;               ///< Height
-        //     INT32 minFPS;               ///< minimum preview FPS
-        //     INT32 maxFPS;               ///< maximum video FPS
-        //     INT32 batchSizeMax;         ///< maximum batch size
-        // };
-        M_DEBUG("ModalAI 0 \n");
-        int32_t hfr_params[] = {480, 640, 30, 240, 8};
-
-        add_camera_metadata_entry(static_metadata,
-                              ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
-                              hfr_params, 5);
-
-        M_DEBUG("ModalAI 1 \n");
-
-    } else {
-        M_ERROR("Failed to get HAL static_camera_characteristics!\n");
-
-        throw -EINVAL;
-    }
-
     if (ConfigureStreams())
     {
         M_ERROR("Failed to configure streams for camera: %s\n", name);
@@ -465,15 +435,13 @@ int PerCameraMgr::ConfigureStreams()
     streamConfig.streams        = streams.data();
     streamConfig.operation_mode = OPERATION_MODE;
 
-    //pSessionParams = allocate_camera_metadata(2, 512);
-    camera_metadata_t *session_parameters = allocate_camera_metadata(2, 128);
+    pSessionParams = allocate_camera_metadata(2, 8);
     int32_t frame_rate_rate[] = {fps,fps};
-    add_camera_metadata_entry(session_parameters,
+    add_camera_metadata_entry(pSessionParams,
                               ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
                               frame_rate_rate, 2);
 
-    //streamConfig.session_parameters = pSessionParams;
-    streamConfig.session_parameters = session_parameters;
+    streamConfig.session_parameters = pSessionParams;
 
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
     if (pDevice->ops->configure_streams(pDevice, &streamConfig))
