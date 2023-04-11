@@ -146,7 +146,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
-    pHalInfoChars     (NULL),
     en_stream         (pCameraInfo.en_stream),
     en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
