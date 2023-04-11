@@ -433,7 +433,7 @@ int PerCameraMgr::ConfigureStreams()
     num_streams = streamConfig.num_streams;
     streamConfig.streams        = streams.data();
     streamConfig.operation_mode = OPERATION_MODE;
-
+#ifdef QRB5165
     pSessionParams = allocate_camera_metadata(2, 8);
     int32_t frame_rate_rate[] = {fps,fps};
     add_camera_metadata_entry(pSessionParams,
@@ -441,7 +441,7 @@ int PerCameraMgr::ConfigureStreams()
                               frame_rate_rate, 2);
 
     streamConfig.session_parameters = pSessionParams;
-
+#endif
     // Call into the camera module to check for support of the required stream config i.e. the required usecase
     if (pDevice->ops->configure_streams(pDevice, &streamConfig))
     {
