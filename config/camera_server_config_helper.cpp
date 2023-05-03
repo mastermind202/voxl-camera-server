@@ -57,9 +57,10 @@ int main(int argc, char* argv[])
         char *type_str = strtok(NULL, ":");
         char *cam1_str = strtok(NULL, ":");
         char *cam2_str = strtok(NULL, ":");
+        char *opt_str = strtok(NULL, ":");
 
         CameraType type;
-        int camId, camId2;
+        int camId;
 
         if (name_str == NULL) { //this trigger shouldn't be possible
             printf("Error: missing name for camera %d\n", i-1);
@@ -85,16 +86,25 @@ int main(int argc, char* argv[])
             camId=atoi(cam1_str);
         }
 
-        if (cam2_str == NULL) { //we're ok if they don't provide 2
-            camId2=-1;
-        } else {
-            camId2=atoi(cam2_str);
-        }
 
+
+        // copy in the basics
         PerCameraInfo info = getDefaultCameraInfo(type);
         info.camId  = camId;
-        info.camId2 = camId2;
+        info.camId2 = -1;
+        info.isEnabled = true;
         strcpy(info.name, name_str);
+
+
+        // optional fields. Allow "N" in the last field to inidcate disabling the camera
+        // TODO formalize that more, just for debug and development for now
+        if(cam2_str != NULL){
+            if(cam2_str[0]=='N') info.isEnabled = false;
+            else{
+                info.camId2=atoi(cam2_str);
+                if(opt_str!=NULL && opt_str[0]=='N') info.isEnabled = false;
+            }
+        }
 
         cameras.push_back(info);
 

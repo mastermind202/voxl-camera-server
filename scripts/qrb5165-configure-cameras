@@ -158,7 +158,7 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("tracking:ov7251:2")
 
         ## this needs a new kernel to work!
-        if [ -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin ]; then
+        if [ ! -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin ]; then
             NEEDS_REBOOT=true
         fi
         if [ ! -f /usr/share/modalai/chi-cdk/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin ]; then
@@ -202,6 +202,16 @@ case $CAM_CONFIG_ID in
     15) # fpv revB dual 9782
         CAM_LIST+=("trackingL:ov9782:0")
         CAM_LIST+=("trackingR:ov9782:1")
+        if [ ! -f /usr/lib/camera/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin ]; then
+            NEEDS_REBOOT=true
+        fi
+        if [ ! -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin ]; then
+            echo "ERROR can't do FPV camera config without kernel >= 1.5.6 && <1.6.0"
+        fi
+        cp -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin /usr/lib/camera/
+        cp -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m1_cmk_ov9782r_cam1_flip.bin /usr/lib/camera/
+        rm -f /usr/lib/camera/com.qti.sensormodule.m0_cmk_ov9782l_cam0.bin
+        rm -f /usr/lib/camera/com.qti.sensormodule.m1_cmk_ov9782r_cam1.bin
         ;;
     *)
         echo "invalid option"
@@ -223,7 +233,7 @@ if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
 else
     echo "enabling voxl-camera-server"
     systemctl enable voxl-camera-server
-    echo "run systemctl restart voxl-camera-server to restart the service"
+    echo "camera server will start on next reboot"
 fi
 
 # make sure changes got written to disk!!!
@@ -232,7 +242,7 @@ sync
 echo "Done Configuring Cameras"
 
 if [ $NEEDS_REBOOT ]; then
-    echo "Please reboot VOXL to load new drivers"
+    echo "Please power cycle VOXL to load new drivers"
 fi
 
 
