@@ -92,6 +92,8 @@
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
+static const uint16_t JPEG_START_MARKER = 0xFFD8;   // JPEG start marker
+static const uint16_t JPEG_END_MARKER = 0xFFD9;     // JPEG end marker
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
@@ -888,11 +890,37 @@ static void CreateParentDirs(const char *file_path)
   free(dir_path);
 }
 
+// function to extract JPEG bits from the buffer
+vector<uint8_t> extractJpegBits(const uint8_t* buffer, size_t bufferSize)
+{
+    vector<uint8_t> jpegBits;
+
+    // loop through the buffer and search for the JPEG start marker
+    for (size_t i = 0; i < bufferSize - 1; ++i) {
+        uint16_t marker = (buffer[i] << 8) | buffer[i + 1];   // combine two bytes to form a marker
+        if (marker == JPEG_START_MARKER) {
+            // found the JPEG start marker, now search for the end marker
+            for (size_t j = i + 2; j < bufferSize - 1; ++j) {
+                marker = (buffer[j] << 8) | buffer[j + 1];
+                if (marker == JPEG_END_MARKER) {
+                    // found the JPEG end marker, extract the JPEG bits from the buffer
+                    jpegBits.assign(buffer + i, buffer + j + 2);
+                    return jpegBits;
+                }
+            }
+            break;  // stop searching if the end of the buffer is reached without finding the end marker
+        }
+    }
+
+    return jpegBits;   // return an empty vector if the JPEG start and/or end markers are not found
+}
+
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
     uint64_t size    = bufferBlockInfo->size;
-
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
+    vector<uint8_t> jpegBits = extractJpegBits(src_data, size);
+
     FILE* file_descriptor = fopen(path, "wb");
     if(! file_descriptor){
 
@@ -909,7 +937,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
 
-        fwrite(src_data, size, 1, file_descriptor);
+        fwrite(jpegBits.data(), jpegBits.size(), 1, file_descriptor);
 
     } else {
         M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
