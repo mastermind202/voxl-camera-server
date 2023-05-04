@@ -92,8 +92,6 @@
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
-static const uint16_t JPEG_START_MARKER = 0xFFD8;   // JPEG start marker
-static const uint16_t JPEG_END_MARKER = 0xFFD9;     // JPEG end marker
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
