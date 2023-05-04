@@ -908,6 +908,7 @@ size_t find_jpeg_buffer_size(const uint8_t* buffer, size_t buffersize) {
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
     uint64_t size    = bufferBlockInfo->size;
+    
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
     int extractJpgSize = find_jpeg_buffer_size(src_data, size);
 
