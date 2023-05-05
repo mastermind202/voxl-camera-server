@@ -888,21 +888,51 @@ static void CreateParentDirs(const char *file_path)
   free(dir_path);
 }
 
-size_t find_jpeg_buffer_size(const uint8_t* buffer, size_t buffersize) {
-    size_t jpeg_start = 0;
-    size_t jpeg_end = 0;
+size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize) {
 
-    for (size_t i = 0; i < buffersize - 1; i++) {
-        // Search for the start of a JPEG file (FF D8).
-        if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) {
-            jpeg_start = i;
+    // Find the start and end of the JPEG image
+    int i = 0;
+    while (i < buffersize - 1) {
+        if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) { 
+            // Found the start of the image
+            int j = i + 2;
+            while (j < buffersize - 1) {
+                // Found a marker segment
+                if (buffer[j] == 0xFF) { 
+                    // End of the image
+                    if (buffer[j+1] == 0xD9) { 
+                        return j+1 - i;
+                    } else if (buffer[j+1] == 0x00) { // Ignore "stuffing" byte
+                        j += 2;
+                    } else { 
+                        // Make sure there's enough data for the length field
+                        if (j+3 >= buffersize) { 
+                            M_ERROR("Error: incomplete marker segment at byte %d\n", j);
+                            return 1;
+                        }
+                        int segmentLength = (buffer[j+2] << 8) | buffer[j+3];
+                        // Invalid segment length
+                        if (segmentLength < 0 || segmentLength > 0xFFFF) { 
+                            M_ERROR("Error: invalid marker segment length %d at byte %d\n", segmentLength, j+2);
+                            return 1;
+                        }
+                        // Make sure there's enough data for the segment data
+                        if (j+3+segmentLength >= buffersize) {
+                            M_ERROR("Error: incomplete marker segment data at byte %d\n", j+2);
+                            return 1;
+                        }
+                        // Skip the marker type and length fields
+                        j += segmentLength + 2; 
+                    }
+                } else { 
+                    // Not a marker segment, continue searching for end of image
+                    j++;
+                }
+            }
         }
-        // If we've found the start of a JPEG file, search for the end (FF D9).
-        else if (buffer[i] == 0xFF && buffer[i+1] == 0xD9) {
-            jpeg_end = i + 2;
-        }
+        i++;
     }
-    return jpeg_end - jpeg_start;
+    return 1;
 }
 
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
@@ -911,6 +941,11 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
     int extractJpgSize = find_jpeg_buffer_size(src_data, size);
+    if(extractJpgSize == 1){
+        printf("Real Size of JPEG is incorrect, setting to max of buffer");
+        extractJpgSize = bufferBlockInfo->size;
+    }
+
     FILE* file_descriptor = fopen(path, "wb");
     if(! file_descriptor){
 
