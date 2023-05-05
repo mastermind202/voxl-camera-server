@@ -92,7 +92,6 @@
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
-static int startingJpegBit;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
@@ -889,14 +888,14 @@ static void CreateParentDirs(const char *file_path)
   free(dir_path);
 }
 
-size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize) {
+size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize, int* start_index) {
 
     // Find the start and end of the JPEG image
     int i = 0;
     while (i < buffersize - 1) {
         if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) { 
             // Found the start of the image
-            startingJpegBit = i;
+            *start_index = i;
             int j = i + 2;
             while (j < buffersize - 1) {
                 // Found a marker segment
@@ -941,8 +940,10 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 {
     uint64_t size    = bufferBlockInfo->size;
 
+    int start_index = 0;
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
-    int extractJpgSize = find_jpeg_buffer_size(src_data, size);
+    int extractJpgSize = find_jpeg_buffer_size(src_data, size, &start_index);
+
     if(extractJpgSize == 1){
         printf("Real Size of JPEG is incorrect, setting to max of buffer");
         extractJpgSize = bufferBlockInfo->size;
@@ -964,7 +965,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
 
-        fwrite(src_data + startingJpegBit, extractJpgSize, 1, file_descriptor);
+        fwrite(src_data + start_index, extractJpgSize, 1, file_descriptor);
 
     } else {
         M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
