@@ -92,6 +92,7 @@
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
+static int startingJpegBit;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
 
@@ -895,6 +896,7 @@ size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize) {
     while (i < buffersize - 1) {
         if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) { 
             // Found the start of the image
+            startingJpegBit = i;
             int j = i + 2;
             while (j < buffersize - 1) {
                 // Found a marker segment
@@ -962,7 +964,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
 
-        fwrite(src_data, extractJpgSize, 1, file_descriptor);
+        fwrite(src_data + startingJpegBit, extractJpgSize, 1, file_descriptor);
 
     } else {
         M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
