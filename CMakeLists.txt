@@ -118,6 +118,9 @@ target_link_libraries(${SERVERNAME}
     camera_metadata
     hardware
     platform
+
+    # cheap hack to include c2d
+    /usr/lib/libC2D2.so
 )
 
 if(PLATFORM MATCHES APQ8096)
