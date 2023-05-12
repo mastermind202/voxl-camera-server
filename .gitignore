@@ -13,3 +13,4 @@ proprietary
 .gitconfig
 .idea
 cmake-build-debug
+logs/
