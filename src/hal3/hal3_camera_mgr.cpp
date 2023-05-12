@@ -756,7 +756,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         pthread_mutex_lock(&resultMutex);
 
         // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push_back({pHalResult->frame_number, pHalResult->output_buffers[i]});
+        resultMsgQueue.push({pHalResult->frame_number, pHalResult->output_buffers[i]});
         pthread_cond_signal(&resultCond);
         pthread_mutex_unlock(&resultMutex);
 
@@ -1319,7 +1319,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
-        snapshotQueue.pop_front();
+        snapshotQueue.pop();
 
         M_PRINT("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
         WriteSnapshot(bufferBlockInfo, snap_halfmt, filename);
@@ -1486,7 +1486,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         }
 
         image_result result = resultMsgQueue.front();
-        resultMsgQueue.pop_front();
+        resultMsgQueue.pop();
         pthread_mutex_unlock(&resultMutex);
 
         buffer_handle_t  *handle      = result.second.buffer;
@@ -2112,7 +2112,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
 
             M_PRINT("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
-            snapshotQueue.push_back(filename);
+            snapshotQueue.push(filename);
             numNeededSnapshots++;
 
         } else {
