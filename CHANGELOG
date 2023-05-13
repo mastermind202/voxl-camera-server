@@ -1,7 +1,9 @@
+1.5.1
+    * new configure script for qrb5165 new cam driver paradigm
 1.5.0
     * flip cameras for fpv cam config 15
 1.4.10
-    * camera-config-helper allows disabling cameras programatically
+    * camera-config-helper allows disabling cameras programmatically
     * disable right cam on qrb5165 config 15 for now
 1.4.9
     * make sure TOF requests are sent when at least one tof subscriber exists
@@ -14,7 +16,7 @@
     * break cam config list printing into its own script for configure-mpa
     * support for starling and fpv
 1.4.6
-    * set explicity dependency on cpu-monitor version
+    * set explicitly dependency on cpu-monitor version
 1.4.5
     * fix some uninitialized variables
     * increase # of hal3 buffers
@@ -41,7 +43,7 @@
 1.3.2
     * Add missing list option help text
 1.3.1
-    * Remove apprently unnecessary tof timestamp correction
+    * Remove apparently unnecessary tof timestamp correction
 1.3.0
     * Tof Framework up and running (full cross-platform support)
 1.2.2

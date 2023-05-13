@@ -38,7 +38,24 @@ set -e
 CAM_CONFIG_ID="-1"
 ENABLE_CAMERA_SERVER=1
 
+CAM_LIB_DIR="/usr/lib/camera/"
+
 . /home/root/.profile.d/modal_bash_formatting.sh
+
+
+RESET_ALL="\e[0m"
+RED="\e[91m"
+YLW="\e[33m"
+GRN="\e[32m"
+SET_BOLD="\e[1m"
+
+PRINT_ERROR (){
+    echo -e "${RED}[ERROR] $@${RESET_ALL}"
+}
+
+PRINT_GREEEN_LINE (){
+    echo -e "${GRN}${SET_BOLD}------------------------------------------------------------------${RESET_ALL}"
+}
 
 
 print_usage () {
@@ -115,7 +132,7 @@ parse_opts(){
 parse_opts $@
 
 if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
-    echo "ERROR: missing camera config ID"
+    PRINT_ERROR "missing camera config ID"
     print_usage
     exit -1
 fi
@@ -125,93 +142,127 @@ fi
 ################################################################################
 echo "Camera Configuration: $CAM_CONFIG_ID"
 
+
+if [ $CAM_CONFIG_ID == "0" ]; then
+    echo "stopping and disabling voxl-camera-server"
+    systemctl disable voxl-camera-server
+    systemctl stop voxl-camera-server
+fi
+
+
+
+if [ ! -f /usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin ]; then
+    PRINT_ERROR "Your system image is too old to support the new camera driver structure"
+    PRINT_ERROR "Plese update to a system image newer than May 14 2023"
+    exit 1
+fi
+
+
 CAM_LIST=()
-NEEDS_REBOOT=""
+BIN_LIST=()
+
 
 case $CAM_CONFIG_ID in
-    0) # none
-        ENABLE_CAMERA_SERVER=0;
-        ;;
     1) #Tracking + Stereo
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("stereo:ov7251:0:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
         ;;
     2) # Tracking Only
         CAM_LIST+=("tracking:ov7251:0")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
         ;;
     3) # Hires + Stereo + Tracking
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("hires:imx214:3")
         CAM_LIST+=("stereo:ov7251:0:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
         ;;
     4) # Hires + Tracking
         CAM_LIST+=("tracking:ov7251:0")
         CAM_LIST+=("hires:imx214:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
         ;;
     5) # TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
         ;;
     6) # D0005 Starling V2 Hires + TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("hires:imx214:1")
         CAM_LIST+=("tracking:ov7251:2")
-
-        ## this needs a new kernel to work!
-        if [ ! -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin ]; then
-            NEEDS_REBOOT=true
-        fi
-        if [ ! -f /usr/share/modalai/chi-cdk/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin ]; then
-            echo "ERROR can't do Starling V2 camera config without kernel >= 1.5.6 && <1.6.0"
-        fi
-        cp -f /usr/share/modalai/chi-cdk/D0005-V2/com.qti.sensormodule.m3_liteon_ov7251_cam3.bin /usr/lib/camera/
-        rm -f /usr/lib/camera/com.qti.sensormodule.m4_liteon_ov7251l_cam4.bin
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_2.bin")
         ;;
     7) # TOF + Stereo + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov7251:2:3")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_2.bin")
         ;;
     8) # Hires only
         CAM_LIST+=("hires:imx214:0")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
         ;;
     9) # TOF only
         CAM_LIST+=("tof:pmd-tof:0")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
         ;;
     10) # Stereo 7251 only
         CAM_LIST+=("stereo:ov7251:0:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
         ;;
     11) # 6-cam
         CAM_LIST+=("tracking:ov7251:2")
         CAM_LIST+=("hires:imx214:3")
         CAM_LIST+=("stereo_front:ov7251:0:1")
         CAM_LIST+=("stereo_rear:ov7251:5:4")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_4.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_5.bin")
         ;;
     12) # Stereo 9782 only
         CAM_LIST+=("stereo:ov9782:0:1")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_0.bin")
         ;;
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")
         CAM_LIST+=("stereo:ov7251:1:2")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
         ;;
     14) # Stereo 9782 + TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov9782:2:3")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_3.bin")
         ;;
     15) # fpv revB dual 9782
         CAM_LIST+=("trackingL:ov9782:0")
         CAM_LIST+=("trackingR:ov9782:1")
-        if [ ! -f /usr/lib/camera/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin ]; then
-            NEEDS_REBOOT=true
-        fi
-        if [ ! -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin ]; then
-            echo "ERROR can't do FPV camera config without kernel >= 1.5.6 && <1.6.0"
-        fi
-        cp -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m0_cmk_ov9782l_cam0_flip.bin /usr/lib/camera/
-        cp -f /usr/share/modalai/chi-cdk/D0008-flip/com.qti.sensormodule.m1_cmk_ov9782r_cam1_flip.bin /usr/lib/camera/
-        rm -f /usr/lib/camera/com.qti.sensormodule.m0_cmk_ov9782l_cam0.bin
-        rm -f /usr/lib/camera/com.qti.sensormodule.m1_cmk_ov9782r_cam1.bin
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_1.bin")
         ;;
     *)
         echo "invalid option"
@@ -223,27 +274,33 @@ case $CAM_CONFIG_ID in
         ;;
 esac
 
+
+echo "erasing old cam binaries before setup"
+rm -rf /usr/lib/camera/com.qti.sensormodule*
+
 camera-server-config-helper ${CAM_LIST[@]}
 
-## Enable or disable voxl-camera-server
-if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
-    echo "stopping and disabling voxl-camera-server"
-    systemctl disable voxl-camera-server
-    systemctl stop voxl-camera-server
-else
-    echo "enabling voxl-camera-server"
-    systemctl enable voxl-camera-server
-    echo "camera server will start on next reboot"
-fi
+echo "copying required camera drivers in place"
+for $f in ${BIN_LIST[@]}; do
+    echo $f
+    cp $f ${CAM_LIB_DIR}
+done
+
+
+## Enable voxl-camera-server
+echo "enabling voxl-camera-server"
+systemctl enable voxl-camera-server
+
 
 # make sure changes got written to disk!!!
 sync
 
-echo "Done Configuring Cameras"
-
-if [ $NEEDS_REBOOT ]; then
-    echo "Please power cycle VOXL to load new drivers"
-fi
+echo ""
+PRINT_GREEEN_LINE
+echo "${GRN}Done Configuring Cameras${RESET_ALL}"
+echo "${GRN}Please power cycle VOXL to load new drivers${RESET_ALL}"
+echo "${GRN}camera server will start on next reboot${RESET_ALL}"
+PRINT_GREEEN_LINE
 
 
 
