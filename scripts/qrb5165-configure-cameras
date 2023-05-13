@@ -208,8 +208,8 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov7251:2:3")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_2.bin")
         ;;
     8) # Hires only
@@ -222,8 +222,8 @@ case $CAM_CONFIG_ID in
         ;;
     10) # Stereo 7251 only
         CAM_LIST+=("stereo:ov7251:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
         ;;
     11) # 6-cam
         CAM_LIST+=("tracking:ov7251:2")
@@ -231,38 +231,38 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("stereo_front:ov7251:0:1")
         CAM_LIST+=("stereo_rear:ov7251:5:4")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_4.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_5.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_4.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_5.bin")
         ;;
     12) # Stereo 9782 only
         CAM_LIST+=("stereo:ov9782:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
         ;;
     13) # Hires + 7251 stereo
         CAM_LIST+=("hires:imx214:0")
         CAM_LIST+=("stereo:ov7251:1:2")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
         ;;
     14) # Stereo 9782 + TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov9782:2:3")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_1.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_3.bin")
         ;;
     15) # fpv revB dual 9782
         CAM_LIST+=("trackingL:ov9782:0")
         CAM_LIST+=("trackingR:ov9782:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_1.bin")
         ;;
     *)
         echo "invalid option"
@@ -281,7 +281,7 @@ rm -rf /usr/lib/camera/com.qti.sensormodule*
 camera-server-config-helper ${CAM_LIST[@]}
 
 echo "copying required camera drivers in place"
-for $f in ${BIN_LIST[@]}; do
+for f in ${BIN_LIST[@]}; do
     echo $f
     cp $f ${CAM_LIB_DIR}
 done
