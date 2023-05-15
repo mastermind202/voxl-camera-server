@@ -253,16 +253,16 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("tof:pmd-tof:0")
         CAM_LIST+=("tracking:ov7251:1")
         CAM_LIST+=("stereo:ov9782:2:3")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_1.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_3.bin")
         ;;
     15) # fpv revB dual 9782
         CAM_LIST+=("trackingL:ov9782:0")
         CAM_LIST+=("trackingR:ov9782:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_1.bin")
         ;;
     *)
         echo "invalid option"
