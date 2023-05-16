@@ -188,6 +188,8 @@ case $CAM_CONFIG_ID in
         CAM_LIST+=("hires:imx214:1")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
         ;;
     5) # TOF + Tracking
         CAM_LIST+=("tof:pmd-tof:0")
@@ -215,6 +217,8 @@ case $CAM_CONFIG_ID in
     8) # Hires only
         CAM_LIST+=("hires:imx214:0")
         BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
+        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
         ;;
     9) # TOF only
         CAM_LIST+=("tof:pmd-tof:0")
