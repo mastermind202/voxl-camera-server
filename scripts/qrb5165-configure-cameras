@@ -147,6 +147,7 @@ if [ $CAM_CONFIG_ID == "0" ]; then
     echo "stopping and disabling voxl-camera-server"
     systemctl disable voxl-camera-server
     systemctl stop voxl-camera-server
+    exit 0
 fi
 
 
@@ -301,9 +302,9 @@ sync
 
 echo ""
 PRINT_GREEEN_LINE
-echo "${GRN}Done Configuring Cameras${RESET_ALL}"
-echo "${GRN}Please power cycle VOXL to load new drivers${RESET_ALL}"
-echo "${GRN}camera server will start on next reboot${RESET_ALL}"
+echo -e "${GRN}Done Configuring Cameras${RESET_ALL}"
+echo -e "${GRN}Please power cycle VOXL to load new drivers${RESET_ALL}"
+echo -e "${GRN}camera server will start on next reboot${RESET_ALL}"
 PRINT_GREEEN_LINE
 
 
