@@ -1,3 +1,5 @@
+1.5.4
+    * config script cleanup
 1.5.3
     * use imx412/imx678 as well for C4/C8 configs
 1.5.2
