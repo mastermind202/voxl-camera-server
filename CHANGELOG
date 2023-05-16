@@ -1,3 +1,5 @@
+1.5.2
+    * fix bug with C15 config
 1.5.1
     * new configure script for qrb5165 new cam driver paradigm
 1.5.0
