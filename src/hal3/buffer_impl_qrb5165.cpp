@@ -110,7 +110,7 @@ int allocateOneBuffer(
         return -EINVAL;
     }
 
-    M_DEBUG("allocated block at vaddr=0x%x len=0x%x\n", block.vaddress, allocation_data.len);
+    M_DEBUG("allocated block at vaddr=0x%lx len=0x%lx\n", (uint64_t) block.vaddress, (uint64_t) allocation_data.len);
     block.size     = allocation_data.len;
     block.width    = width;
     block.height   = height;

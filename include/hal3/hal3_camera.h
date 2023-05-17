@@ -192,6 +192,23 @@ private:
         STREAM_INVALID
     };
 
+    const char* StreamIdStr(STREAM_ID id) {
+        switch (id) {
+            case STREAM_PREVIEW:
+                return "STREAM_PREVIEW";
+            case STREAM_STREAM:
+                return "STREAM_STREAM";
+            case STREAM_RECORD:
+                return "STREAM_RECORD";
+            case STREAM_SNAPSHOT:
+                return "STREAM_SNAPSHOT";
+            case STREAM_INVALID:
+                return "STREAM_INVALID";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
     STREAM_ID GetStreamId(camera3_stream_t *stream){
         if (stream == &pre_stream) {
             return STREAM_PREVIEW;

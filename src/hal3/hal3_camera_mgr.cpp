@@ -789,33 +789,35 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
 
     if (msg->type == CAMERA3_MSG_ERROR)
     {
+        const char* stream_name = pPerCameraMgr->StreamIdStr(pPerCameraMgr->GetStreamId(msg->message.error.error_stream));
+        const int frame_num = msg->message.error.frame_number;
         switch (msg->message.error.error_code) {
 
             case CAMERA3_MSG_ERROR_DEVICE:
                 //Another thread has already detected the fatal error, return since it has already been handled
                 if(pPerCameraMgr->EStopped) return;
 
-                M_ERROR("Recieved \"Device\" error from camera: %s\n",
-                             pPerCameraMgr->name);
+                M_ERROR("Recieved \"Device\" error from camera: %s, stream: %s, frame: %d\n",
+                             pPerCameraMgr->name, stream_name, frame_num);
                 M_PRINT(  "                          Camera server will be stopped\n");
                 EStopCameraServer();
                 break;
             case CAMERA3_MSG_ERROR_REQUEST:
-                M_ERROR("Recieved \"Request\" error from camera: %s\n",
-                             pPerCameraMgr->name);
+                M_ERROR("Recieved \"Request\" error from camera: %s, stream: %s, frame: %d\n",
+                             pPerCameraMgr->name, stream_name, frame_num);
                 break;
             case CAMERA3_MSG_ERROR_RESULT:
-                M_ERROR("Recieved \"Result\" error from camera: %s\n",
-                             pPerCameraMgr->name);
+                M_ERROR("Recieved \"Result\" error from camera: %s, stream: %s, frame: %d\n",
+                             pPerCameraMgr->name, stream_name, frame_num);
                 break;
             case CAMERA3_MSG_ERROR_BUFFER:
-                M_ERROR("Recieved \"Buffer\" error from camera: %s\n",
-                             pPerCameraMgr->name);
+                M_ERROR("Recieved \"Buffer\" error from camera: %s, stream: %s, frame: %d\n",
+                             pPerCameraMgr->name, stream_name, frame_num);
                 break;
 
             default:
-                M_ERROR("Camera: %s Framenumber: %d ErrorCode: %d\n", pPerCameraMgr->name,
-                       msg->message.error.frame_number, msg->message.error.error_code);
+                M_ERROR("Camera: %s Framenumber: %d ErrorCode: %d, stream: %s, frame: %d\n", pPerCameraMgr->name,
+                       msg->message.error.frame_number, msg->message.error.error_code, stream_name, frame_num);
         }
     }
 }
@@ -937,6 +939,10 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
+    if (bufferBlockInfo == NULL) {
+        M_ERROR("Buffer address was corrupted -- unable to find buffer info for buffer 0x%lx", (uint64_t) *result.second.buffer);
+        return;
+    }
 
     camera_image_metadata_t imageInfo;
     if(getMeta(result.first, &imageInfo)) {
@@ -1492,6 +1498,16 @@ void* PerCameraMgr::ThreadPostProcessResult()
         buffer_handle_t  *handle      = result.second.buffer;
         camera3_stream_t *stream      = result.second.stream;
         BufferGroup      *bufferGroup = GetBufferGroup(stream);
+
+        int rel_fence_fd = result.second.release_fence;
+        int acq_fence_fd = result.second.acquire_fence;
+
+        if (rel_fence_fd != -1) {
+            M_WARN("Received stream with non-nil release fence: fd=%d\n", rel_fence_fd);
+        }
+        if (acq_fence_fd != -1) {
+            M_WARN("Received stream with non-nil acquire fence: fd=%d\n", acq_fence_fd);
+        }
 
 
         // Coming here means we have a result frame to process
