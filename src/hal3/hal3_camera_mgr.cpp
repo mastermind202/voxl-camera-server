@@ -38,7 +38,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <iostream>
-#include <modal_pipe.h>
 #include <vector>
 #include <string.h>
 #include <camera/CameraMetadata.h>
@@ -47,8 +46,14 @@
 #include <voxl_cutils.h>
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
+
+#include <c_library_v2/common/mavlink.h>
+#include <c_library_v2/development/development.h>
+
 #include <modal_journal.h>
 #include <modal_pipe.h>
+#include <modal_start_stop.h>
+#include <modal_pipe_client.h>
 
 #include <cpu_monitor_interface.h>
 
@@ -65,12 +70,15 @@
 #define STREAM_ALLOWED_ITEMS_IN_OMX_QUEUE 1 // favor latency when dropping frames
 #define RECORD_ALLOWED_ITEMS_IN_OMX_QUEUE 2 // only drop frames when really getting behind
 
+#define GPS_RAW_OUT_PATH	(MODAL_PIPE_DEFAULT_BASE_DIR "autopilot_gps_raw_int/")
+
 #define JPEG_DEFUALT_QUALITY        75
 
 #define abs(x,y) ((x) > (y) ? (x) : (y))
 
 #define MAX_STEREO_DISCREPENCY_NS ((1000000000/configInfo.fps)*0.9)
 #define CPU_CH	3
+#define GPS_CH  4
 
 // Platform Specific Flags
 #ifdef APQ8096
@@ -91,9 +99,61 @@
     #error "No Platform defined"
 #endif
 
+// Libexif includes for QRB platform
+#ifndef PLATFORM_APQ8096
+#include <libexif/exif-data.h>
+#include <libexif/exif-utils.h>
+/* raw EXIF header data */
+static const unsigned char exif_header[] = {
+  0xff, 0xd8, 0xff, 0xe1
+};
+static const unsigned int exif_header_len = sizeof(exif_header);
+#define FILE_BYTE_ORDER EXIF_BYTE_ORDER_INTEL
+#endif
+
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
 
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height);
+
+// Position definitions
+static double lat_deg = 0.0;
+static double lon_deg = 0.0;
+static double alt_m = 0.0;
+
+static void _gps_connect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
+{
+    printf("GPS server Connected \n");
+}
+
+static void _gps_disconnect_cb(__attribute__((unused)) int ch, __attribute__((unused)) void* context)
+{
+    printf("Camera server Disconnected\n");
+}
+
+static void _gps_helper_cb(__attribute__((unused))int ch, char* data, int bytes, __attribute__((unused)) void* context)
+{
+	// validate that the data makes sense
+	int n_packets;
+	mavlink_message_t* msg_array = pipe_validate_mavlink_message_t(data, bytes, &n_packets);
+	if(msg_array == NULL){
+		return;
+	}
+
+	// grab the first one
+	mavlink_message_t* msg = &msg_array[0];
+
+	// fetch integer values from the unpacked mavlink message
+	int32_t  lat  = mavlink_msg_gps_raw_int_get_lat(msg);
+	int32_t  lon  = mavlink_msg_gps_raw_int_get_lon(msg);
+	int32_t  alt  = mavlink_msg_gps_raw_int_get_alt(msg);
+
+	// convert integer values to more useful units
+	lat_deg = (double)lat/10000000.0;
+	lon_deg = (double)lon/10000000.0;
+	alt_m   = (double)alt/1000.0;
+	return;
+}
+
 
 // Code base to monitor CPU
 static int standby_active = 0;
@@ -888,11 +948,228 @@ static void CreateParentDirs(const char *file_path)
   free(dir_path);
 }
 
+size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize, int* start_index) {
+
+    // Find the start and end of the JPEG image
+    int i = 0;
+    while (i < buffersize - 1) {
+        if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) { 
+            // Found the start of the image
+            *start_index = &i;
+            int j = i + 2;
+            while (j < buffersize - 1) {
+                // Found a marker segment
+                if (buffer[j] == 0xFF) { 
+                    // End of the image
+                    if (buffer[j+1] == 0xD9) { 
+                        return j+1 - i;
+                    } else if (buffer[j+1] == 0x00) { // Ignore "stuffing" byte
+                        j += 2;
+                    } else { 
+                        // Make sure there's enough data for the length field
+                        if (j+3 >= buffersize) { 
+                            M_ERROR("Error: incomplete marker segment at byte %d\n", j);
+                            return 1;
+                        }
+                        int segmentLength = (buffer[j+2] << 8) | buffer[j+3];
+                        // Invalid segment length
+                        if (segmentLength < 0 || segmentLength > 0xFFFF) { 
+                            M_ERROR("Error: invalid marker segment length %d at byte %d\n", segmentLength, j+2);
+                            return 1;
+                        }
+                        // Make sure there's enough data for the segment data
+                        if (j+3+segmentLength >= buffersize) {
+                            M_ERROR("Error: incomplete marker segment data at byte %d\n", j+2);
+                            return 1;
+                        }
+                        // Skip the marker type and length fields
+                        j += segmentLength + 2; 
+                    }
+                } else { 
+                    // Not a marker segment, continue searching for end of image
+                    j++;
+                }
+            }
+        }
+        i++;
+    }
+    return 1;
+}
+
+#ifndef PLATFORM_APQ8096
+/* Get an existing tag, or create one if it doesn't exist */
+static ExifEntry *init_tag(ExifData *exif, ExifIfd ifd, ExifTag tag)
+{
+	ExifEntry *entry;
+	/* Return an existing tag if one exists */
+	if (!((entry = exif_content_get_entry (exif->ifd[ifd], tag)))) {
+	    /* Allocate a new entry */
+	    entry = exif_entry_new ();
+	    assert(entry != NULL); /* catch an out of memory condition */
+	    entry->tag = tag; /* tag must be set before calling
+				 exif_content_add_entry */
+
+	    /* Attach the ExifEntry to an IFD */
+	    exif_content_add_entry (exif->ifd[ifd], entry);
+
+	    /* Allocate memory for the entry and fill with default data */
+	    exif_entry_initialize (entry, tag);
+
+	    /* Ownership of the ExifEntry has now been passed to the IFD.
+	     * One must be very careful in accessing a structure after
+	     * unref'ing it; in this case, we know "entry" won't be freed
+	     * because the reference count was bumped when it was added to
+	     * the IFD.
+	     */
+	    exif_entry_unref(entry);
+	}
+	return entry;
+}
+
+static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t len)
+{
+	void *buf;
+	ExifEntry *entry;
+	
+	/* Create a memory allocator to manage this ExifEntry */
+	ExifMem *mem = exif_mem_new_default();
+	assert(mem != NULL); /* catch an out of memory condition */
+
+	/* Create a new ExifEntry using our allocator */
+	entry = exif_entry_new_mem (mem);
+	assert(entry != NULL);
+
+	/* Allocate memory to use for holding the tag data */
+	buf = exif_mem_alloc(mem, len);
+	assert(buf != NULL);
+
+	/* Fill in the entry */
+	entry->data = buf;
+	entry->size = len;
+	entry->tag = tag;
+	entry->components = len;
+	entry->format = EXIF_FORMAT_UNDEFINED;
+
+	/* Attach the ExifEntry to an IFD */
+	exif_content_add_entry (exif->ifd[ifd], entry);
+
+	/* The ExifMem and ExifEntry are now owned elsewhere */
+	exif_mem_unref(mem);
+	exif_entry_unref(entry);
+
+	return entry;
+}
+#endif
+
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
+    pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
+    pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
+    pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
+    pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
+                    EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
+                    MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
+
     uint64_t size    = bufferBlockInfo->size;
 
+    int start_index = 0;
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
+    int extractJpgSize = find_jpeg_buffer_size(src_data, size, &start_index);
+
+    if(extractJpgSize == 1){
+        printf("Real Size of JPEG is incorrect, setting to max of buffer");
+        extractJpgSize = bufferBlockInfo->size;
+    }
+
+#ifndef PLATFORM_APQ8096
+    unsigned char *exif_data;
+    unsigned int exif_data_len;
+    ExifEntry *entry;
+    ExifData *exif = exif_data_new();
+    if (!exif) {
+        fprintf(stderr, "Out of memory\n");
+        return;
+    }
+
+    /* Set the image options */
+    exif_data_set_option(exif, EXIF_DATA_OPTION_FOLLOW_SPECIFICATION);
+    exif_data_set_data_type(exif, EXIF_DATA_TYPE_COMPRESSED);
+    exif_data_set_byte_order(exif, FILE_BYTE_ORDER);
+
+    /* Create the mandatory EXIF fields with default data */
+    exif_data_fix(exif);
+
+    /* All these tags are created with default values by exif_data_fix() */
+    /* Change the data to the correct values for this image. */
+    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_PIXEL_X_DIMENSION);
+    exif_set_long(entry->data, FILE_BYTE_ORDER, bufferBlockInfo->width);
+
+    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_PIXEL_Y_DIMENSION);
+    exif_set_long(entry->data, FILE_BYTE_ORDER, bufferBlockInfo->height);
+
+    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_COLOR_SPACE);
+    exif_set_short(entry->data, FILE_BYTE_ORDER, 1);
+
+    // Code to add latitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (lat_deg >= 0) {
+        memcpy(entry->data, "N", sizeof("N"));
+    } else {
+        memcpy(entry->data, "S", sizeof("S"));
+        lat_deg *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lat = (ExifLong)lat_deg;
+    ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
+    ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lat, 1000000});
+
+    // Code to add longitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (lon_deg >= 0) {
+        memcpy(entry->data, "E", sizeof("E"));
+    } else {
+        memcpy(entry->data, "W", sizeof("W"));
+        lon_deg *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lon = (ExifLong)lon_deg;
+    ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
+    ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lon, 1000000}); 
+
+    // Code to add altitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_ALTITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 1;
+
+    ExifSLong alt_lon = (ExifSLong)alt_m;
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
+
+    /* Get a pointer to the EXIF data block we just created */
+    exif_data_save_data(exif, &exif_data, &exif_data_len);
+    assert(exif_data != NULL);
+
+#endif
+
     FILE* file_descriptor = fopen(path, "wb");
     if(! file_descriptor){
 
@@ -908,14 +1185,38 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     }
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
+#ifndef PLATFORM_APQ8096
+        /* Write EXIF header */
+        if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file inin exif header %s\n", path);
+        }
+        /* Write EXIF block length in big-endian order */
+        if (fputc((exif_data_len+2) >> 8, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file in big endian order %s\n", path);
+        }
+        if (fputc((exif_data_len+2) & 0xff, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file with fputc %s\n", path);
+        }
+        /* Write EXIF data block */
+        if (fwrite(exif_data, exif_data_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with data block %s\n", path);
+        }
 
-        fwrite(src_data, size, 1, file_descriptor);
-
+        /* Write JPEG image data, skipping the non-EXIF header */
+        if (fwrite(src_data+start_index+20, extractJpgSize, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with jpeg %s\n", path);
+        }
+        free(exif_data);
+        exif_data_unref(exif);
+#else 
+        fwrite(src_data + start_index, extractJpgSize, 1, file_descriptor);
+#endif
     } else {
         M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
     }
 
     fclose(file_descriptor);
+    pipe_client_close(GPS_CH);
 }
 
 static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint16_t *raw16Buf)

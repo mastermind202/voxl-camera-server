@@ -97,10 +97,12 @@ if(PLATFORM MATCHES APQ8096)
         log
     )
 else()
+    find_library(LIBEXIF_SO NAMES libexif.so HINTS /usr/lib/aarch64-linux-gnu)
     target_link_libraries(${SERVERNAME}
         voxl_cci_direct
         spectre
         cutils
+        ${LIBEXIF_SO} 
     )
 endif()
 

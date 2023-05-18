@@ -9,12 +9,14 @@
 # in the ubuntu repositories you should specify the arm64 architecture to make
 # sure the correct one is installed in voxl-cross.
 DEPS_QRB5165=( "
+voxl-mavlink
 libmodal-pipe
 libmodal-journal
 libmodal-json
 libmodal-exposure
 libvoxl-cci-direct
 libvoxl-cutils
+libexif-dev:arm64
 voxl-cpu-monitor
 qrb5165-proprietary
 royale-331-spectre-4-7" )
@@ -89,7 +91,10 @@ if [ "$MODE" == "DEB" ]; then
 
     ## make sure we have the latest package index
     ## only pull from voxl-packages to save time
-    sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/modalai.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+    #sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/modalai.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+    
+    # since we have non-modalai-dependencies do a normal apt update
+    apt update
 
     ## install the user's list of dependencies
     echo "installing: $DEPS_QRB5165"
