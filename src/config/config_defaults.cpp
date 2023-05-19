@@ -179,13 +179,13 @@ static const PerCameraInfo IMX214Defaults =
         1024,                       //< Video Stream Width of the frame
         768,                        //< Video Stream Height of the frame
         3000000,                    //< Video Stream Bitrate
-        true,                       //< Enable Video Record
-        4096,                       //< Video Record Width of the frame
-        2160,                       //< Video Record Height of the frame
-        120000000,                  //< Video Record Bitrate
-        false,                       //< Enable Snapshot mode?
-        -1,                       //< Snapshot Width of the frame
-        -1,                       //< Snapshot Height of the frame
+        false,                       //< Enable Video Record
+        -1,                       //< Video Record Width of the frame
+        -1,                       //< Video Record Height of the frame
+        -1,                  //< Video Record Bitrate
+        true,                       //< Enable Snapshot mode?
+        1280,                       //< Snapshot Width of the frame
+        720,                       //< Snapshot Height of the frame
     #endif
         false,                      //< Flip
         false,                      //< Independent Exposure

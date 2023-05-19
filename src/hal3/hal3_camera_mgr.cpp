@@ -102,6 +102,7 @@
 // Libexif includes for QRB platform
 #ifndef PLATFORM_APQ8096
 #include <libexif/exif-data.h>
+#include <libexif/exif-entry.h>
 #include <libexif/exif-utils.h>
 /* raw EXIF header data */
 static const unsigned char exif_header[] = {
@@ -955,7 +956,7 @@ size_t find_jpeg_buffer_size(const uint8_t* buffer, int buffersize, int* start_i
     while (i < buffersize - 1) {
         if (buffer[i] == 0xFF && buffer[i+1] == 0xD8) { 
             // Found the start of the image
-            *start_index = &i;
+            *start_index = i;
             int j = i + 2;
             while (j < buffersize - 1) {
                 // Found a marker segment
@@ -1063,12 +1064,16 @@ static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t le
 
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
-    pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
-    pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
-    pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
-    pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
-                    EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
-                    MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
+    // pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
+    // pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
+    // pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
+    // pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
+    //                 EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
+    //                 MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
+
+    lat_deg = 42.0;
+    lon_deg = 53.0;
+    alt_m = 10.0;
 
     uint64_t size    = bufferBlockInfo->size;
 
@@ -1082,49 +1087,17 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     }
 
 #ifndef PLATFORM_APQ8096
-    unsigned char *exif_data;
-    unsigned int exif_data_len;
-    ExifEntry *entry;
-    ExifData *exif = exif_data_new();
-    if (!exif) {
-        fprintf(stderr, "Out of memory\n");
-        return;
+    ExifData* exifData = exif_data_new_from_data(src_data + start_index, extractJpgSize);
+    if (exifData == NULL) {
+        fprintf(stderr, "Failed to load EXIF data from JPEG buffer.\n");
+        return 1;
     }
-
-    /* Set the image options */
-    exif_data_set_option(exif, EXIF_DATA_OPTION_FOLLOW_SPECIFICATION);
-    exif_data_set_data_type(exif, EXIF_DATA_TYPE_COMPRESSED);
-    exif_data_set_byte_order(exif, FILE_BYTE_ORDER);
-
-    /* Create the mandatory EXIF fields with default data */
-    exif_data_fix(exif);
-
-    /* All these tags are created with default values by exif_data_fix() */
-    /* Change the data to the correct values for this image. */
-    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_PIXEL_X_DIMENSION);
-    exif_set_long(entry->data, FILE_BYTE_ORDER, bufferBlockInfo->width);
-
-    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_PIXEL_Y_DIMENSION);
-    exif_set_long(entry->data, FILE_BYTE_ORDER, bufferBlockInfo->height);
-
-    entry = init_tag(exif, EXIF_IFD_EXIF, EXIF_TAG_COLOR_SPACE);
-    exif_set_short(entry->data, FILE_BYTE_ORDER, 1);
 
     // Code to add latitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE_REF, 2);
-    entry->format = EXIF_FORMAT_ASCII;
-    entry->components = 1;
-    if (lat_deg >= 0) {
-        memcpy(entry->data, "N", sizeof("N"));
-    } else {
-        memcpy(entry->data, "S", sizeof("S"));
-        lat_deg *= -1;
-    }
-
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE, 24);
-    entry->format = EXIF_FORMAT_RATIONAL;
-    entry->components = 3;
-
+    ExifEntry* entry = exif_content_get_entry(exifData->ifd[EXIF_IFD_GPS], EXIF_TAG_GPS_LATITUDE);
+    // Create new GPS latitude and longitude entries
+    entry = exif_entry_new();
+    exif_entry_initialize(entry, EXIF_TAG_GPS_LATITUDE);
     ExifLong degrees_lat = (ExifLong)lat_deg;
     ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
     ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
@@ -1133,40 +1106,76 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
             (ExifRational){microseconds_lat, 1000000});
 
-    // Code to add longitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE_REF, 2);
-    entry->format = EXIF_FORMAT_ASCII;
-    entry->components = 1;
-    if (lon_deg >= 0) {
-        memcpy(entry->data, "E", sizeof("E"));
-    } else {
-        memcpy(entry->data, "W", sizeof("W"));
-        lon_deg *= -1;
-    }
-
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE, 24);
-    entry->format = EXIF_FORMAT_RATIONAL;
-    entry->components = 3;
-
+    exif_entry_initialize(entry, EXIF_TAG_GPS_LONGITUDE);
     ExifLong degrees_lon = (ExifLong)lon_deg;
     ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
     ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
     exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
     exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
     exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
-            (ExifRational){microseconds_lon, 1000000}); 
+            (ExifRational){microseconds_lon, 1000000});    
 
-    // Code to add altitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_ALTITUDE, 24);
-    entry->format = EXIF_FORMAT_RATIONAL;
-    entry->components = 1;
+    exif_content_fix(exifData->ifd[EXIF_IFD_GPS]);
 
-    ExifSLong alt_lon = (ExifSLong)alt_m;
-    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
+    // ExifEntry* entry = exif_entry_new();
+    // ExifData *exif = exif_data_new();
+    // entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE_REF, 2);
+    // entry->format = EXIF_FORMAT_ASCII;
+    // entry->components = 1;
+    // if (lat_deg >= 0) {
+    //     memcpy(entry->data, "N", sizeof("N"));
+    // } else {
+    //     memcpy(entry->data, "S", sizeof("S"));
+    //     lat_deg *= -1;
+    // }
 
-    /* Get a pointer to the EXIF data block we just created */
-    exif_data_save_data(exif, &exif_data, &exif_data_len);
-    assert(exif_data != NULL);
+    // entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE, 24);
+    // entry->format = EXIF_FORMAT_RATIONAL;
+    // entry->components = 3;
+
+    // ExifLong degrees_lat = (ExifLong)lat_deg;
+    // ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
+    // ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
+    // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+    // exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+    // exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+    //         (ExifRational){microseconds_lat, 1000000});
+
+    // // Code to add longitude to exif tag
+    // entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE_REF, 2);
+    // entry->format = EXIF_FORMAT_ASCII;
+    // entry->components = 1;
+    // if (lon_deg >= 0) {
+    //     memcpy(entry->data, "E", sizeof("E"));
+    // } else {
+    //     memcpy(entry->data, "W", sizeof("W"));
+    //     lon_deg *= -1;
+    // }
+
+    // entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE, 24);
+    // entry->format = EXIF_FORMAT_RATIONAL;
+    // entry->components = 3;
+
+    // ExifLong degrees_lon = (ExifLong)lon_deg;
+    // ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
+    // ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
+    // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+    // exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+    // exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+    //         (ExifRational){microseconds_lon, 1000000}); 
+
+    // // Code to add altitude to exif tag
+    // entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_ALTITUDE, 24);
+    // entry->format = EXIF_FORMAT_RATIONAL;
+    // entry->components = 1;
+
+    // ExifSLong alt_lon = (ExifSLong)alt_m;
+    // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
+
+    // Save the modified EXIF data to a new buffer
+    unsigned char* newJpegData = NULL;
+    unsigned int newJpegSize = 0;
+    exif_data_save_data(exifData, &newJpegData, &newJpegSize);
 
 #endif
 
@@ -1186,28 +1195,31 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
 #ifndef PLATFORM_APQ8096
-        /* Write EXIF header */
-        if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
-            fprintf(stderr, "Error writing to file inin exif header %s\n", path);
-        }
-        /* Write EXIF block length in big-endian order */
-        if (fputc((exif_data_len+2) >> 8, file_descriptor) < 0) {
-            fprintf(stderr, "Error writing to file in big endian order %s\n", path);
-        }
-        if (fputc((exif_data_len+2) & 0xff, file_descriptor) < 0) {
-            fprintf(stderr, "Error writing to file with fputc %s\n", path);
-        }
-        /* Write EXIF data block */
-        if (fwrite(exif_data, exif_data_len, 1, file_descriptor) != 1) {
-            fprintf(stderr, "Error writing to file with data block %s\n", path);
-        }
+//         /* Write EXIF header */
+//         if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
+//             fprintf(stderr, "Error writing to file inin exif header %s\n", path);
+//         }
+//         /* Write EXIF block length in big-endian order */
+//         if (fputc((exif_data_len+2) >> 8, file_descriptor) < 0) {
+//             fprintf(stderr, "Error writing to file in big endian order %s\n", path);
+//         }
+//         if (fputc((exif_data_len+2) & 0xff, file_descriptor) < 0) {
+//             fprintf(stderr, "Error writing to file with fputc %s\n", path);
+//         }
+//         /* Write EXIF data block */
+//         if (fwrite(exif_data, exif_data_len, 1, file_descriptor) != 1) {
+//             fprintf(stderr, "Error writing to file with data block %s\n", path);
+//         }
 
-        /* Write JPEG image data, skipping the non-EXIF header */
-        if (fwrite(src_data+start_index+20, extractJpgSize, 1, file_descriptor) != 1) {
-            fprintf(stderr, "Error writing to file with jpeg %s\n", path);
-        }
-        free(exif_data);
-        exif_data_unref(exif);
+//         /* Write JPEG image data, skipping the non-EXIF header */
+//         if (fwrite(src_data+start_index, extractJpgSize, 1, file_descriptor) != 1) {
+//             fprintf(stderr, "Error writing to file with jpeg %s\n", path);
+//         }
+//         free(exif_data);
+//         exif_data_unref(exif);
+        fwrite(newJpegData, 1, newJpegSize, file_descriptor);
+        exif_data_unref(exifData);
+        free(newJpegData);
 #else 
         fwrite(src_data + start_index, extractJpgSize, 1, file_descriptor);
 #endif
