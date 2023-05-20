@@ -88,6 +88,8 @@ public:
     void Stop();
     void EStop();
 
+
+    // TODO this needs to be much more elaborate
     int getNumClients(){
         if( partnerMode != MODE_STEREO_SLAVE ) {
             return pipe_server_get_num_clients(outputChannel);
@@ -97,7 +99,6 @@ public:
     }
 
     const PerCameraInfo        configInfo;                     ///< Per camera config information
-    const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
           char                 name[MAX_NAME_LENGTH];
     const bool                 en_preview;
@@ -262,8 +263,6 @@ private:
     list<char *>                        snapshotQueue;
     atomic_int                          numNeededSnapshots {0};
     int                                 lastSnapshotNumber = 0;
-    int                                 streamOutputChannel = -1;
-    int                                 recordOutputChannel = -1;
     camera_metadata_t*                  pSessionParams = NULL;
 
     ///< TOF Specific members
@@ -277,12 +276,56 @@ private:
     #endif
 
     uint32_t                           TOFFrameNumber = 0;
-    uint8_t                            IROutputChannel;
-    uint8_t                            DepthOutputChannel;
-    uint8_t                            ConfOutputChannel;
-    uint8_t                            PCOutputChannel;
-    uint8_t                            FullOutputChannel;
     int                                tofFrameCounter = 0;
+
+
+
+    /////////////////////////////////////
+    // MPA pipe channels
+    ////////////////////////////////////
+
+    // Channels for preview streams
+    int     previewOutputChannelGrey = -1;
+    int     previewOutputChannelColor = -1;
+
+    // Channels for stream streams
+    int     streamOutputChannelGrey = -1;
+    int     streamOutputChannelColor = -1;
+    int     streamOutputChannelH264 = -1;
+
+    // Channels for Record streams
+    int     recordOutputChannelGrey = -1;
+    int     recordOutputChannelColor = -1;
+    int     recordOutputChannelH264 = -1;
+
+    // Channels for Snapshot
+    int     snapshotOutputChannel = -1;
+
+    // Channels for TOF
+    int     IROutputChannel = -1;
+    int     DepthOutputChannel = -1;
+    int     ConfOutputChannel = -1;
+    int     PCOutputChannel = -1;
+    int     FullOutputChannel = -1;
+
+    void close_my_pipes(void)
+    {
+        if( previewOutputChannelGrey  >=0) pipe_server_close( previewOutputChannelGrey  );
+        if( previewOutputChannelColor >=0) pipe_server_close( previewOutputChannelColor );
+        if(  streamOutputChannelGrey  >=0) pipe_server_close(  streamOutputChannelGrey  );
+        if(  streamOutputChannelGrey  >=0) pipe_server_close(  streamOutputChannelGrey  );
+        if(  streamOutputChannelGrey  >=0) pipe_server_close(  streamOutputChannelGrey  );
+        if(  recordOutputChannelGrey  >=0) pipe_server_close(  recordOutputChannelGrey  );
+        if(  recordOutputChannelGrey  >=0) pipe_server_close(  recordOutputChannelGrey  );
+        if(  recordOutputChannelGrey  >=0) pipe_server_close(  recordOutputChannelGrey  );
+        if(snapshotOutputChannelGrey  >=0) pipe_server_close(snapshotOutputChannelGrey  );
+        if(          IROutputChannel  >=0) pipe_server_close(          IROutputChannel  );
+        if(       DepthOutputChannel  >=0) pipe_server_close(       DepthOutputChannel  );
+        if(        ConfOutputChannel  >=0) pipe_server_close(        ConfOutputChannel  );
+        if(          PCOutputChannel  >=0) pipe_server_close(          PCOutputChannel  );
+        if(        FullOutputChannel  >=0) pipe_server_close(        FullOutputChannel  );
+        return;
+    }
 
     void setMaster(PerCameraMgr *master) { ///< Tells a camera manager that the passed in pointer is it's master
         partnerMode = MODE_STEREO_SLAVE;

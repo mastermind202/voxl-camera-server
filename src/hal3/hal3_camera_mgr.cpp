@@ -144,7 +144,6 @@ static void _cpu_helper_cb(__attribute__((unused))int ch, char* raw_data, int by
 // -----------------------------------------------------------------------------------------------------------------------------
 PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
-    outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
     en_preview        (pCameraInfo.en_preview),
     en_stream         (pCameraInfo.en_stream),
@@ -246,6 +245,10 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
             throw -EINVAL;
         }
+        previewOutputChannelGrey = pipe_server_get_next_available_channel();
+        if(pre_stream.format == FMT_NV21){
+            previewOutputChannelColor = pipe_server_get_next_available_channel();
+        }
         M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
     }
 
@@ -262,7 +265,9 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            streamOutputChannel = pipe_server_get_next_available_channel();
+            streamOutputChannelGrey  = pipe_server_get_next_available_channel();
+            streamOutputChannelColor = pipe_server_get_next_available_channel();
+            streamOutputChannelH264  = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)str_width,   ///< Image width
                 .height =            (uint32_t)str_height,  ///< Image height
@@ -295,7 +300,9 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            recordOutputChannel = pipe_server_get_next_available_channel();
+            recordOutputChannelGrey  = pipe_server_get_next_available_channel();
+            recordOutputChannelColor = pipe_server_get_next_available_channel();
+            recordOutputChannelH264  = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)rec_width,   ///< Image width
                 .height =            (uint32_t)rec_height,  ///< Image height
@@ -320,6 +327,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         camera_info halCameraInfo;
         pCameraModule->get_camera_info(cameraId, &halCameraInfo);
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
+        snapshotOutputChannel  = pipe_server_get_next_available_channel();
 
         int blobWidth = estimateJpegBufferSize(pStaticMetadata, snap_width, snap_height);
 
@@ -704,7 +712,7 @@ void PerCameraMgr::Stop()
 
     pthread_mutex_destroy(&aeMutex);
 
-    pipe_server_close(outputChannel);
+    close_my_pipes();
 
 }
 
