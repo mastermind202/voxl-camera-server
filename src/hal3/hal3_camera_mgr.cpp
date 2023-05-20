@@ -146,6 +146,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     outputChannel     (pipe_server_get_next_available_channel()),
     cameraId          (pCameraInfo.camId),
+    en_preview        (pCameraInfo.en_preview),
     en_stream         (pCameraInfo.en_stream),
     en_record         (pCameraInfo.en_record),
     en_snapshot       (pCameraInfo.en_snapshot),
@@ -185,7 +186,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     // Check if the stream configuration is supported by the camera or not. If cameraid doesnt support the stream configuration
     // we just exit. The stream configuration is checked into the static metadata associated with every camera.
-    if (!HAL3_is_config_supported(cameraId, pre_width, pre_height, pre_halfmt))
+    if (en_preview && !HAL3_is_config_supported(cameraId, pre_width, pre_height, pre_halfmt))
     {
         M_ERROR("Camera %d failed to find supported preview config: %dx%d\n", cameraId, pre_width, pre_height);
 
@@ -234,17 +235,19 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         throw -EINVAL;
     }
 
-    if (bufferAllocateBuffers(pre_bufferGroup,
-                              NUM_PREVIEW_BUFFERS,
-                              pre_stream.width,
-                              pre_stream.height,
-                              pre_stream.format,
-                              pre_stream.usage)) {
-        M_ERROR("Failed to allocate preview buffers for camera: %s\n", name);
+    if (en_preview) {
+        if (bufferAllocateBuffers(pre_bufferGroup,
+                                  NUM_PREVIEW_BUFFERS,
+                                  pre_stream.width,
+                                  pre_stream.height,
+                                  pre_stream.format,
+                                  pre_stream.usage)) {
+            M_ERROR("Failed to allocate preview buffers for camera: %s\n", name);
 
-        throw -EINVAL;
+            throw -EINVAL;
+        }
+        M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
     }
-    M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
 
     if (en_stream) {
 
@@ -372,18 +375,20 @@ int PerCameraMgr::ConfigureStreams()
 
     streamConfig.num_streams    = 0;
 
-    pre_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-    pre_stream.width       = pre_width;
-    pre_stream.height      = pre_height;
-    pre_stream.format      = pre_halfmt;
-    pre_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-    pre_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
-    pre_stream.rotation    = ROTATION_MODE;
-    pre_stream.max_buffers = NUM_PREVIEW_BUFFERS;
-    pre_stream.priv        = 0;
+    if(en_preview){
+        pre_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        pre_stream.width       = pre_width;
+        pre_stream.height      = pre_height;
+        pre_stream.format      = pre_halfmt;
+        pre_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        pre_stream.usage       = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_TEXTURE;
+        pre_stream.rotation    = ROTATION_MODE;
+        pre_stream.max_buffers = NUM_PREVIEW_BUFFERS;
+        pre_stream.priv        = 0;
 
-    streams.push_back(&pre_stream);
-    streamConfig.num_streams ++;
+        streams.push_back(&pre_stream);
+        streamConfig.num_streams ++;
+    }
 
     if(en_stream) {
         str_stream.stream_type = CAMERA3_STREAM_OUTPUT;
@@ -428,6 +433,11 @@ int PerCameraMgr::ConfigureStreams()
 
         streams.push_back(&snap_stream);
         streamConfig.num_streams ++;
+    }
+
+    if(streamConfig.num_streams==0){
+        M_ERROR("No streams enabled for for camera: %d\n", cameraId);
+        return -EINVAL;
     }
 
     num_streams = streamConfig.num_streams;
@@ -1545,6 +1555,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 }
 
 
+// TODO need similar functions for stream and record streams
 int PerCameraMgr::HasClientForPreviewFrame()
 {
     if(configInfo.type == CAMTYPE_TOF){
@@ -1555,6 +1566,7 @@ int PerCameraMgr::HasClientForPreviewFrame()
         if(pipe_server_get_num_clients(FullOutputChannel )>0) return 1;
     }
     else{
+        // TODO add extra check here when doing color/grey dual previews
         if(pipe_server_get_num_clients(outputChannel)>0) return 1;
     }
     return 0;
@@ -1576,6 +1588,10 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
+    // TODO may want to send stream requests to keep AE going for the case where
+    // the user is just taking snapshots and not streaming video. This should
+    // be a config file option though so we don't waste power if the user is
+    // not taking snapshots
     if(en_stream && pipe_server_get_num_clients(streamOutputChannel)>0){
 
         int nFree = bufferNumFree(str_bufferGroup);
@@ -1651,9 +1667,10 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
     }
 
-    if(  HasClientForPreviewFrame() ||
+    if( en_preview &&
+        (HasClientForPreviewFrame() ||
         (ae_mode == AE_ISP && !request.num_output_buffers) ||
-        (ae_mode != AE_OFF && ae_mode != AE_ISP))
+        (ae_mode != AE_OFF && ae_mode != AE_ISP)))
     {
         int nFree = bufferNumFree(pre_bufferGroup);
         if(nFree<1){

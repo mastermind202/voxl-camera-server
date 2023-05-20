@@ -100,6 +100,7 @@ public:
     const uint8_t              outputChannel;
     const int32_t              cameraId;                       ///< Camera id
           char                 name[MAX_NAME_LENGTH];
+    const bool                 en_preview;
     const bool                 en_stream;
     const bool                 en_record;
     const bool                 en_snapshot;

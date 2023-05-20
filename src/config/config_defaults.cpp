@@ -46,6 +46,7 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
+        true,                       //< Enable Preview Mode?
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_RAW8,                   //< Preview Frame format
@@ -102,6 +103,7 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
+        true,                       //< Enable Preview Mode?
         1280,                       //< Preview Width of the frame
         800,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
@@ -159,6 +161,7 @@ static const PerCameraInfo IMX214Defaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         30,                         //< Framerate
+        false,                      //< Enable Preview Mode?
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
@@ -216,6 +219,7 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< ID2
         true,                       //< Enabled?
         5,                          //< Framerate
+        true,                       //< Enable Preview Mode?
         224,                        //< Preview Width of the frame
         1557,                       //< Preview Height of the frame
         FMT_TOF,                    //< Preview Frame format
@@ -246,6 +250,7 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //ID2
         false,                      //Enabled?
         -1,                         //Framerate
+        false,                      //< Enable Preview Mode?
         -1,                         //< Preview Width of the frame
         -1,                         //< Preview Height of the frame
         FMT_INVALID,                //< Preview Frame format

@@ -61,14 +61,18 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonNameString         "name"                     ///< Camera name
 #define JsonFPSString          "fps"                      ///< Camera fps
 #define JsonFlipString         "flip"                     ///< Camera flip?
+#define JsonPEnableString      "en_preview"               ///< Enable preview stream
 #define JsonPWidthString       "preview_width"            ///< Preview Frame width
 #define JsonPHeightString      "preview_height"           ///< Preview Frame height
+#define JsonSEnableString      "en_stream"                ///< Enable stream stream
 #define JsonSTWidthString      "stream_width"             ///< Stream Frame width
 #define JsonSTHeightString     "stream_height"            ///< Stream Frame height
 #define JsonSTBitrateString    "stream_bitrate"           ///< Stream Frame bitrate
+#define JsonREnableString      "en_record"                ///< Enable Record stream
 #define JsonRWidthString       "record_width"             ///< Record Frame width
 #define JsonRHeightString      "record_height"            ///< Record Frame height
 #define JsonRBitrateString     "record_bitrate"           ///< Record Frame bitrate
+#define JsonSNEnableString     "en_snapshot"              ///< Enable snapshot stream
 #define JsonSNWidthString      "snapshot_width"           ///< Snapshot Frame width
 #define JsonSNHeightString     "snapshot_height"          ///< Snapshot Frame height
 #define JsonFpsString          "frame_rate"               ///< Fps
@@ -126,6 +130,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
             goto ERROR_EXIT;
         }
 
+        // start with our own defaults for that camera type, then load from there
         PerCameraInfo info = getDefaultCameraInfo(type);
 
         if(json_fetch_string(cur, JsonNameString, info.name, 63)){
@@ -171,17 +176,24 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_bool_with_default(cur, JsonStandbyEnabled, &tmp, false);
         info.standby_enabled = tmp;
 
+        json_fetch_bool_with_default (cur, JsonPEnableString,       &info.en_preview,  info.en_preview);
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
+
+        json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_stream,   info.en_stream);
         json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.str_width,   info.str_width);
         json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.str_height,  info.str_height);
         json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.str_bitrate, info.str_bitrate);
+
+        json_fetch_bool_with_default (cur, JsonREnableString,       &info.en_record,   info.en_record);
         json_fetch_int_with_default  (cur, JsonRWidthString,        &info.rec_width,   info.rec_width);
         json_fetch_int_with_default  (cur, JsonRHeightString,       &info.rec_height,  info.rec_height);
         json_fetch_int_with_default  (cur, JsonRBitrateString,      &info.rec_bitrate, info.rec_bitrate);
+
+        json_fetch_bool_with_default (cur, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
         json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
         json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
-        json_fetch_int_with_default  (cur, JsonDecimator,           &info.decimator, info.decimator);
+        json_fetch_int_with_default  (cur, JsonDecimator,           &info.decimator,   info.decimator);
 
         // See which AE mode the user has defined
         if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
@@ -270,21 +282,27 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
-        cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
+        cJSON_AddBoolToObject(node, JsonPEnableString, info.en_preview);
+        if (info.en_preview){
+            cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
+            cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
+        }
 
+        cJSON_AddBoolToObject(node, JsonSEnableString, info.en_stream);
         if (info.en_stream) {
             cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.str_width);
             cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.str_height);
             cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.str_bitrate);
         }
 
+        cJSON_AddBoolToObject(node, JsonREnableString, info.en_record);
         if (info.en_record) {
             cJSON_AddNumberToObject  (node, JsonRWidthString,        info.rec_width);
             cJSON_AddNumberToObject  (node, JsonRHeightString,       info.rec_height);
             cJSON_AddNumberToObject  (node, JsonRBitrateString,      info.rec_bitrate);
         }
 
+        cJSON_AddBoolToObject(node, JsonSNEnableString, info.en_snapshot);
         if (info.en_snapshot) {
             cJSON_AddNumberToObject  (node, JsonSNWidthString,        info.snap_width);
             cJSON_AddNumberToObject  (node, JsonSNHeightString,       info.snap_height);
