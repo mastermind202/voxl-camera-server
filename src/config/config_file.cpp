@@ -64,14 +64,14 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonPEnableString      "en_preview"               ///< Enable preview stream
 #define JsonPWidthString       "preview_width"            ///< Preview Frame width
 #define JsonPHeightString      "preview_height"           ///< Preview Frame height
-#define JsonSEnableString      "en_stream"                ///< Enable stream stream
-#define JsonSTWidthString      "stream_width"             ///< Stream Frame width
-#define JsonSTHeightString     "stream_height"            ///< Stream Frame height
-#define JsonSTBitrateString    "stream_bitrate"           ///< Stream Frame bitrate
-#define JsonREnableString      "en_record"                ///< Enable Record stream
-#define JsonRWidthString       "record_width"             ///< Record Frame width
-#define JsonRHeightString      "record_height"            ///< Record Frame height
-#define JsonRBitrateString     "record_bitrate"           ///< Record Frame bitrate
+#define JsonSEnableString      "en_small_video"           ///< Enable small video stream
+#define JsonSTWidthString      "small_video_width"        ///< Small Video Frame width
+#define JsonSTHeightString     "small_video_height"       ///< Small Video Frame height
+#define JsonSTBitrateString    "small_video_bitrate"      ///< Small Video Frame bitrate
+#define JsonLVEnableString     "en_large_video"           ///< Enable large video stream
+#define JsonLVWidthString      "large_video_width"        ///< Large Video Frame width
+#define JsonLVHeightString     "large_video_height"       ///< Large Video Frame height
+#define JsonLVBitrateString    "large_video_bitrate"      ///< Large Video Frame bitrate
 #define JsonSNEnableString     "en_snapshot"              ///< Enable snapshot stream
 #define JsonSNWidthString      "snapshot_width"           ///< Snapshot Frame width
 #define JsonSNHeightString     "snapshot_height"          ///< Snapshot Frame height
@@ -180,15 +180,15 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
 
-        json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_stream,   info.en_stream);
-        json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.str_width,   info.str_width);
-        json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.str_height,  info.str_height);
-        json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.str_bitrate, info.str_bitrate);
+        json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_small_video,   info.en_small_video);
+        json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.small_video_width,   info.small_video_width);
+        json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.small_video_height,  info.small_video_height);
+        json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
 
-        json_fetch_bool_with_default (cur, JsonREnableString,       &info.en_record,   info.en_record);
-        json_fetch_int_with_default  (cur, JsonRWidthString,        &info.rec_width,   info.rec_width);
-        json_fetch_int_with_default  (cur, JsonRHeightString,       &info.rec_height,  info.rec_height);
-        json_fetch_int_with_default  (cur, JsonRBitrateString,      &info.rec_bitrate, info.rec_bitrate);
+        json_fetch_bool_with_default (cur, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
+        json_fetch_int_with_default  (cur, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
+        json_fetch_int_with_default  (cur, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
+        json_fetch_int_with_default  (cur, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
 
         json_fetch_bool_with_default (cur, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
         json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
@@ -288,18 +288,18 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
             cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
         }
 
-        cJSON_AddBoolToObject(node, JsonSEnableString, info.en_stream);
-        if (info.en_stream) {
-            cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.str_width);
-            cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.str_height);
-            cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.str_bitrate);
+        cJSON_AddBoolToObject(node, JsonSEnableString, info.en_small_video);
+        if (info.en_small_video) {
+            cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.small_video_width);
+            cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.small_video_height);
+            cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.small_video_bitrate);
         }
 
-        cJSON_AddBoolToObject(node, JsonREnableString, info.en_record);
-        if (info.en_record) {
-            cJSON_AddNumberToObject  (node, JsonRWidthString,        info.rec_width);
-            cJSON_AddNumberToObject  (node, JsonRHeightString,       info.rec_height);
-            cJSON_AddNumberToObject  (node, JsonRBitrateString,      info.rec_bitrate);
+        cJSON_AddBoolToObject(node, JsonLVEnableString, info.en_large_video);
+        if (info.en_large_video) {
+            cJSON_AddNumberToObject  (node, JsonLVWidthString,        info.large_video_width);
+            cJSON_AddNumberToObject  (node, JsonLVHeightString,       info.large_video_height);
+            cJSON_AddNumberToObject  (node, JsonLVBitrateString,      info.large_video_bitrate);
         }
 
         cJSON_AddBoolToObject(node, JsonSNEnableString, info.en_snapshot);

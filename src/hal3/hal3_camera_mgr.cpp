@@ -146,21 +146,21 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     configInfo        (pCameraInfo),
     cameraId          (pCameraInfo.camId),
     en_preview        (pCameraInfo.en_preview),
-    en_stream         (pCameraInfo.en_stream),
-    en_record         (pCameraInfo.en_record),
+    en_small_video         (pCameraInfo.en_small_video),
+    en_large_video         (pCameraInfo.en_large_video),
     en_snapshot       (pCameraInfo.en_snapshot),
     fps               (pCameraInfo.fps),
     pre_width         (pCameraInfo.pre_width),
     pre_height        (pCameraInfo.pre_height),
     pre_halfmt        (HalFmtFromType(pCameraInfo.pre_format)),
-    str_width         (pCameraInfo.str_width),
-    str_height        (pCameraInfo.str_height),
+    small_video_width         (pCameraInfo.small_video_width),
+    small_video_height        (pCameraInfo.small_video_height),
     str_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
-    str_bitrate       (pCameraInfo.str_bitrate),
-    rec_width         (pCameraInfo.rec_width),
-    rec_height        (pCameraInfo.rec_height),
+    small_video_bitrate       (pCameraInfo.small_video_bitrate),
+    large_video_width         (pCameraInfo.large_video_width),
+    large_video_height        (pCameraInfo.large_video_height),
     rec_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
-    rec_bitrate       (pCameraInfo.rec_bitrate),
+    large_video_bitrate       (pCameraInfo.large_video_bitrate),
     snap_width        (pCameraInfo.snap_width),
     snap_height       (pCameraInfo.snap_height),
     snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
@@ -191,15 +191,15 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_stream && !HAL3_is_config_supported(cameraId, str_width, str_height, str_halfmt))
+    if (en_small_video && !HAL3_is_config_supported(cameraId, small_video_width, small_video_height, str_halfmt))
     {
-        M_ERROR("Camera %d failed to find supported stream config: %dx%d\n", cameraId, str_width, str_height);
+        M_ERROR("Camera %d failed to find supported stream config: %dx%d\n", cameraId, small_video_width, small_video_height);
 
         throw -EINVAL;
     }
-    if (en_record && !HAL3_is_config_supported(cameraId, rec_width, rec_height, rec_halfmt))
+    if (en_large_video && !HAL3_is_config_supported(cameraId, large_video_width, large_video_height, rec_halfmt))
     {
-        M_ERROR("Camera %d failed to find supported record config: %dx%d\n", cameraId, rec_width, rec_height);
+        M_ERROR("Camera %d failed to find supported record config: %dx%d\n", cameraId, large_video_width, large_video_height);
 
         throw -EINVAL;
     }
@@ -245,14 +245,10 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
             throw -EINVAL;
         }
-        previewOutputChannelGrey = pipe_server_get_next_available_channel();
-        if(pre_stream.format == FMT_NV21){
-            previewOutputChannelColor = pipe_server_get_next_available_channel();
-        }
         M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
     }
 
-    if (en_stream) {
+    if (en_small_video) {
 
         if (bufferAllocateBuffers(str_bufferGroup,
                                   NUM_STREAM_BUFFERS,
@@ -265,19 +261,16 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            streamOutputChannelGrey  = pipe_server_get_next_available_channel();
-            streamOutputChannelColor = pipe_server_get_next_available_channel();
-            streamOutputChannelH264  = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)str_width,   ///< Image width
-                .height =            (uint32_t)str_height,  ///< Image height
+                .width =             (uint32_t)small_video_width,   ///< Image width
+                .height =            (uint32_t)small_video_height,  ///< Image height
                 .format =            (uint32_t)str_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     str_bitrate,           ///< Desired target bitrate
+                .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &str_bufferGroup,
-                .outputPipe =        streamOutputChannel
+                .outputPipe =        streamPipe
             };
             pVideoEncoderStream = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -287,7 +280,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         M_DEBUG("Successfully set up pipeline for stream: STREAM\n\n");
     }
 
-    if (en_record) {
+    if (en_large_video) {
 
         if (bufferAllocateBuffers(rec_bufferGroup,
                                   NUM_RECORD_BUFFERS,
@@ -300,19 +293,16 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            recordOutputChannelGrey  = pipe_server_get_next_available_channel();
-            recordOutputChannelColor = pipe_server_get_next_available_channel();
-            recordOutputChannelH264  = pipe_server_get_next_available_channel();
             VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)rec_width,   ///< Image width
-                .height =            (uint32_t)rec_height,  ///< Image height
+                .width =             (uint32_t)large_video_width,   ///< Image width
+                .height =            (uint32_t)large_video_height,  ///< Image height
                 .format =            (uint32_t)rec_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     rec_bitrate,           ///< Desired target bitrate
+                .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &rec_bufferGroup,
-                .outputPipe =        recordOutputChannel
+                .outputPipe =        recordPipe
             };
             pVideoEncoderRecord = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -327,7 +317,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         camera_info halCameraInfo;
         pCameraModule->get_camera_info(cameraId, &halCameraInfo);
         camera_metadata_t* pStaticMetadata = (camera_metadata_t *)halCameraInfo.static_camera_characteristics;
-        snapshotOutputChannel  = pipe_server_get_next_available_channel();
 
         int blobWidth = estimateJpegBufferSize(pStaticMetadata, snap_width, snap_height);
 
@@ -355,8 +344,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         newInfo.camId2 = -1;
 
         // These are disabled until(if) we figure out a good way to handle them
-        newInfo.en_stream = false;
-        newInfo.en_record = false;
+        newInfo.en_small_video = false;
+        newInfo.en_large_video = false;
         newInfo.en_snapshot = false;
 
         otherMgr = new PerCameraMgr(newInfo);
@@ -398,10 +387,10 @@ int PerCameraMgr::ConfigureStreams()
         streamConfig.num_streams ++;
     }
 
-    if(en_stream) {
+    if(en_small_video) {
         str_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        str_stream.width       = str_width;
-        str_stream.height      = str_height;
+        str_stream.width       = small_video_width;
+        str_stream.height      = small_video_height;
         str_stream.format      = str_halfmt;
         str_stream.data_space  = HAL_DATASPACE_UNKNOWN;
         str_stream.usage       = ENCODER_USAGE;
@@ -413,10 +402,10 @@ int PerCameraMgr::ConfigureStreams()
         streamConfig.num_streams ++;
     }
 
-    if(en_record) {
+    if(en_large_video) {
         rec_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        rec_stream.width       = rec_width;
-        rec_stream.height      = rec_height;
+        rec_stream.width       = large_video_width;
+        rec_stream.height      = large_video_height;
         rec_stream.format      = rec_halfmt;
         rec_stream.data_space  = HAL_DATASPACE_UNKNOWN;
         rec_stream.usage       = ENCODER_USAGE;
@@ -1036,14 +1025,14 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10){
             // Ship the frame out of the camera server
-            pipe_server_write_camera_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress);
+            pipe_server_write_camera_frame(Pipe, imageInfo, bufferBlockInfo->vaddress);
         }
         else if (pre_halfmt == HAL3_FMT_YUV){
             size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
             size_t uvlen = ylen/2;
             const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
             size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
-            pipe_server_write_list(outputChannel, 3, bufs, lens);
+            pipe_server_write_list(Pipe, 3, bufs, lens);
         }
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
 
@@ -1147,18 +1136,16 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             imageInfo.timestamp_ns = childInfo.timestamp_ns;
         }
 
-        // Ship the frame out of the camera server
-        // pipe_server_write_stereo_frame(outputChannel, imageInfo, bufferBlockInfo->vaddress, childFrame);
-        // M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+        // write the Y data out to grey pipe for both
+        size_t len = bufferBlockInfo->width * bufferBlockInfo->height;
+        const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, childFrame};
+        size_t lens[] = {sizeof(camera_image_metadata_t), len, len};
+        imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
+        imageInfo.size_bytes = 2*len;
+        pipe_server_write_list(Pipe, 3, bufs, lens);
 
-        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10)
-        {
-            size_t len = bufferBlockInfo->width * bufferBlockInfo->height;
-            const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, childFrame};
-            size_t lens[] = {sizeof(camera_image_metadata_t), len, len};
-            pipe_server_write_list(outputChannel, 3, bufs, lens);
-        }
-        else if (pre_halfmt == HAL3_FMT_YUV)
+        // for color cameras also write UV
+        if(pre_halfmt == HAL3_FMT_YUV)
         {
             size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
             size_t uvlen = ylen/2;
@@ -1168,7 +1155,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                                     childFrame,
                                     childFrame_uvHead};
             size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen, ylen, uvlen};
-            pipe_server_write_list(outputChannel, 5, bufs, lens);
+            imageInfo.format = IMAGE_FORMAT_STEREO_NV12;
+            imageInfo.size_bytes = 2*(ylen+uvlen);
+            pipe_server_write_list(Pipe, 5, bufs, lens);
         }
 
         M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
@@ -1286,8 +1275,8 @@ void PerCameraMgr::ProcessStreamFrame(image_result result)
         return;
     }
 
-    meta.width =  str_width;
-    meta.height = str_height;
+    meta.width =  small_video_width;
+    meta.height = small_video_height;
 
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderStream->ItemsInQueue();
@@ -1314,8 +1303,8 @@ void PerCameraMgr::ProcessRecordFrame(image_result result)
         return;
     }
 
-    meta.width = rec_width;
-    meta.height = rec_height;
+    meta.width = large_video_width;
+    meta.height = large_video_height;
 
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderRecord->ItemsInQueue();
@@ -1379,7 +1368,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
     DepthMeta = IRMeta;
     ConfMeta  = IRMeta;
 
-    if(pipe_server_get_num_clients(IROutputChannel)>0){
+    if(pipe_server_get_num_clients(tofPipeIR)>0){
         IRMeta.stride         = IRMeta.width * sizeof(uint8_t);
         IRMeta.size_bytes     = IRMeta.stride * IRMeta.height;
         IRMeta.format         = IMAGE_FORMAT_RAW8;
@@ -1392,10 +1381,10 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
             longval /= MAX_IR_VALUE_IN;
             IRData[i]    = longval;
         }
-        pipe_server_write_camera_frame(IROutputChannel, IRMeta, IRData);
+        pipe_server_write_camera_frame(tofPipeIR, IRMeta, IRData);
     }
 
-    if(pipe_server_get_num_clients(DepthOutputChannel)>0){
+    if(pipe_server_get_num_clients(tofPipeDepth)>0){
         DepthMeta.stride      = DepthMeta.width * sizeof(uint8_t);
         DepthMeta.size_bytes  = DepthMeta.stride * DepthMeta.height;
         DepthMeta.format      = IMAGE_FORMAT_RAW8;
@@ -1404,10 +1393,10 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
         {
             DepthData[i] = (uint8_t)((pointIn[i].z / 5) * 255);
         }
-        pipe_server_write_camera_frame(DepthOutputChannel, DepthMeta, DepthData);
+        pipe_server_write_camera_frame(tofPipeDepth, DepthMeta, DepthData);
     }
 
-    if(pipe_server_get_num_clients(ConfOutputChannel)>0){
+    if(pipe_server_get_num_clients(tofPipeConf)>0){
         ConfMeta.stride       = ConfMeta.width * sizeof(uint8_t);
         ConfMeta.size_bytes   = ConfMeta.stride * ConfMeta.height;
         ConfMeta.format       = IMAGE_FORMAT_RAW8;
@@ -1417,10 +1406,10 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
             royale::DepthPoint point = pointIn[i];
             ConfData[i] = point.depthConfidence;
         }
-        pipe_server_write_camera_frame(ConfOutputChannel, ConfMeta, ConfData);
+        pipe_server_write_camera_frame(tofPipeConf, ConfMeta, ConfData);
     }
 
-    if(pipe_server_get_num_clients(PCOutputChannel)>0){
+    if(pipe_server_get_num_clients(tofPipePC)>0){
         PCMeta.timestamp_ns   = IRMeta.timestamp_ns;
         PCMeta.n_points       = numPoints;
         float PointCloud[numPoints*3];
@@ -1431,10 +1420,10 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
             PointCloud[(i*3)+1] = point.y;
             PointCloud[(i*3)+2] = point.z;
         }
-        pipe_server_write_point_cloud(PCOutputChannel, PCMeta, PointCloud);
+        pipe_server_write_point_cloud(tofPipePC, PCMeta, PointCloud);
     }
 
-    if(pipe_server_get_num_clients(FullOutputChannel)>0){
+    if(pipe_server_get_num_clients(tofPipeFull)>0){
         tof_data_t FullData;
         FullData.magic_number = TOF_MAGIC_NUMBER;
         FullData.timestamp_ns = IRMeta.timestamp_ns;
@@ -1451,7 +1440,7 @@ bool PerCameraMgr::RoyaleDataDone(const void*             pData,
             FullData.grayValues [i]    = longval;
             FullData.confidences[i]    = point.depthConfidence;
         }
-        pipe_server_write(FullOutputChannel, (const char *)(&FullData), sizeof(tof_data_t));
+        pipe_server_write(tofPipeFull, (const char *)(&FullData), sizeof(tof_data_t));
     }
 
     return true;
@@ -1563,20 +1552,36 @@ void* PerCameraMgr::ThreadPostProcessResult()
 }
 
 
-// TODO need similar functions for stream and record streams
 int PerCameraMgr::HasClientForPreviewFrame()
 {
     if(configInfo.type == CAMTYPE_TOF){
-        if(pipe_server_get_num_clients(IROutputChannel   )>0) return 1;
-        if(pipe_server_get_num_clients(DepthOutputChannel)>0) return 1;
-        if(pipe_server_get_num_clients(ConfOutputChannel )>0) return 1;
-        if(pipe_server_get_num_clients(PCOutputChannel   )>0) return 1;
-        if(pipe_server_get_num_clients(FullOutputChannel )>0) return 1;
+        if(pipe_server_get_num_clients(tofPipeIR   )>0) return 1;
+        if(pipe_server_get_num_clients(tofPipeDepth)>0) return 1;
+        if(pipe_server_get_num_clients(tofPipeConf )>0) return 1;
+        if(pipe_server_get_num_clients(tofPipePC   )>0) return 1;
+        if(pipe_server_get_num_clients(tofPipeFull )>0) return 1;
     }
     else{
-        // TODO add extra check here when doing color/grey dual previews
-        if(pipe_server_get_num_clients(outputChannel)>0) return 1;
+        if(pipe_server_get_num_clients(previewPipeGrey)>0) return 1;
+        if(pre_halfmt == HAL3_FMT_YUV && pipe_server_get_num_clients(previewPipeColor)>0) return 1;
     }
+    return 0;
+}
+
+
+int PerCameraMgr::HasClientForSmallVideo()
+{
+    if(pipe_server_get_num_clients(smallVideoPipeGrey  )>0) return 1;
+    if(pipe_server_get_num_clients(smallVideoPipeColor )>0) return 1;
+    if(pipe_server_get_num_clients(smallVideoPipeh264  )>0) return 1;
+    return 0;
+}
+
+int PerCameraMgr::HasClientForLargeVideo()
+{
+    if(pipe_server_get_num_clients(largeVideoPipeGrey  )>0) return 1;
+    if(pipe_server_get_num_clients(largeVideoPipeColor )>0) return 1;
+    if(pipe_server_get_num_clients(largeVideoPipeh264  )>0) return 1;
     return 0;
 }
 
@@ -1600,7 +1605,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     // the user is just taking snapshots and not streaming video. This should
     // be a config file option though so we don't waste power if the user is
     // not taking snapshots
-    if(en_stream && pipe_server_get_num_clients(streamOutputChannel)>0){
+    if(en_small_video && HasClientForSmallVideo()){
 
         int nFree = bufferNumFree(str_bufferGroup);
         if(nFree<1){
@@ -1625,7 +1630,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         }
     }
 
-    if(en_record && pipe_server_get_num_clients(recordOutputChannel)>0){
+    if(en_large_video && HasClientForLargeVideo()){
 
         int nFree = bufferNumFree(rec_bufferGroup);
         if(nFree<1){
@@ -1841,7 +1846,7 @@ int PerCameraMgr::SetupPipes()
     if(configInfo.type != CAMTYPE_TOF){
         //Set up the control callback (wrapped in a lambda because it's a member function)
         pipe_server_set_control_cb(
-                outputChannel,                                         //Channel
+                Pipe,                                         //Channel
                 [](int ch, char * string, int bytes, void* context)    //Callback
                         {((PerCameraMgr*)context)->HandleControlCmd(string);},
                 this);                                                 //Context
@@ -1850,38 +1855,95 @@ int PerCameraMgr::SetupPipes()
         snprintf(cont_cmds, 255, "%s%s",
             CAM_CONTROL_COMMANDS,
             en_snapshot ? ",snapshot" : "");
+        int flags = SERVER_FLAG_EN_CONTROL_PIPE;
 
         pipe_info_t info;
-        strcpy(info.name       , name);
         strcpy(info.type       , "camera_image_metadata_t");
         strcpy(info.server_name, PROCESS_NAME);
         info.size_bytes = 64*1024*1024;
 
-        pipe_server_create(outputChannel, info, SERVER_FLAG_EN_CONTROL_PIPE);
+        // preview streams
+        if(en_preview){
 
-        pipe_server_set_available_control_commands(outputChannel, cont_cmds);
-
-        if(en_stream){
-            char encode_name[32];
-            snprintf(encode_name, 31, "%s_stream", name);
-            strcpy(info.name, encode_name);
-            pipe_server_create(streamOutputChannel, info, 0);
+            // old black and white cameras like OV7251 tracking and stereo
+            if(pre_format==FMT_RAW8 ){
+                strncpy(info.name, name, MODAL_PIPE_MAX_NAME_LEN-1);
+                previewPipeGrey = pipe_server_get_next_available_channel();
+                pipe_server_create(previewPipeGrey, info, flags);
+                pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
+            }
+            // color tracking cameras like OV9782
+            else if(pre_format==FMT_NV21 ){
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_grey", name);
+                previewPipeGrey = pipe_server_get_next_available_channel();
+                pipe_server_create(previewPipeGrey, info, flags);
+                pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_color", name);
+                previewPipeColor = pipe_server_get_next_available_channel();
+                pipe_server_create(previewPipeColor, info, flags);
+                pipe_server_set_available_control_commands(previewPipeColor, cont_cmds);
+            }
+            else{
+                fprintf(stderr, "UNKNOWN pre_format\n");
+                return -1;
+            }
         }
 
-        if(en_record){
-            char encode_name[32];
-            snprintf(encode_name, 31, "%s_record", name);
-            strcpy(info.name, encode_name);
-            pipe_server_create(recordOutputChannel, info, 0);
+
+        // small encoded video stream for hires cameras
+        if(en_small_video){
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_grey", name);
+            smallVideoPipeGrey = pipe_server_get_next_available_channel();
+            pipe_server_create(smallVideoPipeGrey, info, flags);
+            pipe_server_set_available_control_commands(smallVideoPipeGrey, cont_cmds);
+
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_color", name);
+            smallVideoPipeColor = pipe_server_get_next_available_channel();
+            pipe_server_create(smallVideoPipeColor, info, flags);
+            pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
+
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
+            smallVideoPipeH264 = pipe_server_get_next_available_channel();
+            pipe_server_create(smallVideoPipeH264, info, flags);
+            pipe_server_set_available_control_commands(smallVideoPipeH264, cont_cmds);
         }
+
+        // large encoded video stream for hires cameras
+        if(en_large_video){
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_grey", name);
+            largeVideoPipeGrey = pipe_server_get_next_available_channel();
+            pipe_server_create(largeVideoPipeGrey, info, flags);
+            pipe_server_set_available_control_commands(largeVideoPipeGrey, cont_cmds);
+
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_color", name);
+            largeVideoPipeColor = pipe_server_get_next_available_channel();
+            pipe_server_create(largeVideoPipeColor, info, flags);
+            pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
+
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
+            largeVideoPipeH264 = pipe_server_get_next_available_channel();
+            pipe_server_create(largeVideoPipeH264, info, flags);
+            pipe_server_set_available_control_commands(largeVideoPipeH264, cont_cmds);
+        }
+
+
+        if(en_snapshot){
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_snapshot", name);
+            snapshotPipe = pipe_server_get_next_available_channel();
+            pipe_server_create(snapshotPipe, info, flags);
+            pipe_server_set_available_control_commands(snapshotPipe, cont_cmds);
+        }
+
+
+
 
     } else {
 
-        IROutputChannel    = outputChannel;
-        DepthOutputChannel = pipe_server_get_next_available_channel();
-        ConfOutputChannel  = pipe_server_get_next_available_channel();
-        PCOutputChannel    = pipe_server_get_next_available_channel();
-        FullOutputChannel  = pipe_server_get_next_available_channel();
+        tofPipeIR    = pipe_server_get_next_available_channel();
+        tofPipeDepth = pipe_server_get_next_available_channel();
+        tofPipeConf  = pipe_server_get_next_available_channel();
+        tofPipePC    = pipe_server_get_next_available_channel();
+        tofPipeFull  = pipe_server_get_next_available_channel();
 
         pipe_info_t IRInfo;
         pipe_info_t DepthInfo;
@@ -1907,17 +1969,18 @@ int PerCameraMgr::SetupPipes()
         strcpy(PCInfo.server_name,    PROCESS_NAME);
         strcpy(FullInfo.server_name,  PROCESS_NAME);
 
-        IRInfo.size_bytes    = 64*1024*1024;
-        DepthInfo.size_bytes = 64*1024*1024;
-        ConfInfo.size_bytes  = 64*1024*1024;
-        PCInfo.size_bytes    = 64*1024*1024;
-        FullInfo.size_bytes  = 256*1024*1024;
+        IRInfo.size_bytes    =    1024*1024;
+        DepthInfo.size_bytes =    1024*1024;
+        ConfInfo.size_bytes  =    1024*1024;
+        PCInfo.size_bytes    = 32*1024*1024;
+        FullInfo.size_bytes  = 32*1024*1024;
 
-        pipe_server_create(IROutputChannel,    IRInfo,    0);
-        pipe_server_create(DepthOutputChannel, DepthInfo, 0);
-        pipe_server_create(ConfOutputChannel,  ConfInfo,  0);
-        pipe_server_create(PCOutputChannel,    PCInfo,    0);
-        pipe_server_create(FullOutputChannel,  FullInfo,  0);
+        int flags = 0;
+        pipe_server_create(tofPipeIR,    IRInfo,    flags);
+        pipe_server_create(tofPipeDepth, DepthInfo, flags);
+        pipe_server_create(tofPipeConf,  ConfInfo,  flags);
+        pipe_server_create(tofPipePC,    PCInfo,    flags);
+        pipe_server_create(tofPipeFull,  FullInfo,  flags);
 
     }
     return S_OK;
