@@ -62,8 +62,8 @@
 
 #define NUM_PREVIEW_BUFFERS  32
 #define NUM_SNAPSHOT_BUFFERS 8
-#define STREAM_ALLOWED_ITEMS_IN_OMX_QUEUE 1 // favor latency when dropping frames
-#define RECORD_ALLOWED_ITEMS_IN_OMX_QUEUE 2 // only drop frames when really getting behind
+#define SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE 1 // favor latency when dropping frames
+#define LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE 2 // only drop frames when really getting behind
 
 #define JPEG_DEFUALT_QUALITY        75
 
@@ -945,16 +945,21 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
 
-    camera_image_metadata_t imageInfo;
-    if(getMeta(result.first, &imageInfo)) {
+    camera_image_metadata_t meta;
+    if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        // bufferPush(rec_bufferGroup, bufferBlockInfo);
+
+        // TODO this call to bufferPush was commented out at one point but seems necesary
+        // I've uncommented it for now but would like to know why it was commented out
+        bufferPush(rec_bufferGroup, bufferBlockInfo);
         return;
     }
 
-    imageInfo.magic_number = CAMERA_MAGIC_NUMBER;
-    imageInfo.width        = pre_width;
-    imageInfo.height       = pre_height;
+    meta.magic_number = CAMERA_MAGIC_NUMBER;
+    meta.width        = bufferBlockInfo->width;
+    meta.height       = bufferBlockInfo->height;
+    size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
+    size_t uvlen = ylen/2;
 
 
     //Tof is different from the rest, pass the data off to spectre then send it out
@@ -966,17 +971,17 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         #ifdef APQ8096
             TOFProcessRAW16(tof_interface,
                         (uint16_t *)bufferBlockInfo->vaddress,
-                        imageInfo.timestamp_ns);
+                        meta.timestamp_ns);
         #elif QRB5165
 
             uint16_t srcPixel16[pre_width * pre_height] = {0};
-            imageInfo.format     = IMAGE_FORMAT_RAW8;
-            imageInfo.size_bytes = pre_width * pre_height;
-            imageInfo.stride     = pre_width;
+            meta.format     = IMAGE_FORMAT_RAW8;
+            meta.size_bytes = pre_width * pre_height;
+            meta.stride     = pre_width;
 
             // TODO: instead of creating new array you can do this raw12->raw16 cvt in place
-            Mipi12ToRaw16(imageInfo, (uint8_t *)bufferBlockInfo->vaddress, srcPixel16);
-            tof_interface->ProcessRAW16(srcPixel16, imageInfo.timestamp_ns);
+            Mipi12ToRaw16(meta, (uint8_t *)bufferBlockInfo->vaddress, srcPixel16);
+            tof_interface->ProcessRAW16(srcPixel16, meta.timestamp_ns);
         #endif
         M_VERBOSE("Sent tof data to royale for processing\n");
         return;
@@ -988,7 +993,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         M_VERBOSE("Preview format HAL_PIXEL_FORMAT_RAW10\n");
 
         // check the first frame to see if we actually got a raw10 frame or if it's actually raw8
-        if(imageInfo.frame_id == 1){
+        if(meta.frame_id == 1){
             M_DEBUG("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
             if((is10bit = Check10bit((uint8_t*)bufferBlockInfo->vaddress, pre_width, pre_height))){
@@ -998,9 +1003,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             }
         }
 
-        imageInfo.format     = IMAGE_FORMAT_RAW8;
-        imageInfo.size_bytes = pre_width * pre_height;
-        imageInfo.stride     = pre_width;
+        meta.format     = IMAGE_FORMAT_RAW8;
+        meta.size_bytes = pre_width * pre_height;
+        meta.stride     = pre_width;
 
         if(is10bit){
             ConvertTo8bitRaw((uint8_t*)bufferBlockInfo->vaddress,
@@ -1010,11 +1015,11 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     }
     else if (pre_halfmt == HAL3_FMT_YUV)
     {
-        imageInfo.format     = IMAGE_FORMAT_NV12;
+        meta.format     = IMAGE_FORMAT_NV12;
         // no need to make contiguous anymore, better method with pipe_server_write_list
         // bufferMakeYUVContiguous(bufferBlockInfo);
         ///<@todo assuming 420 format and multiplying by 1.5 because NV21/NV12 is 12 bits per pixel
-        imageInfo.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
+        meta.size_bytes = (bufferBlockInfo->width * bufferBlockInfo->height * 1.5);
 
     } else {
         M_ERROR("Camera: %s received invalid preview format, stopping\n", name);
@@ -1023,18 +1028,21 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
     if (partnerMode == MODE_MONO){
 
-        if(pre_halfmt == HAL_PIXEL_FORMAT_RAW10){
-            // Ship the frame out of the camera server
-            pipe_server_write_camera_frame(Pipe, imageInfo, bufferBlockInfo->vaddress);
-        }
-        else if (pre_halfmt == HAL3_FMT_YUV){
-            size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
-            size_t uvlen = ylen/2;
-            const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
+
+        // write to the grey pipe
+        meta.format = IMAGE_FORMAT_RAW8;
+        meta.size_bytes = ylen;
+        pipe_server_write_camera_frame(previewPipeGrey, meta, bufferBlockInfo->vaddress);
+
+        // also send to color pipe if color camera
+        if(pre_halfmt == HAL3_FMT_YUV){
+            meta.format = IMAGE_FORMAT_NV12;
+            meta.size_bytes = ylen+uvlen;
+            const void* bufs[] = {&meta, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
             size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
-            pipe_server_write_list(Pipe, 3, bufs, lens);
+            pipe_server_write_list(previewPipeColor, 3, bufs, lens);
         }
-        M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+        M_VERBOSE("Sent frame %d through pipe %s\n", meta.frame_id, name);
 
         int64_t    new_exposure_ns;
         int32_t    new_gain;
@@ -1044,8 +1052,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
-                imageInfo.exposure_ns,
-                imageInfo.gain,
+                meta.exposure_ns,
+                meta.gain,
                 &new_exposure_ns,
                 &new_gain)){
 
@@ -1057,8 +1065,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
-                imageInfo.exposure_ns,
-                imageInfo.gain,
+                meta.exposure_ns,
+                meta.gain,
                 &new_exposure_ns,
                 &new_gain)){
 
@@ -1069,20 +1077,20 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
     } else if (partnerMode == MODE_STEREO_MASTER){
 
-        switch (imageInfo.format){
+        switch (meta.format){
             case IMAGE_FORMAT_NV12:
-                imageInfo.format = IMAGE_FORMAT_STEREO_NV12;
-                imageInfo.size_bytes = pre_width * pre_height * 1.5 * 2;
+                meta.format = IMAGE_FORMAT_STEREO_NV12;
+                meta.size_bytes = pre_width * pre_height * 1.5 * 2;
                 break;
             case IMAGE_FORMAT_RAW8:
-                imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
-                imageInfo.size_bytes = pre_width * pre_height * 2;
+                meta.format = IMAGE_FORMAT_STEREO_RAW8;
+                meta.size_bytes = pre_width * pre_height * 2;
                 break;
             case IMAGE_FORMAT_STEREO_RAW8:
             case IMAGE_FORMAT_STEREO_NV21:
                 break;
             default:
-                M_ERROR("libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8: %s\n", pipe_image_format_to_string(imageInfo.format));
+                M_ERROR("libmodal-pipe does not support stereo pairs in formats other than NV12 or RAW8: %s\n", pipe_image_format_to_string(meta.format));
                 EStopCameraServer();
                 break;
         }
@@ -1105,10 +1113,10 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             return;
         }
 
-        int64_t diff = imageInfo.timestamp_ns - childInfo.timestamp_ns;
+        int64_t diff = meta.timestamp_ns - childInfo.timestamp_ns;
         M_VERBOSE("%s timestamps(ms): %llu, %llu, diff: %lld\n",
             name,
-            imageInfo.timestamp_ns/1000000,
+            meta.timestamp_ns/1000000,
             childInfo.timestamp_ns/1000000,
             diff/1000000);
 
@@ -1132,35 +1140,33 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         }
 
         // Assume the earlier timestamp is correct
-        if(imageInfo.timestamp_ns > childInfo.timestamp_ns){
-            imageInfo.timestamp_ns = childInfo.timestamp_ns;
+        if(meta.timestamp_ns > childInfo.timestamp_ns){
+            meta.timestamp_ns = childInfo.timestamp_ns;
         }
 
         // write the Y data out to grey pipe for both
-        size_t len = bufferBlockInfo->width * bufferBlockInfo->height;
-        const void* bufs[] = {&imageInfo, bufferBlockInfo->vaddress, childFrame};
-        size_t lens[] = {sizeof(camera_image_metadata_t), len, len};
-        imageInfo.format = IMAGE_FORMAT_STEREO_RAW8;
-        imageInfo.size_bytes = 2*len;
-        pipe_server_write_list(Pipe, 3, bufs, lens);
+
+        const void* bufs[] = {&meta, bufferBlockInfo->vaddress, childFrame};
+        size_t lens[] = {sizeof(camera_image_metadata_t), ylen, ylen};
+        meta.format = IMAGE_FORMAT_STEREO_RAW8;
+        meta.size_bytes = 2*ylen;
+        pipe_server_write_list(previewPipeGrey, 3, bufs, lens);
 
         // for color cameras also write UV
         if(pre_halfmt == HAL3_FMT_YUV)
         {
-            size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
-            size_t uvlen = ylen/2;
-            const void* bufs[] = {  &imageInfo,
+            const void* bufs[] = {  &meta,
                                     bufferBlockInfo->vaddress,
                                     bufferBlockInfo->uvHead,
                                     childFrame,
                                     childFrame_uvHead};
             size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen, ylen, uvlen};
-            imageInfo.format = IMAGE_FORMAT_STEREO_NV12;
-            imageInfo.size_bytes = 2*(ylen+uvlen);
-            pipe_server_write_list(Pipe, 5, bufs, lens);
+            meta.format = IMAGE_FORMAT_STEREO_NV12;
+            meta.size_bytes = 2*(ylen+uvlen);
+            pipe_server_write_list(previewPipeColor, 5, bufs, lens);
         }
 
-        M_VERBOSE("Sent frame %d through pipe %s\n", imageInfo.frame_id, name);
+        M_VERBOSE("Sent frame %d through pipe %s\n", meta.frame_id, name);
 
         // Run Auto Exposure
         int64_t    new_exposure_ns;
@@ -1171,8 +1177,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
-                imageInfo.exposure_ns,
-                imageInfo.gain,
+                meta.exposure_ns,
+                meta.gain,
                 &new_exposure_ns,
                 &new_gain)){
 
@@ -1190,8 +1196,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
                 pre_height,
-                imageInfo.exposure_ns,
-                imageInfo.gain,
+                meta.exposure_ns,
+                meta.gain,
                 &new_exposure_ns,
                 &new_gain)){
 
@@ -1217,7 +1223,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         otherMgr->childFrame = (uint8_t*)bufferBlockInfo->vaddress;
         otherMgr->childFrame_uvHead = (uint8_t*)bufferBlockInfo->uvHead;
-        otherMgr->childInfo  = imageInfo;
+        otherMgr->childInfo  = meta;
 
         pthread_cond_signal(&(otherMgr->stereoCond));
         pthread_cond_wait(&stereoCond, &(otherMgr->stereoMutex));
@@ -1233,8 +1239,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                     (uint8_t*)bufferBlockInfo->vaddress,
                     pre_width,
                     pre_height,
-                    imageInfo.exposure_ns,
-                    imageInfo.gain,
+                    meta.exposure_ns,
+                    meta.gain,
                     &new_exposure_ns,
                     &new_gain)){
 
@@ -1246,8 +1252,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                     (uint8_t*)bufferBlockInfo->vaddress,
                     pre_width,
                     pre_height,
-                    imageInfo.exposure_ns,
-                    imageInfo.gain,
+                    meta.exposure_ns,
+                    meta.gain,
                     &new_exposure_ns,
                     &new_gain)){
 
@@ -1263,27 +1269,46 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
 }
 
-void PerCameraMgr::ProcessStreamFrame(image_result result)
+void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
 {
-
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&str_bufferGroup, result.second.buffer);
 
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
-        M_WARN("Trying to process record buffer without metadata\n");
+        M_WARN("Trying to process encode buffer without metadata\n");
+        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        return;
+    }
+
+    meta.magic_number = CAMERA_MAGIC_NUMBER;
+    meta.width        = bufferBlockInfo->width;
+    meta.height       = bufferBlockInfo->height;
+    size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
+    size_t uvlen = ylen/2;
+
+    // check health of the encoder and drop this frame if it's getting backed up
+    int n = pVideoEncoderStream->ItemsInQueue();
+    if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
+        M_WARN("dropping stream frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(str_bufferGroup, result.second.buffer);
         return;
     }
 
-    meta.width =  small_video_width;
-    meta.height = small_video_height;
+    // write out to pipes, most of the time there will be no subscribers
+    // and this will just return
 
-    // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderStream->ItemsInQueue();
-    if(n>STREAM_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping stream frame, OMX is getting backed up, has %d in queue already\n", n);
-        bufferPush(str_bufferGroup, result.second.buffer);
-        return;
+    // write to the grey pipe
+    meta.format = IMAGE_FORMAT_RAW8;
+    meta.size_bytes = ylen;
+    pipe_server_write_camera_frame(smallVideoPipeGrey, meta, bufferBlockInfo->vaddress);
+
+    // also send to color pipe if color camera
+    if(pre_halfmt == HAL3_FMT_YUV){
+        meta.format = IMAGE_FORMAT_NV12;
+        meta.size_bytes = ylen+uvlen;
+        const void* bufs[] = {&meta, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
+        size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
+        pipe_server_write_list(smallVideoPipeColor, 3, bufs, lens);
     }
 
     // add to the OMX queue
@@ -1291,27 +1316,46 @@ void PerCameraMgr::ProcessStreamFrame(image_result result)
 
 }
 
-void PerCameraMgr::ProcessRecordFrame(image_result result)
+void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
 {
-
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&rec_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&str_bufferGroup, result.second.buffer);
 
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
-        M_WARN("Trying to process record buffer without metadata\n");
+        M_WARN("Trying to process encode buffer without metadata\n");
+        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        return;
+    }
+
+    meta.magic_number = CAMERA_MAGIC_NUMBER;
+    meta.width        = bufferBlockInfo->width;
+    meta.height       = bufferBlockInfo->height;
+    size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
+    size_t uvlen = ylen/2;
+
+    // check health of the encoder and drop this frame if it's getting backed up
+    int n = pVideoEncoderRecord->ItemsInQueue();
+    if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
+        M_WARN("dropping record frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(rec_bufferGroup, result.second.buffer);
         return;
     }
 
-    meta.width = large_video_width;
-    meta.height = large_video_height;
+    // write out to pipes, most of the time there will be no subscribers
+    // and this will just return
 
-    // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderRecord->ItemsInQueue();
-    if(n>RECORD_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping record frame, OMX is getting backed up, has %d in queue already\n", n);
-        bufferPush(rec_bufferGroup, result.second.buffer);
-        return;
+    // write to the grey pipe
+    meta.format = IMAGE_FORMAT_RAW8;
+    meta.size_bytes = ylen;
+    pipe_server_write_camera_frame(largeVideoPipeGrey, meta, bufferBlockInfo->vaddress);
+
+    // also send to color pipe if color camera
+    if(pre_halfmt == HAL3_FMT_YUV){
+        meta.format = IMAGE_FORMAT_NV12;
+        meta.size_bytes = ylen+uvlen;
+        const void* bufs[] = {&meta, bufferBlockInfo->vaddress, bufferBlockInfo->uvHead};
+        size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
+        pipe_server_write_list(largeVideoPipeColor, 3, bufs, lens);
     }
 
     // add to the OMX queue
@@ -1321,8 +1365,35 @@ void PerCameraMgr::ProcessRecordFrame(image_result result)
 
 void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
-
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&snap_bufferGroup, result.second.buffer);
+
+    // uncomment this when we have the JPG size function merged
+    /*
+    camera_image_metadata_t meta;
+    if(getMeta(result.first, &meta)) {
+        M_WARN("Trying to process encode buffer without metadata\n");
+        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        return;
+    }
+
+    int start_index = 0;
+    uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
+    int extractJpgSize = find_jpeg_buffer_size(src_data, size, &start_index);
+
+    if(extractJpgSize == 1){
+        printf("Real Size of JPEG is incorrect, setting to max of buffer");
+        extractJpgSize = bufferBlockInfo->size;
+    }
+
+    meta.magic_number = CAMERA_MAGIC_NUMBER;
+    meta.width        = bufferBlockInfo->width;
+    meta.height       = bufferBlockInfo->height;
+    meta.format       = IMAGE_FORMAT_JPEG;
+    meta.size_bytes   = extractJpgSize;
+
+    pipe_server_write_camera_frame(meta, src_data+start_index);
+    */
+
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
@@ -1513,12 +1584,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
             case STREAM_STREAM: // Not Ready
                 M_VERBOSE("Camera: %s processing stream frame\n", name);
-                ProcessStreamFrame(result);
+                ProcessSmallVideoFrame(result);
                 break;
 
             case STREAM_RECORD: // Not Ready
                 M_VERBOSE("Camera: %s processing record frame\n", name);
-                ProcessRecordFrame(result);
+                ProcessLargeVideoFrame(result);
                 break;
 
             case STREAM_SNAPSHOT:
