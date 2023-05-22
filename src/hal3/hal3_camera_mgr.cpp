@@ -1064,16 +1064,12 @@ static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t le
 
 static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
 {
-    // pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
-    // pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
-    // pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
-    // pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
-    //                 EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
-    //                 MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
-
-    lat_deg = 42.0;
-    lon_deg = 53.0;
-    alt_m = 10.0;
+    pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
+    pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
+    pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
+    pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
+                    EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
+                    MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
 
     uint64_t size    = bufferBlockInfo->size;
 
@@ -1087,35 +1083,34 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     }
 
 #ifndef PLATFORM_APQ8096
-    ExifData* exifData = exif_data_new_from_data(src_data + start_index, extractJpgSize);
-    if (exifData == NULL) {
-        fprintf(stderr, "Failed to load EXIF data from JPEG buffer.\n");
-        return 1;
-    }
+    // ExifData* exifData = exif_data_new_from_data(src_data + start_index, extractJpgSize);
+    // if (exifData == NULL) {
+    //     fprintf(stderr, "Failed to load EXIF data from JPEG buffer.\n");
+    // }
 
-    // Code to add latitude to exif tag
-    ExifEntry* entry = exif_content_get_entry(exifData->ifd[EXIF_IFD_GPS], EXIF_TAG_GPS_LATITUDE);
-    // Create new GPS latitude and longitude entries
-    entry = exif_entry_new();
-    exif_entry_initialize(entry, EXIF_TAG_GPS_LATITUDE);
-    ExifLong degrees_lat = (ExifLong)lat_deg;
-    ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
-    ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
-    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
-    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
-    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
-            (ExifRational){microseconds_lat, 1000000});
+    // // Code to add latitude to exif tag
+    // ExifEntry* entry = exif_content_get_entry(exifData->ifd[EXIF_IFD_GPS], EXIF_TAG_GPS_LATITUDE);
+    // // Create new GPS latitude and longitude entries
+    // entry = exif_entry_new();
+    // exif_entry_initialize(entry, EXIF_TAG_GPS_LATITUDE);
+    // ExifLong degrees_lat = (ExifLong)lat_deg;
+    // ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
+    // ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
+    // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+    // exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+    // exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+    //         (ExifRational){microseconds_lat, 1000000});
 
-    exif_entry_initialize(entry, EXIF_TAG_GPS_LONGITUDE);
-    ExifLong degrees_lon = (ExifLong)lon_deg;
-    ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
-    ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
-    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
-    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
-    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
-            (ExifRational){microseconds_lon, 1000000});    
+    // exif_entry_initialize(entry, EXIF_TAG_GPS_LONGITUDE);
+    // ExifLong degrees_lon = (ExifLong)lon_deg;
+    // ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
+    // ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
+    // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+    // exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+    // exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+    //         (ExifRational){microseconds_lon, 1000000});    
 
-    exif_content_fix(exifData->ifd[EXIF_IFD_GPS]);
+    // exif_content_fix(exifData->ifd[EXIF_IFD_GPS]);
 
     // ExifEntry* entry = exif_entry_new();
     // ExifData *exif = exif_data_new();
@@ -1173,10 +1168,44 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
     // exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
 
     // Save the modified EXIF data to a new buffer
-    unsigned char* newJpegData = NULL;
-    unsigned int newJpegSize = 0;
-    exif_data_save_data(exifData, &newJpegData, &newJpegSize);
+    // unsigned char* newJpegData = NULL;
+    // unsigned int newJpegSize = 0;
+    // exif_data_save_data(exifData, &newJpegData, &newJpegSize);
 
+    // Load the EXIF data from the file
+    ExifData* exifData = exif_data_new_from_data(src_data + start_index, extractJpgSize);
+    if (exifData == nullptr) {
+        printf("ISSUE GETTING EXIF DATA");
+    }
+
+
+    ExifEntry* entry;
+    // Code to add latitude to exif tag
+    entry = exif_content_get_entry(exifData->ifd[EXIF_IFD_GPS], EXIF_TAG_GPS_LATITUDE);
+    // Create new GPS latitude and longitude entries
+    if (entry == nullptr) {
+        entry = exif_entry_new();
+        exif_entry_initialize(entry, EXIF_TAG_GPS_LATITUDE);
+        ExifLong degrees_lat = (ExifLong)lat_deg;
+        ExifLong minutes_lat = (ExifLong)(60 * (lat_deg - degrees_lat));
+        ExifLong microseconds_lat = (ExifLong)(3600000000u * (lat_deg - degrees_lat - minutes_lat / 60.0));
+        exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+        exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+        exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+                (ExifRational){microseconds_lat, 1000000});
+    }
+
+    entry = exif_content_get_entry(exifData->ifd[EXIF_IFD_GPS], EXIF_TAG_GPS_LONGITUDE);
+    if (entry == nullptr) {
+        exif_entry_initialize(entry, EXIF_TAG_GPS_LONGITUDE);
+        ExifLong degrees_lon = (ExifLong)lon_deg;
+        ExifLong minutes_lon = (ExifLong)(60 * (lon_deg - degrees_lon));
+        ExifLong microseconds_lon = (ExifLong)(3600000000u * (lon_deg - degrees_lon - minutes_lon / 60.0));
+        exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+        exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+        exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+                (ExifRational){microseconds_lon, 1000000});   
+    }
 #endif
 
     FILE* file_descriptor = fopen(path, "wb");
@@ -1217,9 +1246,16 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
 //         }
 //         free(exif_data);
 //         exif_data_unref(exif);
-        fwrite(newJpegData, 1, newJpegSize, file_descriptor);
+        // fwrite(newJpegData, 1, newJpegSize, file_descriptor);
+        // exif_data_unref(exifData);
+        // free(newJpegData);
+        unsigned char* exifBuffer = nullptr;
+        unsigned int exifSize = 0;
+        exif_data_save_data(exifData, &exifBuffer, &exifSize);
+    
+        fwrite(exifBuffer, 1, exifSize, file_descriptor);
         exif_data_unref(exifData);
-        free(newJpegData);
+        fclose(file_descriptor);
 #else 
         fwrite(src_data + start_index, extractJpgSize, 1, file_descriptor);
 #endif
