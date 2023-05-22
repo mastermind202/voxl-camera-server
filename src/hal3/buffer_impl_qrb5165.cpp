@@ -60,7 +60,7 @@ int allocateOneBuffer(
     if (ionFd <= 0) {
         ionFd = open(ion_dev_file, O_RDONLY);
         if (ionFd <= 0) {
-            M_PRINT("Ion dev file open failed. Error=%d\n", errno);
+            M_ERROR("Ion dev file open failed. Error=%d\n", errno);
             return -EINVAL;
         }
     }
@@ -93,8 +93,9 @@ int allocateOneBuffer(
 
     allocation_data.flags = 1;
     allocation_data.heap_id_mask = (1U << ION_SYSTEM_HEAP_ID);
-    if (int ret = ioctl(ionFd, _IOWR('I', 0, struct ion_allocation_data), &allocation_data)) {
-        M_PRINT("ION allocation failed. ret=%d Error=%d fd=%d\n", ret, errno, ionFd);
+    if (int ret = ioctl(ionFd, ION_IOC_ALLOC, &allocation_data)) {
+        M_ERROR("ION allocation ioctl failed. ret=%d Error=%d (%s) fd=%d\n", ret, errno,
+                strerror(errno), ionFd);
         return ret;
     }
 
@@ -106,7 +107,7 @@ int allocateOneBuffer(
                         0);
     if (block.vaddress < 0) {
         int errsv = errno;
-        printf("mmap failed: %s (errno=%d)\n", strerror(errsv), errsv);
+        M_ERROR("mmap failed: %s (errno=%d)\n", strerror(errsv), errsv);
         return -EINVAL;
     }
 
