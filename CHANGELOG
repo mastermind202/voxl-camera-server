@@ -1,3 +1,6 @@
+1.6.0
+    * new pipe naming
+    * snapshot enabled in qrb5165
 1.5.4
     * config script cleanup
 1.5.3

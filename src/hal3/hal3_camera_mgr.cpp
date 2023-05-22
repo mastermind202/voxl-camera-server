@@ -153,6 +153,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     pre_width         (pCameraInfo.pre_width),
     pre_height        (pCameraInfo.pre_height),
     pre_halfmt        (HalFmtFromType(pCameraInfo.pre_format)),
+    vid_halfmt                (HAL_PIXEL_FORMAT_YCbCr_420_888),
     small_video_width         (pCameraInfo.small_video_width),
     small_video_height        (pCameraInfo.small_video_height),
     small_video_bitrate       (pCameraInfo.small_video_bitrate),
@@ -189,13 +190,13 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_small_video && !HAL3_is_config_supported(cameraId, small_video_width, small_video_height, pre_halfmt))
+    if (en_small_video && !HAL3_is_config_supported(cameraId, small_video_width, small_video_height, vid_halfmt))
     {
         M_ERROR("Camera %d failed to find supported stream config: %dx%d\n", cameraId, small_video_width, small_video_height);
 
         throw -EINVAL;
     }
-    if (en_large_video && !HAL3_is_config_supported(cameraId, large_video_width, large_video_height, pre_halfmt))
+    if (en_large_video && !HAL3_is_config_supported(cameraId, large_video_width, large_video_height, vid_halfmt))
     {
         M_ERROR("Camera %d failed to find supported record config: %dx%d\n", cameraId, large_video_width, large_video_height);
 
@@ -248,12 +249,12 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
     if (en_small_video) {
 
-        if (bufferAllocateBuffers(str_bufferGroup,
+        if (bufferAllocateBuffers(small_vid_bufferGroup,
                                   NUM_STREAM_BUFFERS,
-                                  str_stream.width,
-                                  str_stream.height,
-                                  str_stream.format,
-                                  str_stream.usage)) {
+                                  small_vid_stream.width,
+                                  small_vid_stream.height,
+                                  small_vid_stream.format,
+                                  small_vid_stream.usage)) {
             M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
             throw -EINVAL;
         }
@@ -262,12 +263,12 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)small_video_width,   ///< Image width
                 .height =            (uint32_t)small_video_height,  ///< Image height
-                .format =            (uint32_t)pre_halfmt,  ///< Image format
+                .format =            (uint32_t)vid_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
                 .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
-                .inputBuffers =      &str_bufferGroup,
+                .inputBuffers =      &small_vid_bufferGroup,
                 .outputPipe =        smallVideoPipeH264
             };
             pVideoEncoderSmall = new VideoEncoder(&enc_info);
@@ -275,17 +276,17 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: STREAM\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: STREAM_SMALL_VID\n\n");
     }
 
     if (en_large_video) {
 
-        if (bufferAllocateBuffers(rec_bufferGroup,
+        if (bufferAllocateBuffers(large_vid_bufferGroup,
                                   NUM_RECORD_BUFFERS,
-                                  rec_stream.width,
-                                  rec_stream.height,
-                                  rec_stream.format,
-                                  rec_stream.usage)) {
+                                  large_vid_stream.width,
+                                  large_vid_stream.height,
+                                  large_vid_stream.format,
+                                  large_vid_stream.usage)) {
             M_ERROR("Failed to allocate encode buffers for camera: %s\n", name);
             throw -EINVAL;
         }
@@ -294,12 +295,12 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)large_video_width,   ///< Image width
                 .height =            (uint32_t)large_video_height,  ///< Image height
-                .format =            (uint32_t)pre_halfmt,  ///< Image format
+                .format =            (uint32_t)vid_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
                 .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
-                .inputBuffers =      &rec_bufferGroup,
+                .inputBuffers =      &large_vid_bufferGroup,
                 .outputPipe =        largeVideoPipeH264
             };
             pVideoEncoderLarge = new VideoEncoder(&enc_info);
@@ -307,7 +308,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: RECORD\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: STREAM_LARGE_VID\n\n");
     }
 
     if (en_snapshot) {
@@ -386,32 +387,32 @@ int PerCameraMgr::ConfigureStreams()
     }
 
     if(en_small_video) {
-        str_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        str_stream.width       = small_video_width;
-        str_stream.height      = small_video_height;
-        str_stream.format      = pre_halfmt;
-        str_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-        str_stream.usage       = ENCODER_USAGE;
-        str_stream.rotation    = ROTATION_MODE;
-        str_stream.max_buffers = NUM_STREAM_BUFFERS;
-        str_stream.priv        = 0;
+        small_vid_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        small_vid_stream.width       = small_video_width;
+        small_vid_stream.height      = small_video_height;
+        small_vid_stream.format      = vid_halfmt;
+        small_vid_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        small_vid_stream.usage       = ENCODER_USAGE;
+        small_vid_stream.rotation    = ROTATION_MODE;
+        small_vid_stream.max_buffers = NUM_STREAM_BUFFERS;
+        small_vid_stream.priv        = 0;
 
-        streams.push_back(&str_stream);
+        streams.push_back(&small_vid_stream);
         streamConfig.num_streams ++;
     }
 
     if(en_large_video) {
-        rec_stream.stream_type = CAMERA3_STREAM_OUTPUT;
-        rec_stream.width       = large_video_width;
-        rec_stream.height      = large_video_height;
-        rec_stream.format      = pre_halfmt;
-        rec_stream.data_space  = HAL_DATASPACE_UNKNOWN;
-        rec_stream.usage       = ENCODER_USAGE;
-        rec_stream.rotation    = ROTATION_MODE;
-        rec_stream.max_buffers = NUM_RECORD_BUFFERS;
-        rec_stream.priv        = 0;
+        large_vid_stream.stream_type = CAMERA3_STREAM_OUTPUT;
+        large_vid_stream.width       = large_video_width;
+        large_vid_stream.height      = large_video_height;
+        large_vid_stream.format      = vid_halfmt;
+        large_vid_stream.data_space  = HAL_DATASPACE_UNKNOWN;
+        large_vid_stream.usage       = ENCODER_USAGE;
+        large_vid_stream.rotation    = ROTATION_MODE;
+        large_vid_stream.max_buffers = NUM_RECORD_BUFFERS;
+        large_vid_stream.priv        = 0;
 
-        streams.push_back(&rec_stream);
+        streams.push_back(&large_vid_stream);
         streamConfig.num_streams ++;
     }
 
@@ -679,8 +680,8 @@ void PerCameraMgr::Stop()
     }
 
     bufferDeleteBuffers(pre_bufferGroup);
-    bufferDeleteBuffers(str_bufferGroup);
-    bufferDeleteBuffers(rec_bufferGroup);
+    bufferDeleteBuffers(small_vid_bufferGroup);
+    bufferDeleteBuffers(large_vid_bufferGroup);
     bufferDeleteBuffers(snap_bufferGroup);
 
     if (pDevice != NULL)
@@ -752,6 +753,8 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 
     }
 
+    M_VERBOSE("Received %d buffers from camera %s\n", pHalResult->num_output_buffers, name);
+
     for (uint i = 0; i < pHalResult->num_output_buffers; i++)
     {
 
@@ -776,7 +779,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult)
 {
-    M_VERBOSE("recieved notify for: %d\n", pHalResult->frame_number);
+    M_VERBOSE("Received notify for: %d\n", pHalResult->frame_number);
     Camera3Callbacks* pCamera3Callbacks = (Camera3Callbacks*)cb;
     PerCameraMgr* pPerCameraMgr = (PerCameraMgr*)pCamera3Callbacks->pPrivate;
 
@@ -800,21 +803,21 @@ void PerCameraMgr::CameraModuleNotify(const camera3_callback_ops_t *cb, const ca
                 //Another thread has already detected the fatal error, return since it has already been handled
                 if(pPerCameraMgr->EStopped) return;
 
-                M_ERROR("Recieved \"Device\" error from camera: %s\n",
+                M_ERROR("Received \"Device\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 M_PRINT(  "                          Camera server will be stopped\n");
                 EStopCameraServer();
                 break;
             case CAMERA3_MSG_ERROR_REQUEST:
-                M_ERROR("Recieved \"Request\" error from camera: %s\n",
+                M_ERROR("Received \"Request\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
             case CAMERA3_MSG_ERROR_RESULT:
-                M_ERROR("Recieved \"Result\" error from camera: %s\n",
+                M_ERROR("Received \"Result\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
             case CAMERA3_MSG_ERROR_BUFFER:
-                M_ERROR("Recieved \"Buffer\" error from camera: %s\n",
+                M_ERROR("Received \"Buffer\" error from camera: %s\n",
                              pPerCameraMgr->name);
                 break;
 
@@ -917,7 +920,7 @@ static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* 
         fwrite(src_data, size, 1, file_descriptor);
 
     } else {
-        M_ERROR("%s recieved frame in unsuppored format\n", __FUNCTION__);
+        M_ERROR("%s Received frame in unsuppored format\n", __FUNCTION__);
     }
 
     fclose(file_descriptor);
@@ -946,10 +949,6 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-
-        // TODO this call to bufferPush was commented out at one point but seems necesary
-        // I've uncommented it for now but would like to know why it was commented out
-        bufferPush(pre_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -995,7 +994,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             M_DEBUG("%s received raw10 frame, checking to see if is actually raw8\n", name);
 
             if((is10bit = Check10bit((uint8_t*)bufferBlockInfo->vaddress, pre_width, pre_height))){
-                M_WARN("Recieved RAW10 frame, will be converting to RAW8 on cpu\n");
+                M_WARN("Received RAW10 frame, will be converting to RAW8 on cpu\n");
             } else {
                 M_DEBUG("Frame was actually 8 bit, sending as is\n");
             }
@@ -1120,7 +1119,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         //Much newer master, discard the child and get a new one
         if(diff > MAX_STEREO_DISCREPENCY_NS){
-            M_WARN("Camera %s recieved much newer master than child (%lld), discarding child and trying again\n",
+            M_WARN("Camera %s Received much newer master than child (%lld), discarding child and trying again\n",
                 name, diff/1000000);
             childFrame = NULL;
             pthread_mutex_unlock(&stereoMutex);
@@ -1131,7 +1130,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         diff *= -1;
         //Much newer child, discard master but keep the child
         if(diff > MAX_STEREO_DISCREPENCY_NS){
-            M_WARN("Camera %s recieved much newer child than master (%lld), discarding master and trying again\n",
+            M_WARN("Camera %s Received much newer child than master (%lld), discarding master and trying again\n",
                 name, diff/1000000);
             pthread_mutex_unlock(&stereoMutex);
             return;
@@ -1269,12 +1268,12 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
 void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
 {
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&str_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&small_vid_bufferGroup, result.second.buffer);
 
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(str_bufferGroup, result.second.buffer);
+        bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1283,17 +1282,6 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     meta.height       = bufferBlockInfo->height;
     size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
     size_t uvlen = ylen/2;
-
-    // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderSmall->ItemsInQueue();
-    if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping stream frame, OMX is getting backed up, has %d in queue already\n", n);
-        bufferPush(str_bufferGroup, result.second.buffer);
-        return;
-    }
-
-    // write out to pipes, most of the time there will be no subscribers
-    // and this will just return
 
     // write to the grey pipe
     meta.format = IMAGE_FORMAT_RAW8;
@@ -1309,19 +1297,27 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
         pipe_server_write_list(smallVideoPipeColor, 3, bufs, lens);
     }
 
+    // check health of the encoder and drop this frame if it's getting backed up
+    int n = pVideoEncoderSmall->ItemsInQueue();
+    if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
+        M_WARN("dropping small video frame, OMX is getting backed up, has %d in queue already\n", n);
+        bufferPush(small_vid_bufferGroup, result.second.buffer);
+        return;
+    }
+
     // add to the OMX queue
-    pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
+    //pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
 void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
 {
-    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&str_bufferGroup, result.second.buffer);
+    BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&large_vid_bufferGroup, result.second.buffer);
 
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(rec_bufferGroup, result.second.buffer);
+        bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1330,17 +1326,6 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     meta.height       = bufferBlockInfo->height;
     size_t ylen = bufferBlockInfo->width * bufferBlockInfo->height;
     size_t uvlen = ylen/2;
-
-    // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderLarge->ItemsInQueue();
-    if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping record frame, OMX is getting backed up, has %d in queue already\n", n);
-        bufferPush(rec_bufferGroup, result.second.buffer);
-        return;
-    }
-
-    // write out to pipes, most of the time there will be no subscribers
-    // and this will just return
 
     // write to the grey pipe
     meta.format = IMAGE_FORMAT_RAW8;
@@ -1356,8 +1341,16 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
         pipe_server_write_list(largeVideoPipeColor, 3, bufs, lens);
     }
 
+    // check health of the encoder and drop this frame if it's getting backed up
+    int n = pVideoEncoderLarge->ItemsInQueue();
+    if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
+        M_WARN("dropping large video frame, OMX is getting backed up, has %d in queue already\n", n);
+        bufferPush(large_vid_bufferGroup, result.second.buffer);
+        return;
+    }
+
     // add to the OMX queue
-    pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
+    //pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
@@ -1370,7 +1363,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        bufferPush(large_vid_bufferGroup, bufferBlockInfo);
         return;
     }
 
@@ -1547,7 +1540,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         pthread_mutex_lock(&resultMutex);
         if (resultMsgQueue.empty())
         {
-            //Wait for a signal that we have recieved a frame or an estop
+            //Wait for a signal that we have Received a frame or an estop
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
@@ -1581,12 +1574,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
 
             case STREAM_SMALL_VID: // Not Ready
-                M_VERBOSE("Camera: %s processing stream frame\n", name);
+                M_VERBOSE("Camera: %s processing small vid frame\n", name);
                 ProcessSmallVideoFrame(result);
                 break;
 
             case STREAM_LARGE_VID: // Not Ready
-                M_VERBOSE("Camera: %s processing record frame\n", name);
+                M_VERBOSE("Camera: %s processing large vid frame\n", name);
                 ProcessLargeVideoFrame(result);
                 break;
 
@@ -1597,7 +1590,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
 
             default:
-                M_ERROR("Camera: %s recieved frame for unknown stream\n", name);
+                M_ERROR("Camera: %s Received frame for unknown stream\n", name);
                 bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
         }
@@ -1610,7 +1603,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
     }
 
     if(EStopped){
-        M_WARN("Thread: %s result thread recieved ESTOP\n", name);
+        M_WARN("Thread: %s result thread Received ESTOP\n", name);
     }else{
         M_DEBUG("------ Last %s result frame: %d\n", name, lastResultFrameNumber);
     }
@@ -1676,50 +1669,52 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     // not taking snapshots
     if(en_small_video && HasClientForSmallVideo()){
 
-        int nFree = bufferNumFree(str_bufferGroup);
+        int nFree = bufferNumFree(small_vid_bufferGroup);
         if(nFree<1){
-            M_WARN("Stream stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
+            M_WARN("small vid stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
         else{
 
-            camera3_stream_buffer_t estreamBuffer;
-            if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(str_bufferGroup)) == NULL) {
-                M_ERROR("Failed to get buffer for stream stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+            camera3_stream_buffer_t streamBuffer;
+            if ((streamBuffer.buffer   = (const native_handle_t**)bufferPop(small_vid_bufferGroup)) == NULL) {
+                M_ERROR("Failed to get buffer for small vid stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
             }
 
-            estreamBuffer.stream        = &str_stream;
-            estreamBuffer.status        = 0;
-            estreamBuffer.acquire_fence = -1;
-            estreamBuffer.release_fence = -1;
+            streamBuffer.stream        = &small_vid_stream;
+            streamBuffer.status        = 0;
+            streamBuffer.acquire_fence = -1;
+            streamBuffer.release_fence = -1;
 
             request.num_output_buffers ++;
-            streamBufferList.push_back(estreamBuffer);
+            streamBufferList.push_back(streamBuffer);
+             M_VERBOSE("added request for small video stream\n");
         }
     }
 
     if(en_large_video && HasClientForLargeVideo()){
 
-        int nFree = bufferNumFree(rec_bufferGroup);
+        int nFree = bufferNumFree(large_vid_bufferGroup);
         if(nFree<1){
             M_WARN("record stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
         else{
-            camera3_stream_buffer_t rstreamBuffer;
-            if ((rstreamBuffer.buffer   = (const native_handle_t**)bufferPop(rec_bufferGroup)) == NULL) {
+            camera3_stream_buffer_t streamBuffer;
+            if ((streamBuffer.buffer   = (const native_handle_t**)bufferPop(large_vid_bufferGroup)) == NULL) {
                 M_ERROR("Failed to get buffer for record stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
             }
 
-            rstreamBuffer.stream        = &rec_stream;
-            rstreamBuffer.status        = 0;
-            rstreamBuffer.acquire_fence = -1;
-            rstreamBuffer.release_fence = -1;
+            streamBuffer.stream        = &large_vid_stream;
+            streamBuffer.status        = 0;
+            streamBuffer.acquire_fence = -1;
+            streamBuffer.release_fence = -1;
 
             request.num_output_buffers ++;
-            streamBufferList.push_back(rstreamBuffer);
+            streamBufferList.push_back(streamBuffer);
+             M_VERBOSE("added request for large video stream\n");
         }
     }
 
@@ -1732,19 +1727,20 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         else{
             numNeededSnapshots --;
 
-            camera3_stream_buffer_t sstreamBuffer;
-            if((sstreamBuffer.buffer    = (const native_handle_t**)bufferPop(snap_bufferGroup)) == NULL) {
+            camera3_stream_buffer_t streamBuffer;
+            if((streamBuffer.buffer    = (const native_handle_t**)bufferPop(snap_bufferGroup)) == NULL) {
                 M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
             }
-            sstreamBuffer.stream        = &snap_stream;
-            sstreamBuffer.status        = 0;
-            sstreamBuffer.acquire_fence = -1;
-            sstreamBuffer.release_fence = -1;
+            streamBuffer.stream        = &snap_stream;
+            streamBuffer.status        = 0;
+            streamBuffer.acquire_fence = -1;
+            streamBuffer.release_fence = -1;
 
             request.num_output_buffers ++;
-            streamBufferList.push_back(sstreamBuffer);
+            streamBufferList.push_back(streamBuffer);
+             M_VERBOSE("added request for snapshot stream\n");
         }
 
     }
@@ -1759,19 +1755,20 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
             M_WARN("preview buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
         else{
-            camera3_stream_buffer_t pstreamBuffer;
-            if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
+            camera3_stream_buffer_t streamBuffer;
+            if((streamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
                 M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
             }
-            pstreamBuffer.stream        = &pre_stream;
-            pstreamBuffer.status        = 0;
-            pstreamBuffer.acquire_fence = -1;
-            pstreamBuffer.release_fence = -1;
+            streamBuffer.stream        = &pre_stream;
+            streamBuffer.status        = 0;
+            streamBuffer.acquire_fence = -1;
+            streamBuffer.release_fence = -1;
 
             request.num_output_buffers ++;
-            streamBufferList.push_back(pstreamBuffer);
+            streamBufferList.push_back(streamBuffer);
+            M_VERBOSE("added request for preview stream\n");
         }
     }
 
@@ -1781,10 +1778,10 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     request.input_buffer        = nullptr;
 
     // If there are no output buffers just do nothing
-    // Without this an illigal zero output buffer request will be made
+    // Without this an illegal zero output buffer request will be made
     if (request.num_output_buffers == 0){
         // Output buffers are full delay the next request
-        // Without this wait at high CPU loads the loop will runn away with CPU usage
+        // Without this wait at high CPU loads the loop will run away with CPU usage
         usleep(10000);
         return S_OK;
     }
@@ -1808,7 +1805,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
      *          called by the framework.
      *
      */
-    M_VERBOSE("Sending request for frame %d for camera %s\n", frameNumber, name);
+    M_VERBOSE("Sending request for frame %d for camera %s for %d streams\n", frameNumber, name, request.num_output_buffers);
 
     if (int status = pDevice->ops->process_capture_request(pDevice, &request))
     {
@@ -1816,7 +1813,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         //Another thread has already detected the fatal error, return since it has already been handled
         if(stopped) return 0;
 
-        M_ERROR("Recieved Fatal error from camera: %s\n", name);
+        M_ERROR("Received Fatal error from camera: %s\n", name);
         switch (status){
             case -EINVAL :
                 M_ERROR("Sending request %d, ErrorCode: -EINVAL\n", frameNumber);
@@ -1881,7 +1878,7 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     // Stop message received. Inform about the last framenumber requested from the camera module. This in turn will be used
     // by the result thread to wait for this frame's image buffers to arrive.
     if(EStopped){
-        M_WARN("Thread: %s request thread recieved ESTOP\n", name);
+        M_WARN("Thread: %s request thread Received ESTOP\n", name);
     }else{
         lastResultFrameNumber = frame_number;
         M_DEBUG("------ Last request frame for %s: %d\n", name, frame_number);
@@ -2096,7 +2093,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                M_DEBUG("Camera: %s recieved new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
+                M_DEBUG("Camera: %s Received new exp/gain values: %6.3f(ms) %d\n", name, exp, gain);
 
                 setExposure = exp*1000000;
                 setGain =     gain;
@@ -2140,7 +2137,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                M_DEBUG("Camera: %s recieved new exp value: %6.3f(ms)\n", name, exp);
+                M_DEBUG("Camera: %s Received new exp value: %6.3f(ms)\n", name, exp);
                 setExposure = exp*1000000;
 
                 if(otherMgr){
@@ -2180,7 +2177,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
                     }
                 }
 
-                M_DEBUG("Camera: %s recieved new gain value: %d\n", name, gain);
+                M_DEBUG("Camera: %s Received new gain value: %d\n", name, gain);
                 setGain = gain;
 
                 if(otherMgr){

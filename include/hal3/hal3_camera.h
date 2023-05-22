@@ -100,6 +100,7 @@ public:
     const int32_t              pre_width;                        ///< Preview Width
     const int32_t              pre_height;                       ///< Preview Height
     const int32_t              pre_halfmt;                       ///< Preview HAL format
+    const int32_t              vid_halfmt;                       ///< hal format for video
     const int32_t              small_video_width;                ///< Stream Width
     const int32_t              small_video_height;               ///< Stream Height
     const int32_t              small_video_bitrate;              ///< Stream Bitrate
@@ -185,9 +186,9 @@ private:
     STREAM_ID GetStreamId(camera3_stream_t *stream){
         if (stream == &pre_stream) {
             return STREAM_PREVIEW;
-        } else if (stream == &str_stream) {
+        } else if (stream == &small_vid_stream) {
             return STREAM_SMALL_VID;
-        } else if (stream == &rec_stream) {
+        } else if (stream == &large_vid_stream) {
             return STREAM_LARGE_VID;
         } else if (stream == &snap_stream) {
             return STREAM_SNAPSHOT;
@@ -204,9 +205,9 @@ private:
             case STREAM_PREVIEW:
                 return &pre_bufferGroup;
             case STREAM_SMALL_VID:
-                return &str_bufferGroup;
+                return &small_vid_bufferGroup;
             case STREAM_LARGE_VID:
-                return &rec_bufferGroup;
+                return &large_vid_bufferGroup;
             case STREAM_SNAPSHOT:
                 return &snap_bufferGroup;
             default:
@@ -223,13 +224,13 @@ private:
     camera3_device_t*                   pDevice;                     ///< HAL3 device
     uint8_t                             num_streams;
     camera3_stream_t                    pre_stream;                  ///< Stream to be used for the preview request
-    camera3_stream_t                    str_stream;                  ///< Stream to be used for the stream request
-    camera3_stream_t                    rec_stream;                  ///< Stream to be used for the record request
+    camera3_stream_t                    small_vid_stream;                  ///< Stream to be used for the stream request
+    camera3_stream_t                    large_vid_stream;                  ///< Stream to be used for the record request
     camera3_stream_t                    snap_stream;                 ///< Stream to be used for the snapshots request
     android::CameraMetadata             requestMetadata;             ///< Per request metadata
     BufferGroup                         pre_bufferGroup;             ///< Buffer manager per stream
-    BufferGroup                         str_bufferGroup;             ///< Buffer manager per stream
-    BufferGroup                         rec_bufferGroup;             ///< Buffer manager per stream
+    BufferGroup                         small_vid_bufferGroup;             ///< Buffer manager per stream
+    BufferGroup                         large_vid_bufferGroup;             ///< Buffer manager per stream
     BufferGroup                         snap_bufferGroup;            ///< Buffer manager per stream
     pthread_t                           requestThread;               ///< Request thread private data
     pthread_t                           resultThread;                ///< Result Thread private data

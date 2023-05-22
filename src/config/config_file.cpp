@@ -180,16 +180,18 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
 
-        json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_small_video,   info.en_small_video);
-        json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.small_video_width,   info.small_video_width);
-        json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.small_video_height,  info.small_video_height);
-        json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
-
-        json_fetch_bool_with_default (cur, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
-        json_fetch_int_with_default  (cur, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
-        json_fetch_int_with_default  (cur, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
-        json_fetch_int_with_default  (cur, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
-
+        if(info.en_small_video){
+            json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_small_video,   info.en_small_video);
+            json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.small_video_width,   info.small_video_width);
+            json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.small_video_height,  info.small_video_height);
+            json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
+        }
+        if(info.en_large_video){
+            json_fetch_bool_with_default (cur, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
+            json_fetch_int_with_default  (cur, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
+            json_fetch_int_with_default  (cur, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
+            json_fetch_int_with_default  (cur, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
+        }
         json_fetch_bool_with_default (cur, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
         json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
         json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
@@ -282,28 +284,32 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-        cJSON_AddBoolToObject(node, JsonPEnableString, info.en_preview);
+
         if (info.en_preview){
+            cJSON_AddBoolToObject(node, JsonPEnableString, info.en_preview);
             cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
             cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
         }
 
-        cJSON_AddBoolToObject(node, JsonSEnableString, info.en_small_video);
+
         if (info.en_small_video) {
+            cJSON_AddBoolToObject(node, JsonSEnableString, info.en_small_video);
             cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.small_video_width);
             cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.small_video_height);
             cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.small_video_bitrate);
         }
 
-        cJSON_AddBoolToObject(node, JsonLVEnableString, info.en_large_video);
+
         if (info.en_large_video) {
+            cJSON_AddBoolToObject(node, JsonLVEnableString, info.en_large_video);
             cJSON_AddNumberToObject  (node, JsonLVWidthString,        info.large_video_width);
             cJSON_AddNumberToObject  (node, JsonLVHeightString,       info.large_video_height);
             cJSON_AddNumberToObject  (node, JsonLVBitrateString,      info.large_video_bitrate);
         }
 
-        cJSON_AddBoolToObject(node, JsonSNEnableString, info.en_snapshot);
+
         if (info.en_snapshot) {
+            cJSON_AddBoolToObject(node, JsonSNEnableString, info.en_snapshot);
             cJSON_AddNumberToObject  (node, JsonSNWidthString,        info.snap_width);
             cJSON_AddNumberToObject  (node, JsonSNHeightString,       info.snap_height);
         }
