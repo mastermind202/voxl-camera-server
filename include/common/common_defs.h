@@ -122,12 +122,12 @@ struct PerCameraInfo
     int     pre_height;           ///< Preview Height of the frame
     int     pre_format;           ///< Preview Frame format
 
-    int     en_stream;
+    int     en_small_video;
     int     small_video_width;            ///< Video Stream Width of the frame
     int     small_video_height;           ///< Video Stream Height of the frame
     int     small_video_bitrate;          ///< Video Stream Bitrate
 
-    int     en_record;
+    int     en_large_video;
     int     large_video_width;            ///< Video Record Width of the frame
     int     large_video_height;           ///< Video Record Height of the frame
     int     large_video_bitrate;          ///< Video Record Bitrate

@@ -155,19 +155,17 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     pre_halfmt        (HalFmtFromType(pCameraInfo.pre_format)),
     small_video_width         (pCameraInfo.small_video_width),
     small_video_height        (pCameraInfo.small_video_height),
-    str_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
     small_video_bitrate       (pCameraInfo.small_video_bitrate),
     large_video_width         (pCameraInfo.large_video_width),
     large_video_height        (pCameraInfo.large_video_height),
-    rec_halfmt        (HAL_PIXEL_FORMAT_YCbCr_420_888),
     large_video_bitrate       (pCameraInfo.large_video_bitrate),
     snap_width        (pCameraInfo.snap_width),
     snap_height       (pCameraInfo.snap_height),
     snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
     ae_mode           (pCameraInfo.ae_mode),
     pCameraModule     (HAL3_get_camera_module()),
-    pVideoEncoderStream(NULL),
-    pVideoEncoderRecord(NULL),
+    pVideoEncoderSmall(NULL),
+    pVideoEncoderLarge(NULL),
     expHistInterface  (pCameraInfo.ae_hist_info),
     expMSVInterface   (pCameraInfo.ae_msv_info)
 {
@@ -191,13 +189,13 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
         throw -EINVAL;
     }
-    if (en_small_video && !HAL3_is_config_supported(cameraId, small_video_width, small_video_height, str_halfmt))
+    if (en_small_video && !HAL3_is_config_supported(cameraId, small_video_width, small_video_height, pre_halfmt))
     {
         M_ERROR("Camera %d failed to find supported stream config: %dx%d\n", cameraId, small_video_width, small_video_height);
 
         throw -EINVAL;
     }
-    if (en_large_video && !HAL3_is_config_supported(cameraId, large_video_width, large_video_height, rec_halfmt))
+    if (en_large_video && !HAL3_is_config_supported(cameraId, large_video_width, large_video_height, pre_halfmt))
     {
         M_ERROR("Camera %d failed to find supported record config: %dx%d\n", cameraId, large_video_width, large_video_height);
 
@@ -264,15 +262,15 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)small_video_width,   ///< Image width
                 .height =            (uint32_t)small_video_height,  ///< Image height
-                .format =            (uint32_t)str_halfmt,  ///< Image format
+                .format =            (uint32_t)pre_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
                 .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &str_bufferGroup,
-                .outputPipe =        streamPipe
+                .outputPipe =        smallVideoPipeH264
             };
-            pVideoEncoderStream = new VideoEncoder(&enc_info);
+            pVideoEncoderSmall = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
@@ -296,15 +294,15 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             VideoEncoderConfig enc_info = {
                 .width =             (uint32_t)large_video_width,   ///< Image width
                 .height =            (uint32_t)large_video_height,  ///< Image height
-                .format =            (uint32_t)rec_halfmt,  ///< Image format
+                .format =            (uint32_t)pre_halfmt,  ///< Image format
                 .isBitRateConstant = true,                  ///< Is the bit rate constant
                 .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &rec_bufferGroup,
-                .outputPipe =        recordPipe
+                .outputPipe =        largeVideoPipeH264
             };
-            pVideoEncoderRecord = new VideoEncoder(&enc_info);
+            pVideoEncoderLarge = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
@@ -391,7 +389,7 @@ int PerCameraMgr::ConfigureStreams()
         str_stream.stream_type = CAMERA3_STREAM_OUTPUT;
         str_stream.width       = small_video_width;
         str_stream.height      = small_video_height;
-        str_stream.format      = str_halfmt;
+        str_stream.format      = pre_halfmt;
         str_stream.data_space  = HAL_DATASPACE_UNKNOWN;
         str_stream.usage       = ENCODER_USAGE;
         str_stream.rotation    = ROTATION_MODE;
@@ -406,7 +404,7 @@ int PerCameraMgr::ConfigureStreams()
         rec_stream.stream_type = CAMERA3_STREAM_OUTPUT;
         rec_stream.width       = large_video_width;
         rec_stream.height      = large_video_height;
-        rec_stream.format      = rec_halfmt;
+        rec_stream.format      = pre_halfmt;
         rec_stream.data_space  = HAL_DATASPACE_UNKNOWN;
         rec_stream.usage       = ENCODER_USAGE;
         rec_stream.rotation    = ROTATION_MODE;
@@ -611,12 +609,12 @@ void PerCameraMgr::Start()
         }
     }
 
-    if(pVideoEncoderStream) {
-        pVideoEncoderStream->Start();
+    if(pVideoEncoderSmall) {
+        pVideoEncoderSmall->Start();
     }
 
-    if(pVideoEncoderRecord) {
-        pVideoEncoderRecord->Start();
+    if(pVideoEncoderLarge) {
+        pVideoEncoderLarge->Start();
     }
 
     pthread_condattr_t condAttr;
@@ -670,14 +668,14 @@ void PerCameraMgr::Stop()
         otherMgr->Stop();
     }
 
-    if(pVideoEncoderStream) {
-        pVideoEncoderStream->Stop();
-        delete pVideoEncoderStream;
+    if(pVideoEncoderSmall) {
+        pVideoEncoderSmall->Stop();
+        delete pVideoEncoderSmall;
     }
 
-    if(pVideoEncoderRecord) {
-        pVideoEncoderRecord->Stop();
-        delete pVideoEncoderRecord;
+    if(pVideoEncoderLarge) {
+        pVideoEncoderLarge->Stop();
+        delete pVideoEncoderLarge;
     }
 
     bufferDeleteBuffers(pre_bufferGroup);
@@ -951,7 +949,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         // TODO this call to bufferPush was commented out at one point but seems necesary
         // I've uncommented it for now but would like to know why it was commented out
-        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        bufferPush(pre_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1276,7 +1274,7 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        bufferPush(str_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1287,7 +1285,7 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     size_t uvlen = ylen/2;
 
     // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderStream->ItemsInQueue();
+    int n = pVideoEncoderSmall->ItemsInQueue();
     if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
         M_WARN("dropping stream frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(str_bufferGroup, result.second.buffer);
@@ -1312,7 +1310,7 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     }
 
     // add to the OMX queue
-    pVideoEncoderStream->ProcessFrameToEncode(meta, bufferBlockInfo);
+    pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
@@ -1323,7 +1321,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(rec_bufferGroup, bufferBlockInfo);
+        bufferPush(rec_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1334,7 +1332,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     size_t uvlen = ylen/2;
 
     // check health of the encoder and drop this frame if it's getting backed up
-    int n = pVideoEncoderRecord->ItemsInQueue();
+    int n = pVideoEncoderLarge->ItemsInQueue();
     if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
         M_WARN("dropping record frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(rec_bufferGroup, result.second.buffer);
@@ -1359,7 +1357,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     }
 
     // add to the OMX queue
-    pVideoEncoderRecord->ProcessFrameToEncode(meta, bufferBlockInfo);
+    pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
@@ -1582,12 +1580,12 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 bufferPush(*bufferGroup, handle); // This queues up the buffer for recycling
                 break;
 
-            case STREAM_STREAM: // Not Ready
+            case STREAM_SMALL_VID: // Not Ready
                 M_VERBOSE("Camera: %s processing stream frame\n", name);
                 ProcessSmallVideoFrame(result);
                 break;
 
-            case STREAM_RECORD: // Not Ready
+            case STREAM_LARGE_VID: // Not Ready
                 M_VERBOSE("Camera: %s processing record frame\n", name);
                 ProcessLargeVideoFrame(result);
                 break;
@@ -1644,7 +1642,7 @@ int PerCameraMgr::HasClientForSmallVideo()
 {
     if(pipe_server_get_num_clients(smallVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(smallVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(smallVideoPipeh264  )>0) return 1;
+    if(pipe_server_get_num_clients(smallVideoPipeH264  )>0) return 1;
     return 0;
 }
 
@@ -1652,7 +1650,7 @@ int PerCameraMgr::HasClientForLargeVideo()
 {
     if(pipe_server_get_num_clients(largeVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(largeVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(largeVideoPipeh264  )>0) return 1;
+    if(pipe_server_get_num_clients(largeVideoPipeH264  )>0) return 1;
     return 0;
 }
 
@@ -1915,12 +1913,7 @@ static const char* CmdStrings[] =
 int PerCameraMgr::SetupPipes()
 {
     if(configInfo.type != CAMTYPE_TOF){
-        //Set up the control callback (wrapped in a lambda because it's a member function)
-        pipe_server_set_control_cb(
-                Pipe,                                         //Channel
-                [](int ch, char * string, int bytes, void* context)    //Callback
-                        {((PerCameraMgr*)context)->HandleControlCmd(string);},
-                this);                                                 //Context
+
 
         char cont_cmds[256];
         snprintf(cont_cmds, 255, "%s%s",
@@ -1937,14 +1930,15 @@ int PerCameraMgr::SetupPipes()
         if(en_preview){
 
             // old black and white cameras like OV7251 tracking and stereo
-            if(pre_format==FMT_RAW8 ){
+            if(pre_halfmt==HAL_PIXEL_FORMAT_RAW10){
                 strncpy(info.name, name, MODAL_PIPE_MAX_NAME_LEN-1);
                 previewPipeGrey = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(previewPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeGrey, info, flags);
                 pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
             }
             // color tracking cameras like OV9782
-            else if(pre_format==FMT_NV21 ){
+            else if(pre_halfmt==HAL3_FMT_YUV){
                 snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_grey", name);
                 previewPipeGrey = pipe_server_get_next_available_channel();
                 pipe_server_create(previewPipeGrey, info, flags);

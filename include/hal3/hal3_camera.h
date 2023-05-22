@@ -89,15 +89,6 @@ public:
     void EStop();
 
 
-    // TODO this needs to be much more elaborate
-    int getNumClients(){
-        if( partnerMode != MODE_STEREO_SLAVE ) {
-            return pipe_server_get_num_clients(Pipe);
-        } else {
-            return pipe_server_get_num_clients(otherMgr->Pipe);
-        }
-    }
-
     const PerCameraInfo        configInfo;                     ///< Per camera config information
     const int32_t              cameraId;                       ///< Camera id
           char                 name[MAX_NAME_LENGTH];
@@ -137,6 +128,8 @@ private:
     // called by ProcessOneCaptureRequest to decide if we need to send requests
     // for the preview stream, snapshot, record, and stream streams handled separately
     int HasClientForPreviewFrame();
+    int HasClientForSmallVideo();
+    int HasClientForLargeVideo();
 
     // Send one capture request to the camera module
     int  ProcessOneCaptureRequest(int frameNumber);
@@ -144,8 +137,8 @@ private:
     typedef std::pair<int, camera3_stream_buffer> image_result;
 
     void ProcessPreviewFrame (image_result result);
-    void ProcessStreamFrame  (image_result result);
-    void ProcessRecordFrame  (image_result result);
+    void ProcessSmallVideoFrame  (image_result result);
+    void ProcessLargeVideoFrame  (image_result result);
     void ProcessSnapshotFrame(image_result result);
 
     int getMeta(int frameNumber, camera_image_metadata_t *retMeta){
@@ -183,8 +176,8 @@ private:
 
     enum STREAM_ID {
         STREAM_PREVIEW,
-        STREAM_STREAM,
-        STREAM_RECORD,
+        STREAM_SMALL_VID,
+        STREAM_LARGE_VID,
         STREAM_SNAPSHOT,
         STREAM_INVALID
     };
@@ -193,9 +186,9 @@ private:
         if (stream == &pre_stream) {
             return STREAM_PREVIEW;
         } else if (stream == &str_stream) {
-            return STREAM_STREAM;
+            return STREAM_SMALL_VID;
         } else if (stream == &rec_stream) {
-            return STREAM_RECORD;
+            return STREAM_LARGE_VID;
         } else if (stream == &snap_stream) {
             return STREAM_SNAPSHOT;
         } else {
@@ -210,9 +203,9 @@ private:
         switch (stream){
             case STREAM_PREVIEW:
                 return &pre_bufferGroup;
-            case STREAM_STREAM:
+            case STREAM_SMALL_VID:
                 return &str_bufferGroup;
-            case STREAM_RECORD:
+            case STREAM_LARGE_VID:
                 return &rec_bufferGroup;
             case STREAM_SNAPSHOT:
                 return &snap_bufferGroup;
@@ -222,8 +215,8 @@ private:
     }
 
     camera_module_t*                    pCameraModule;               ///< Camera module
-    VideoEncoder*                       pVideoEncoderStream;
-    VideoEncoder*                       pVideoEncoderRecord;
+    VideoEncoder*                       pVideoEncoderSmall;
+    VideoEncoder*                       pVideoEncoderLarge;
     ModalExposureHist                   expHistInterface;
     ModalExposureMSV                    expMSVInterface;
     Camera3Callbacks                    cameraCallbacks;             ///< Camera callbacks
@@ -316,10 +309,10 @@ private:
         if(  largeVideoPipeGrey  >=0) pipe_server_close(  largeVideoPipeGrey  );
         if(  largeVideoPipeColor >=0) pipe_server_close(  largeVideoPipeColor );
         if(  largeVideoPipeH264  >=0) pipe_server_close(  largeVideoPipeH264  );
-        if(    snapshotPipeGrey  >=0) pipe_server_close(    snapshotPipeGrey  );
+        if(    snapshotPipe      >=0) pipe_server_close(    snapshotPipe      );
         if(         tofPipeIR    >=0) pipe_server_close(         tofPipeIR    );
         if(         tofPipeDepth >=0) pipe_server_close(         tofPipeDepth );
-        if(         tofPipeConf  >=0) pipe_server_close(        CtofPipeonf   );
+        if(         tofPipeConf  >=0) pipe_server_close(         tofPipeConf  );
         if(         tofPipePC    >=0) pipe_server_close(         tofPipePC    );
         if(         tofPipeFull  >=0) pipe_server_close(         tofPipeFull  );
         return;
