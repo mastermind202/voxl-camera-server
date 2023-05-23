@@ -244,7 +244,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: PREVIEW\n");
     }
 
     if (en_small_video) {
@@ -276,7 +276,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: STREAM_SMALL_VID\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: STREAM_SMALL_VID\n");
     }
 
     if (en_large_video) {
@@ -308,7 +308,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: STREAM_LARGE_VID\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: STREAM_LARGE_VID\n");
     }
 
     if (en_snapshot) {
@@ -329,7 +329,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 
             throw -EINVAL;
         }
-        M_DEBUG("Successfully set up pipeline for stream: SNAPSHOT\n\n");
+        M_DEBUG("Successfully set up pipeline for stream: SNAPSHOT\n");
     }
 
     if(configInfo.camId2 == -1){
@@ -384,6 +384,7 @@ int PerCameraMgr::ConfigureStreams()
 
         streams.push_back(&pre_stream);
         streamConfig.num_streams ++;
+        M_VERBOSE("Adding preview stream for camera: %d\n", cameraId);
     }
 
     if(en_small_video) {
@@ -399,6 +400,7 @@ int PerCameraMgr::ConfigureStreams()
 
         streams.push_back(&small_vid_stream);
         streamConfig.num_streams ++;
+        M_VERBOSE("Adding small video stream for camera: %d\n", cameraId);
     }
 
     if(en_large_video) {
@@ -414,6 +416,7 @@ int PerCameraMgr::ConfigureStreams()
 
         streams.push_back(&large_vid_stream);
         streamConfig.num_streams ++;
+        M_VERBOSE("Adding large video stream for camera: %d\n", cameraId);
     }
 
     if(en_snapshot) {
@@ -429,6 +432,7 @@ int PerCameraMgr::ConfigureStreams()
 
         streams.push_back(&snap_stream);
         streamConfig.num_streams ++;
+        M_VERBOSE("Adding snapshot stream for camera: %d\n", cameraId);
     }
 
     if(streamConfig.num_streams==0){
@@ -764,7 +768,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         pthread_mutex_lock(&resultMutex);
 
         // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push_back({pHalResult->frame_number, pHalResult->output_buffers[i]});
+        resultMsgQueue.push({pHalResult->frame_number, pHalResult->output_buffers[i]});
         pthread_cond_signal(&resultCond);
         pthread_mutex_unlock(&resultMutex);
 
@@ -1388,7 +1392,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
-        snapshotQueue.pop_front();
+        snapshotQueue.pop();
 
         M_PRINT("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
         WriteSnapshot(bufferBlockInfo, snap_halfmt, filename);
@@ -1555,7 +1559,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
         }
 
         image_result result = resultMsgQueue.front();
-        resultMsgQueue.pop_front();
+        resultMsgQueue.pop();
         pthread_mutex_unlock(&resultMutex);
 
         buffer_handle_t  *handle      = result.second.buffer;
@@ -1938,10 +1942,13 @@ int PerCameraMgr::SetupPipes()
             else if(pre_halfmt==HAL3_FMT_YUV){
                 snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_grey", name);
                 previewPipeGrey = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(previewPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeGrey, info, flags);
                 pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
+
                 snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_color", name);
                 previewPipeColor = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(previewPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeColor, info, flags);
                 pipe_server_set_available_control_commands(previewPipeColor, cont_cmds);
             }
@@ -1956,16 +1963,19 @@ int PerCameraMgr::SetupPipes()
         if(en_small_video){
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_grey", name);
             smallVideoPipeGrey = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(smallVideoPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeGrey, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeGrey, cont_cmds);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_color", name);
             smallVideoPipeColor = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(smallVideoPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
             smallVideoPipeH264 = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(smallVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeH264, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeH264, cont_cmds);
         }
@@ -1974,16 +1984,19 @@ int PerCameraMgr::SetupPipes()
         if(en_large_video){
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_grey", name);
             largeVideoPipeGrey = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(largeVideoPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeGrey, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeGrey, cont_cmds);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_color", name);
             largeVideoPipeColor = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(largeVideoPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
             largeVideoPipeH264 = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(largeVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeH264, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeH264, cont_cmds);
         }
@@ -1992,6 +2005,7 @@ int PerCameraMgr::SetupPipes()
         if(en_snapshot){
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_snapshot", name);
             snapshotPipe = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(snapshotPipe, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(snapshotPipe, info, flags);
             pipe_server_set_available_control_commands(snapshotPipe, cont_cmds);
         }
@@ -2262,7 +2276,7 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
 
             M_PRINT("Camera: %s taking snapshot (destination: %s)\n", name, filename);
 
-            snapshotQueue.push_back(filename);
+            snapshotQueue.push(filename);
             numNeededSnapshots++;
 
         } else {

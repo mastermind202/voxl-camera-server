@@ -64,10 +64,10 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonPEnableString      "en_preview"               ///< Enable preview stream
 #define JsonPWidthString       "preview_width"            ///< Preview Frame width
 #define JsonPHeightString      "preview_height"           ///< Preview Frame height
-#define JsonSEnableString      "en_small_video"           ///< Enable small video stream
-#define JsonSTWidthString      "small_video_width"        ///< Small Video Frame width
-#define JsonSTHeightString     "small_video_height"       ///< Small Video Frame height
-#define JsonSTBitrateString    "small_video_bitrate"      ///< Small Video Frame bitrate
+#define JsonSVEnableString     "en_small_video"           ///< Enable small video stream
+#define JsonSVWidthString      "small_video_width"        ///< Small Video Frame width
+#define JsonSVHeightString     "small_video_height"       ///< Small Video Frame height
+#define JsonSVBitrateString    "small_video_bitrate"      ///< Small Video Frame bitrate
 #define JsonLVEnableString     "en_large_video"           ///< Enable large video stream
 #define JsonLVWidthString      "large_video_width"        ///< Large Video Frame width
 #define JsonLVHeightString     "large_video_height"       ///< Large Video Frame height
@@ -90,7 +90,7 @@ static CameraType   GetCameraType(cJSON* pCameraInfo);
 #define JsonCameraIdString     "camera_id"                ///< Camera id
 #define JsonCameraId2String    "camera_id_second"         ///< Camera id 2
 #define JsonEnabledString      "enabled"                  ///< Is camera enabled
-#define JsonStandbyEnabled     "standby_enabled"          ///< Standby Enabled
+#define JsonSVandbyEnabled     "standby_enabled"          ///< Standby Enabled
 #define JsonDecimator          "decimator"                ///< Decimator is standby enabled
 
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
@@ -173,7 +173,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         info.flip = tmp;
         json_fetch_bool_with_default(cur, JsonIndExpString,  &tmp, false);
         info.ind_exp = tmp;
-        json_fetch_bool_with_default(cur, JsonStandbyEnabled, &tmp, false);
+        json_fetch_bool_with_default(cur, JsonSVandbyEnabled, &tmp, false);
         info.standby_enabled = tmp;
 
         json_fetch_bool_with_default (cur, JsonPEnableString,       &info.en_preview,  info.en_preview);
@@ -181,10 +181,10 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
 
         if(info.en_small_video){
-            json_fetch_bool_with_default (cur, JsonSEnableString,       &info.en_small_video,   info.en_small_video);
-            json_fetch_int_with_default  (cur, JsonSTWidthString,       &info.small_video_width,   info.small_video_width);
-            json_fetch_int_with_default  (cur, JsonSTHeightString,      &info.small_video_height,  info.small_video_height);
-            json_fetch_int_with_default  (cur, JsonSTBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
+            json_fetch_bool_with_default (cur, JsonSVEnableString,       &info.en_small_video,   info.en_small_video);
+            json_fetch_int_with_default  (cur, JsonSVWidthString,       &info.small_video_width,   info.small_video_width);
+            json_fetch_int_with_default  (cur, JsonSVHeightString,      &info.small_video_height,  info.small_video_height);
+            json_fetch_int_with_default  (cur, JsonSVBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
         }
         if(info.en_large_video){
             json_fetch_bool_with_default (cur, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
@@ -293,10 +293,10 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
 
         if (info.en_small_video) {
-            cJSON_AddBoolToObject(node, JsonSEnableString, info.en_small_video);
-            cJSON_AddNumberToObject  (node, JsonSTWidthString,        info.small_video_width);
-            cJSON_AddNumberToObject  (node, JsonSTHeightString,       info.small_video_height);
-            cJSON_AddNumberToObject  (node, JsonSTBitrateString,      info.small_video_bitrate);
+            cJSON_AddBoolToObject(node, JsonSVEnableString, info.en_small_video);
+            cJSON_AddNumberToObject  (node, JsonSVWidthString,        info.small_video_width);
+            cJSON_AddNumberToObject  (node, JsonSVHeightString,       info.small_video_height);
+            cJSON_AddNumberToObject  (node, JsonSVBitrateString,      info.small_video_bitrate);
         }
 
 
@@ -315,7 +315,7 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         }
 
         if (info.standby_enabled){
-            cJSON_AddBoolToObject    (node, JsonStandbyEnabled,       info.standby_enabled);
+            cJSON_AddBoolToObject    (node, JsonSVandbyEnabled,       info.standby_enabled);
             cJSON_AddNumberToObject  (node, JsonDecimator,            info.decimator);
         }
 
@@ -360,14 +360,14 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
         M_ERROR("Opening config file: %s to write to\n", CONFIG_FILE_NAME);
 
     }else{
-        char *jsonString = cJSON_Print(head);
+        char *JsonSVring = cJSON_Print(head);
 
-        //M_DEBUG("Writing new configuration to %s:\n%s\n",pConfigFileName, jsonString);
+        //M_DEBUG("Writing new configuration to %s:\n%s\n",pConfigFileName, JsonSVring);
         M_DEBUG("Writing new configuration to %s\n",CONFIG_FILE_NAME);
-        fwrite(jsonString, 1, strlen(jsonString), file);
+        fwrite(JsonSVring, 1, strlen(JsonSVring), file);
 
         fclose(file);
-        free(jsonString);
+        free(JsonSVring);
     }
 
     cJSON_Delete(head);

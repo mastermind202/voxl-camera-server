@@ -37,6 +37,7 @@
 #include <camera/CameraMetadata.h>
 #include <hardware/camera3.h>
 #include <list>
+#include <queue>
 #include <string>
 #include <modal_pipe.h>
 #include <mutex>
@@ -57,6 +58,8 @@
 #define NUM_SKIPPED_FRAMES 4
 
 using namespace std;
+using std::queue;
+
 
 #ifdef APQ8096
 using namespace modalai;
@@ -240,7 +243,7 @@ private:
     bool                                is10bit;                     ///< Marks if a raw preview image is raw10 or raw8
     int64_t                             setExposure = 5259763;       ///< Exposure
     int32_t                             setGain     = 800;           ///< Gain
-    list<image_result>                  resultMsgQueue;
+    queue<image_result>                 resultMsgQueue;
     RingBuffer<camera_image_metadata_t> resultMetaRing;
     pthread_mutex_t                     stereoMutex;                 ///< Mutex for stereo comms
     pthread_cond_t                      stereoCond;                  ///< Condition variable for wake up
@@ -252,7 +255,7 @@ private:
     bool                                stopped = false;             ///< Indication for the thread to terminate
     bool                                EStopped = false;            ///< Emergency Stop, terminate without any cleanup
     int                                 lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
-    list<char *>                        snapshotQueue;
+    queue<char *>                       snapshotQueue;
     atomic_int                          numNeededSnapshots {0};
     int                                 lastSnapshotNumber = 0;
     camera_metadata_t*                  pSessionParams = NULL;

@@ -106,6 +106,15 @@ int allocateOneBuffer(
                         MAP_SHARED,
                         allocation_data.fd,
                         0);
+
+    if (block.vaddress < 0) {
+        int errsv = errno;
+        printf("mmap failed: %s (errno=%d)\n", strerror(errsv), errsv);
+        return -EINVAL;
+    }
+
+    M_DEBUG("allocated block at vaddr=0x%x len=0x%x\n", block.vaddress, allocation_data.len);
+
     block.size     = allocation_data.len;
     block.width    = width;
     block.height   = height;
