@@ -717,6 +717,7 @@ void PerCameraMgr::Stop()
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalResult)
 {
+    M_VERBOSE("Received %d buffers from camera %s, partial result:%d\n", pHalResult->num_output_buffers, name, pHalResult->partial_result);
 
     if(pHalResult->partial_result > 1){
 
@@ -754,10 +755,8 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         }
 
         resultMetaRing.insert_data(meta);
-
     }
 
-    M_VERBOSE("Received %d buffers from camera %s\n", pHalResult->num_output_buffers, name);
 
     for (uint i = 0; i < pHalResult->num_output_buffers; i++)
     {
@@ -783,7 +782,7 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
 // -----------------------------------------------------------------------------------------------------------------------------
 void PerCameraMgr::CameraModuleCaptureResult(const camera3_callback_ops_t *cb, const camera3_capture_result* pHalResult)
 {
-    M_VERBOSE("Received notify for: %d\n", pHalResult->frame_number);
+    M_VERBOSE("Received result from HAl3 for frame number %d\n", pHalResult->frame_number);
     Camera3Callbacks* pCamera3Callbacks = (Camera3Callbacks*)cb;
     PerCameraMgr* pPerCameraMgr = (PerCameraMgr*)pCamera3Callbacks->pPrivate;
 
@@ -1629,7 +1628,7 @@ int PerCameraMgr::HasClientForPreviewFrame()
     }
     else{
         if(pipe_server_get_num_clients(previewPipeGrey)>0) return 1;
-        if(pre_halfmt == HAL3_FMT_YUV && pipe_server_get_num_clients(previewPipeColor)>0) return 1;
+        if(previewPipeColor>=0 && pipe_server_get_num_clients(previewPipeColor)>0) return 1;
     }
     return 0;
 }
@@ -1655,7 +1654,7 @@ int PerCameraMgr::HasClientForLargeVideo()
 // -----------------------------------------------------------------------------------------------------------------------------
 // Send one capture request to the camera module
 // -----------------------------------------------------------------------------------------------------------------------------
-int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
+int PerCameraMgr::SendOneCaptureRequest(uint32_t* frameNumber)
 {
     camera3_capture_request_t request;
 
@@ -1675,13 +1674,13 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         int nFree = bufferNumFree(small_vid_bufferGroup);
         if(nFree<1){
-            M_WARN("small vid stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
+            M_WARN("small vid stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, *frameNumber, nFree);
         }
         else{
 
             camera3_stream_buffer_t streamBuffer;
             if ((streamBuffer.buffer   = (const native_handle_t**)bufferPop(small_vid_bufferGroup)) == NULL) {
-                M_ERROR("Failed to get buffer for small vid stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+                M_ERROR("Failed to get buffer for small vid stream: Cam(%s), Frame(%d)\n", name, *frameNumber);
                 EStopCameraServer();
                 return -1;
             }
@@ -1701,12 +1700,12 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         int nFree = bufferNumFree(large_vid_bufferGroup);
         if(nFree<1){
-            M_WARN("record stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
+            M_WARN("record stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, *frameNumber, nFree);
         }
         else{
             camera3_stream_buffer_t streamBuffer;
             if ((streamBuffer.buffer   = (const native_handle_t**)bufferPop(large_vid_bufferGroup)) == NULL) {
-                M_ERROR("Failed to get buffer for record stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+                M_ERROR("Failed to get buffer for record stream: Cam(%s), Frame(%d)\n", name, *frameNumber);
                 EStopCameraServer();
                 return -1;
             }
@@ -1726,14 +1725,14 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 
         int nFree = bufferNumFree(snap_bufferGroup);
         if(nFree<1){
-            M_WARN("snapshot buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
+            M_WARN("snapshot buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, *frameNumber, nFree);
         }
         else{
             numNeededSnapshots --;
 
             camera3_stream_buffer_t streamBuffer;
             if((streamBuffer.buffer    = (const native_handle_t**)bufferPop(snap_bufferGroup)) == NULL) {
-                M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+                M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, *frameNumber);
                 EStopCameraServer();
                 return -1;
             }
@@ -1756,12 +1755,12 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     {
         int nFree = bufferNumFree(pre_bufferGroup);
         if(nFree<1){
-            M_WARN("preview buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
+            M_WARN("preview buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, *frameNumber, nFree);
         }
         else{
             camera3_stream_buffer_t streamBuffer;
             if((streamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
-                M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
+                M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, *frameNumber);
                 EStopCameraServer();
                 return -1;
             }
@@ -1777,7 +1776,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     }
 
     request.output_buffers      = streamBufferList.data();
-    request.frame_number        = frameNumber;
+    request.frame_number        = *frameNumber;
     request.settings            = requestMetadata.getAndLock();
     request.input_buffer        = nullptr;
 
@@ -1809,7 +1808,7 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
      *          called by the framework.
      *
      */
-    M_VERBOSE("Sending request for frame %d for camera %s for %d streams\n", frameNumber, name, request.num_output_buffers);
+    M_VERBOSE("Sending request for frame %d for camera %s for %d streams\n", *frameNumber, name, request.num_output_buffers);
 
     if (int status = pDevice->ops->process_capture_request(pDevice, &request))
     {
@@ -1820,13 +1819,13 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         M_ERROR("Received Fatal error from camera: %s\n", name);
         switch (status){
             case -EINVAL :
-                M_ERROR("Sending request %d, ErrorCode: -EINVAL\n", frameNumber);
+                M_ERROR("Sending request %d, ErrorCode: -EINVAL\n", *frameNumber);
                 break;
             case -ENODEV:
-                M_ERROR("Sending request %d, ErrorCode: -ENODEV\n", frameNumber);
+                M_ERROR("Sending request %d, ErrorCode: -ENODEV\n", *frameNumber);
                 break;
             default:
-                M_ERROR("Sending request %d, ErrorCode: %d\n", frameNumber, status);
+                M_ERROR("Sending request %d, ErrorCode: %d\n", *frameNumber, status);
                 break;
         }
 
@@ -1834,11 +1833,11 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
         return -EINVAL;
     }
 
-    M_VERBOSE("finished sending request for frame %d for camera %s\n", frameNumber, name);
-
+    M_VERBOSE("finished sending request for frame %d for camera %s\n", *frameNumber, name);
+    *frameNumber = *frameNumber+1;
     requestMetadata.unlock(request.settings);
 
-    M_VERBOSE("returning from ProcessOneCaptureRequest for frame %d for camera %s\n", frameNumber, name);
+    M_VERBOSE("returning from SendOneCaptureRequest for frame %d for camera %s\n", *frameNumber, name);
 
     return S_OK;
 }
@@ -1867,7 +1866,7 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     while (!stopped && !EStopped)
     {
 
-        /** This is an old TODO comment, I think ProcessOneCaptureRequest handles
+        /** This is an old TODO comment, I think SendOneCaptureRequest handles
           * this now, but leaving the comment here in case it misbahves and better
           * behavior is needed in the future
                     // if(!getNumClients() && !numNeededSnapshots){
@@ -1876,7 +1875,7 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
                     //     if(stopped || EStopped) break;
                     // }
         **/
-        ProcessOneCaptureRequest(++frame_number);
+        SendOneCaptureRequest(&frame_number);
     }
 
     // Stop message received. Inform about the last framenumber requested from the camera module. This in turn will be used

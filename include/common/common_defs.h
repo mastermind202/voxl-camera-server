@@ -171,7 +171,7 @@ static const inline int32_t HalFmtFromType(int fmt)
 
         case FMT_NV21:
         case FMT_NV12:
-            return HAL3_FMT_YUV;
+            return HAL3_FMT_YUV; // defined as HAL_PIXEL_FORMAT_YCbCr_420_888
 
         case FMT_TOF:
 

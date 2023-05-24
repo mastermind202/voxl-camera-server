@@ -129,14 +129,14 @@ private:
     // Call the camera module to get the default camera settings
     int ConstructDefaultRequestSettings();
 
-    // called by ProcessOneCaptureRequest to decide if we need to send requests
+    // called by SendOneCaptureRequest to decide if we need to send requests
     // for the preview stream, snapshot, record, and stream streams handled separately
     int HasClientForPreviewFrame();
     int HasClientForSmallVideo();
     int HasClientForLargeVideo();
 
     // Send one capture request to the camera module
-    int  ProcessOneCaptureRequest(int frameNumber);
+    int  SendOneCaptureRequest(uint32_t* frameNumber);
 
     typedef std::pair<int, camera3_stream_buffer> image_result;
 

@@ -284,12 +284,9 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
         if(info.camId2 != -1) cJSON_AddNumberToObject(node, JsonCameraId2String, info.camId2);
 
-
-        if (info.en_preview){
-            cJSON_AddBoolToObject(node, JsonPEnableString, info.en_preview);
-            cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
-            cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
-        }
+        cJSON_AddBoolToObject(node, JsonPEnableString, info.en_preview);
+        cJSON_AddNumberToObject  (node, JsonPWidthString,        info.pre_width);
+        cJSON_AddNumberToObject  (node, JsonPHeightString,       info.pre_height);
 
 
         if (info.en_small_video) {
