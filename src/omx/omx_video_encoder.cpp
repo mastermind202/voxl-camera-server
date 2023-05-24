@@ -1122,6 +1122,13 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
             continue;
         }
 
+        if(m_outputPipe==NULL){
+            M_WARN("Trying to process omx output without initialized pipe\n");
+            pthread_cond_wait(&out_cond, &out_mutex);
+            pthread_mutex_unlock(&out_mutex);
+            continue;
+        }
+
 
         // Coming here means we have a encoded frame to process
         OMX_BUFFERHEADERTYPE* pOMXBuffer = out_msgQueue.front();
@@ -1142,7 +1149,7 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         meta.size_bytes = pOMXBuffer->nFilledLen;
         meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
 
-        pipe_server_write_camera_frame(m_outputPipe, meta, pOMXBuffer->pBuffer);
+        pipe_server_write_camera_frame(*m_outputPipe, meta, pOMXBuffer->pBuffer);
         M_VERBOSE("Sent encoded frame: %d\n", frameNumber);
 
         // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX

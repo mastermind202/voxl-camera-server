@@ -269,7 +269,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &small_vid_bufferGroup,
-                .outputPipe =        smallVideoPipeH264
+                .outputPipe =        &smallVideoPipeH264
             };
             pVideoEncoderSmall = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -301,7 +301,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                 .frameRate =         pCameraInfo.fps,       ///< Frame rate
                 .isH265 =            false,                 ///< Is it H265 encoding or H264
                 .inputBuffers =      &large_vid_bufferGroup,
-                .outputPipe =        largeVideoPipeH264
+                .outputPipe =        &largeVideoPipeH264
             };
             pVideoEncoderLarge = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -1309,7 +1309,7 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     }
 
     // add to the OMX queue
-    //pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
+    pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 
@@ -1353,7 +1353,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     }
 
     // add to the OMX queue
-    //pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
+    pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
 

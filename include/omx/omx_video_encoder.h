@@ -53,8 +53,8 @@ typedef struct VideoEncoderConfig
     int      targetBitRate;         ///< Desired target bitrate
     int32_t  frameRate;             ///< Frame rate
     bool     isH265;                ///< Is it H265 encoding or H264
-    BufferGroup *inputBuffers;      ///< Input buffers coming from hal3
-    int      outputPipe;            ///< Pre-configured MPA output pipe
+    BufferGroup* inputBuffers;      ///< Input buffers coming from hal3
+    int*     outputPipe;            ///< Pre-configured MPA output pipe
 } VideoEncoderConfig;
 
 //------------------------------------------------------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ public:
     volatile bool          stop = false;            ///< Thread terminate indicator
 
     VideoEncoderConfig     m_VideoEncoderConfig;
-    int                    m_outputPipe;
+    int*                   m_outputPipe;
     uint32_t               m_inputBufferSize;       ///< Input buffer size
     uint32_t               m_inputBufferCount;      ///< Input buffer count
     uint32_t               m_outputBufferSize;      ///< Output buffer size
