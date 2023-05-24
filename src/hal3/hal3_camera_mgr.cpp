@@ -61,8 +61,8 @@
 
 #define CAM_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
-#define NUM_PREVIEW_BUFFERS  32
-#define NUM_SNAPSHOT_BUFFERS 8
+#define NUM_PREVIEW_BUFFERS  16 // used to be 32, really shouldnt need to be more than 7
+#define NUM_SNAPSHOT_BUFFERS 16 // used to be 8, just making it consistent with the rest that are now 16
 #define SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE 1 // favor latency when dropping frames
 #define LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE 2 // only drop frames when really getting behind
 
@@ -86,8 +86,8 @@
     #define OPERATION_MODE CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE
     #define ENCODER_USAGE  GRALLOC_USAGE_HW_VIDEO_ENCODER
     #define SNAPSHOT_DS    HAL_DATASPACE_V0_JFIF
-    #define NUM_STREAM_BUFFERS   10 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
-    #define NUM_RECORD_BUFFERS   10 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
+    #define NUM_STREAM_BUFFERS   16 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
+    #define NUM_RECORD_BUFFERS   16 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
 #else
     #error "No Platform defined"
 #endif
