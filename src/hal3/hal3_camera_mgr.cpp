@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 ModalAI Inc.
+ * Copyright 2023 ModalAI Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -57,6 +57,7 @@
 #include "hal3_camera.h"
 #include "voxl_camera_server.h"
 #include "voxl_cutils.h"
+#include "jpeg_size.h"
 
 #define CAM_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
@@ -899,35 +900,7 @@ static void CreateParentDirs(const char *file_path)
   free(dir_path);
 }
 
-static void WriteSnapshot(BufferBlock* bufferBlockInfo, int format, const char* path)
-{
-    uint64_t size    = bufferBlockInfo->size;
 
-    uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
-    FILE* file_descriptor = fopen(path, "wb");
-    if(! file_descriptor){
-
-        //Check to see if we were just missing parent directories
-        CreateParentDirs(path);
-
-        file_descriptor = fopen(path, "wb");
-
-        if(! file_descriptor){
-            M_ERROR("failed to open file descriptor for snapshot save\n");
-            return;
-        }
-    }
-
-    if (format == HAL_PIXEL_FORMAT_BLOB) {
-
-        fwrite(src_data, size, 1, file_descriptor);
-
-    } else {
-        M_ERROR("%s Received frame in unsuppored format\n", __FUNCTION__);
-    }
-
-    fclose(file_descriptor);
-}
 
 static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint16_t *raw16Buf)
 {
@@ -1361,44 +1334,65 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&snap_bufferGroup, result.second.buffer);
 
-    // uncomment this when we have the JPG size function merged
-    /*
+    // first write to pipe if subscribed
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(large_vid_bufferGroup, bufferBlockInfo);
+        bufferPush(snap_bufferGroup, result.second.buffer);
         return;
     }
 
     int start_index = 0;
     uint8_t* src_data = (uint8_t*)bufferBlockInfo->vaddress;
-    int extractJpgSize = find_jpeg_buffer_size(src_data, size, &start_index);
+    int extractJpgSize = find_jpeg_buffer_size(src_data, bufferBlockInfo->size, &start_index);
 
     if(extractJpgSize == 1){
-        printf("Real Size of JPEG is incorrect, setting to max of buffer");
+        M_WARN("Real Size of JPEG is incorrect, setting to max of buffer");
         extractJpgSize = bufferBlockInfo->size;
+        start_index = 0;
     }
 
     meta.magic_number = CAMERA_MAGIC_NUMBER;
     meta.width        = bufferBlockInfo->width;
     meta.height       = bufferBlockInfo->height;
-    meta.format       = IMAGE_FORMAT_JPEG;
+    meta.format       = IMAGE_FORMAT_JPG;
     meta.size_bytes   = extractJpgSize;
+    pipe_server_write_camera_frame(snapshotPipe, meta, src_data+start_index);
 
-    pipe_server_write_camera_frame(meta, src_data+start_index);
-    */
-
-
+    // now, if there is a filename in the queue, write it too
     if(snapshotQueue.size() != 0){
         char *filename = snapshotQueue.front();
         snapshotQueue.pop();
 
         M_PRINT("Camera: %s writing snapshot to :\"%s\"\n", name, filename);
-        WriteSnapshot(bufferBlockInfo, snap_halfmt, filename);
+        //WriteSnapshot(bufferBlockInfo, snap_halfmt, filename);
 
+        FILE* file_descriptor = fopen(filename, "wb");
+        if(! file_descriptor){
+
+            //Check to see if we were just missing parent directories
+            CreateParentDirs(filename);
+
+            file_descriptor = fopen(filename, "wb");
+
+            if(! file_descriptor){
+                M_ERROR("failed to open file descriptor for snapshot save to: %s\n", filename);
+                return;
+            }
+        }
+
+        int ret = fwrite(src_data+start_index, extractJpgSize, 1, file_descriptor);
+
+        if(ret<extractJpgSize){
+            M_ERROR("snapshot only wrote %d bytes to disk, expected to write %d\n", ret, extractJpgSize);
+        }
+
+        fclose(file_descriptor);
         free(filename);
     }
-
+    else{
+        M_VERBOSE("wrote snapshot to pipe but not to disk\n");
+    }
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
