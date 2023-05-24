@@ -1277,10 +1277,16 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
         pipe_server_write_list(smallVideoPipeColor, 3, bufs, lens);
     }
 
+    // no need to pass data to OMX if there are no h264 clients
+    if(pipe_server_get_num_clients(smallVideoPipeH264)<1){
+        bufferPush(small_vid_bufferGroup, result.second.buffer);
+        return;
+    }
+
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderSmall->ItemsInQueue();
     if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping small video frame, OMX is getting backed up, has %d in queue already\n", n);
+        M_PRINT("dropping small video frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
@@ -1321,10 +1327,16 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
         pipe_server_write_list(largeVideoPipeColor, 3, bufs, lens);
     }
 
+    // no need to pass data to OMX if there are no h264 clients
+    if(pipe_server_get_num_clients(largeVideoPipeH264)<1){
+        bufferPush(large_vid_bufferGroup, result.second.buffer);
+        return;
+    }
+
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderLarge->ItemsInQueue();
     if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_WARN("dropping large video frame, OMX is getting backed up, has %d in queue already\n", n);
+        M_PRINT("dropping large video frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
