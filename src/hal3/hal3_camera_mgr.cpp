@@ -59,7 +59,7 @@
 #include "voxl_cutils.h"
 #include "jpeg_size.h"
 
-#define CAM_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
+#define EXPOSURE_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
 #define NUM_PREVIEW_BUFFERS  16 // used to be 32, really shouldnt need to be more than 7
 #define NUM_SNAPSHOT_BUFFERS 16 // used to be 8, just making it consistent with the rest that are now 16
@@ -1892,7 +1892,8 @@ enum AECommandVals {
     SET_GAIN,
     START_AE,
     STOP_AE,
-    SNAPSHOT
+    SNAPSHOT,
+    SNAPSHOT_NS
 };
 static const char* CmdStrings[] =
 {
@@ -1901,7 +1902,8 @@ static const char* CmdStrings[] =
     "set_gain",
     "start_ae",
     "stop_ae",
-    "snapshot"
+    "snapshot",
+    "snapshot_no_save"
 };
 
 int PerCameraMgr::SetupPipes()
@@ -1911,8 +1913,8 @@ int PerCameraMgr::SetupPipes()
 
         char cont_cmds[256];
         snprintf(cont_cmds, 255, "%s%s",
-            CAM_CONTROL_COMMANDS,
-            en_snapshot ? ",snapshot" : "");
+            EXPOSURE_CONTROL_COMMANDS,
+            en_snapshot ? ",snapshot,snapshot-no-save" : "");
         int flags = SERVER_FLAG_EN_CONTROL_PIPE;
 
         pipe_info_t info;
@@ -2243,13 +2245,32 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         pthread_mutex_unlock(&aeMutex);
 
     } else
+
     /**************************
      *
-     * Take snapshot
+     * Take snapshot without saving
+     *
+     */
+    if(strncmp(cmd, CmdStrings[SNAPSHOT_NS], strlen(CmdStrings[SNAPSHOT_NS])) == 0){
+        if(!en_snapshot){
+            M_ERROR("Camera: %s declining to take snapshot, mode not enabled\n", name);
+        }
+        else{
+            M_PRINT("Camera: %s taking snapshot for pipe only (not saving it)\n", name);
+            numNeededSnapshots++;
+        }
+    } else
+
+    /**************************
+     *
+     * Take snapshot to save with filename
      *
      */
     if(strncmp(cmd, CmdStrings[SNAPSHOT], strlen(CmdStrings[SNAPSHOT])) == 0){
-        if(en_snapshot){
+        if(!en_snapshot){
+            M_ERROR("Camera: %s declining to take snapshot, mode not enabled\n", name);
+        }
+        else{
             char buffer[strlen(CmdStrings[SET_EXP_GAIN])+1];
             char *filename = (char *)malloc(256);
 
@@ -2271,9 +2292,6 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
 
             snapshotQueue.push(filename);
             numNeededSnapshots++;
-
-        } else {
-            M_ERROR("Camera: %s declining to take snapshot, mode not enabled\n", name);
         }
     }
     /**************************
@@ -2285,6 +2303,8 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
         M_ERROR("Camera: %s got unknown Command: %s\n", name, cmd);
     }
 }
+
+
 
 void PerCameraMgr::EStop(){
 
@@ -2298,6 +2318,9 @@ void PerCameraMgr::EStop(){
     }
 }
 
+
+// estimate how big we need to make the buffers for hal3 to put JPEGs into
+// this should be bigger than the actual JPEGs
 static int estimateJpegBufferSize(camera_metadata_t* cameraCharacteristics, uint32_t width, uint32_t height)
 {
 
