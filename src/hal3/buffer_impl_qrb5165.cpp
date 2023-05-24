@@ -68,27 +68,29 @@ int allocateOneBuffer(
     }
     memset(&allocation_data, 0, sizeof(allocation_data));
 
+    // this is for raw and color buffers, everything but jpeg
     if (format == HAL3_FMT_YUV ||
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
         stride = ALIGN_BYTE(width, 256);
-        slice = ALIGN_BYTE(height, 64);
+        //slice = ALIGN_BYTE(height, 64);
+        slice = ALIGN_BYTE(height, 1024);
+
+        // times 2 seems
         buffer_size = (size_t)(stride * slice * 2);
 
-        M_DEBUG("Allocating Buffer: %dx%d stride: %d slice: %d %s\n",
+        M_DEBUG("Allocating img Buffer: width: %4d stride: %4d height: %4d slice: %4d size: %7d\n",
                     width,
-                    height,
                     stride,
+                    height,
                     slice,
-                    "YCBCR_420_888");
-    } else { // if (format == HAL_PIXEL_FORMAT_BLOB)
+                    buffer_size);
+    } else {
+        // for "blob" allocation for jpeg only
         buffer_size = width;
 
-        M_DEBUG("Allocating Buffer: %dx%d : %s\n",
-                    width,
-                    height,
-                    "BLOB" );
+        M_DEBUG("Allocating jpeg Buffer: size: %7d\n", buffer_size);
     }
 
     allocation_data.len = ((size_t)(buffer_size) + 4095U) & (~4095U);
@@ -113,7 +115,7 @@ int allocateOneBuffer(
         return -EINVAL;
     }
 
-    M_DEBUG("allocated block at vaddr=0x%x len=0x%x\n", block.vaddress, allocation_data.len);
+    //M_DEBUG("allocated block at vaddr=0x%x len=0x%d\n", block.vaddress, allocation_data.len);
 
     block.size     = allocation_data.len;
     block.width    = width;
@@ -121,7 +123,8 @@ int allocateOneBuffer(
     block.stride   = stride;
     block.slice    = slice;
 
-    block.uvHead   = (block.vaddress) + (width * slice);
+    //block.uvHead   = (block.vaddress) + (width * slice);
+    block.uvHead   = (block.vaddress) + (stride * slice);
 
     native_handle = native_handle_create(1, 4);
     (native_handle)->data[0] = allocation_data.fd;
