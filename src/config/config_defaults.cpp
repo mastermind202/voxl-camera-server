@@ -174,7 +174,7 @@ static const PerCameraInfo IMX214Defaults =
         2160,                       //< Large Video Height of the frame
         120000000,                  //< Large Video Bitrate
         true,                       //< Enable Snapshot mode?
-        4208,                       //< Snapshot Width of the frame
+        4160,                       //< Snapshot Width of the frame
         3120,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure

@@ -130,6 +130,12 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format)
 
     if ((0 == status) && (0 == (entry.count % 4)))
     {
+        // M_PRINT("checking for fmt: %4d  w: %4d  h %4d o:%4d\n", format, width, height, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+        // for (size_t i = 0; i < entry.count; i+=4)
+        // {
+        //     M_PRINT("i: %d, fmt: %4d  w: %4d  h %4d o:%4d\n", i, entry.data.i32[i], entry.data.i32[i+1], entry.data.i32[i+2], entry.data.i32[i+3]);
+        // }
+
         for (size_t i = 0; i < entry.count; i+=4)
         {
             if ((entry.data.i32[i]   == format) &&
@@ -182,7 +188,7 @@ void HAL3_print_camera_resolutions(int camId){
         for (uint32_t i = 0 ; i < entry.count; i += 2) {
             width = entry.data.i32[i+0];
             height = entry.data.i32[i+1];
-            M_PRINT("%dx%d, ",width ,height);
+            M_PRINT("%4dx%4d, ",width ,height);
         }
         M_PRINT("\n");
 
@@ -201,10 +207,22 @@ void HAL3_print_camera_resolutions(int camId){
         //get video sizes
         find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT, &entry);
         M_PRINT("ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT:");
-        for (uint32_t i = 0 ; i < entry.count; i += 4) {
+        for (uint32_t i = 0 ; i < entry.count; i += 2) {
             if (i%32==0)
                 M_PRINT("\n\t");
-            width = entry.data.i32[i+2];
+            width = entry.data.i32[i];
+            height = entry.data.i32[i+1];
+            M_PRINT("%4dx%4d, ",width ,height);
+        }
+        M_PRINT("\n");
+
+        //get snapshot sizes
+        find_camera_metadata_ro_entry(meta, ANDROID_SCALER_AVAILABLE_JPEG_SIZES, &entry);
+        M_PRINT("ANDROID_SCALER_AVAILABLE_JPEG_SIZES:");
+        for (uint32_t i = 0 ; i < entry.count; i += 2) {
+            if (i%32==0)
+                M_PRINT("\n\t");
+            width = entry.data.i32[i];
             height = entry.data.i32[i+1];
             M_PRINT("%4dx%4d, ",width ,height);
         }

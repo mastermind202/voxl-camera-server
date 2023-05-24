@@ -1146,6 +1146,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         int32_t    new_gain;
 
         pthread_mutex_lock(&aeMutex);
+
+        int64_t t_start = VCU_time_monotonic_ns();
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
@@ -1183,6 +1185,8 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 otherMgr->setGain = new_gain;
             }
         }
+        int64_t t_end = VCU_time_monotonic_ns();
+        M_ERROR("AE time for camera %s: %5.2fms\n", name, (double)(t_end-t_start)/1000000.0);
         pthread_mutex_unlock(&aeMutex);
 
         //Clear the pointers and signal the child thread for cleanup
@@ -1338,7 +1342,6 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
         M_WARN("Trying to process encode buffer without metadata\n");
-        bufferPush(snap_bufferGroup, result.second.buffer);
         return;
     }
 
@@ -1347,17 +1350,19 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
     int extractJpgSize = find_jpeg_buffer_size(src_data, bufferBlockInfo->size, &start_index);
 
     if(extractJpgSize == 1){
-        M_WARN("Real Size of JPEG is incorrect, setting to max of buffer");
-        extractJpgSize = bufferBlockInfo->size;
-        start_index = 0;
+        M_ERROR("Real Size of JPEG is incorrect");
+        return;
     }
 
+    M_DEBUG("Snapshot jpeg start: %6d len %8d\n", start_index, extractJpgSize);
+
+
     meta.magic_number = CAMERA_MAGIC_NUMBER;
-    meta.width        = bufferBlockInfo->width;
-    meta.height       = bufferBlockInfo->height;
+    meta.width        = snap_width;
+    meta.height       = snap_height;
     meta.format       = IMAGE_FORMAT_JPG;
     meta.size_bytes   = extractJpgSize;
-    pipe_server_write_camera_frame(snapshotPipe, meta, src_data+start_index);
+    pipe_server_write_camera_frame(snapshotPipe, meta, &src_data[start_index]);
 
     // now, if there is a filename in the queue, write it too
     if(snapshotQueue.size() != 0){
@@ -1381,10 +1386,10 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             }
         }
 
-        int ret = fwrite(src_data+start_index, extractJpgSize, 1, file_descriptor);
+        int ret = fwrite(&src_data[start_index], extractJpgSize, 1, file_descriptor);
 
-        if(ret<extractJpgSize){
-            M_ERROR("snapshot only wrote %d bytes to disk, expected to write %d\n", ret, extractJpgSize);
+        if(ret!=1){
+            M_ERROR("snapshot failed to write to disk\n");
         }
 
         fclose(file_descriptor);
