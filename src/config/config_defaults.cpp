@@ -37,10 +37,45 @@
 #include "config_defaults.h"
 #include "common_defs.h"
 
+// sma;; video stream is usually for rtsp
+#define RTSP_BITRATE_DEFAULT 3000000 // mbps
+
+static const PerCameraInfo emptyDefaults =
+    {
+        "",                         //< Name
+        SENSOR_INVALID,             //Sensor
+        true,                       //Is mono?
+        -1,                         //ID
+        -1,                         //ID2
+        false,                      //Enabled?
+        -1,                         //Framerate
+        false,                      //< Enable Preview Mode?
+        -1,                         //< Preview Width of the frame
+        -1,                         //< Preview Height of the frame
+        FMT_INVALID,                //< Preview Frame format
+        false,                      //< Enable Small Video
+        -1,                         //< Small Video Width of the frame
+        -1,                         //< Small Video Height of the frame
+        -1,                         //< Small Video Bitrate
+        false,                      //< Enable Large Video
+        -1,                         //< Large Video Width of the frame
+        -1,                         //< Large Video Height of the frame
+        -1,                         //< Large Video Bitrate
+        false,                      //< Enable Snapshot mode?
+        -1,                         //< Snapshot Width of the frame
+        -1,                         //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Independent Exposure
+        AE_OFF,                     //< AE Mode
+        false,                      //< Standby Enabled
+        1,                          //< Standby Decimator
+    };
+
+
 static const PerCameraInfo OV7251Defaults = 
     {
         "",                         //< Name
-        SENSOR_OV7251,             //< Type
+        SENSOR_OV7251,             //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -94,10 +129,12 @@ static const PerCameraInfo OV7251Defaults =
             false                   //< Display Debug
         }
     };
+
+
 static const PerCameraInfo OV9782Defaults =
     {
         "",                         //< Name
-        SENSOR_OV9782,             //< Type
+        SENSOR_OV9782,             //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -152,10 +189,11 @@ static const PerCameraInfo OV9782Defaults =
         }
     };
 
+
 static const PerCameraInfo IMX214Defaults =
     {
         "",                         //< Name
-        SENSOR_IMX214,             //< Type
+        SENSOR_IMX214,             //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -168,7 +206,7 @@ static const PerCameraInfo IMX214Defaults =
         true,                       //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        3000000,                    //< Small Video Bitrate
+        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
         true,                       //< Enable Large Video
         4096,                       //< Large Video Width of the frame
         2160,                       //< Large Video Height of the frame
@@ -200,7 +238,7 @@ static const PerCameraInfo IMX214Defaults =
 static const PerCameraInfo IMX412Defaults =
     {
         "",                         //< Name
-        SENSOR_IMX412,             //< Type
+        SENSOR_IMX412,             //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -213,7 +251,7 @@ static const PerCameraInfo IMX412Defaults =
         true,                       //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        3000000,                    //< Small Video Bitrate
+        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
         true,                       //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
@@ -245,7 +283,7 @@ static const PerCameraInfo IMX412Defaults =
 static const PerCameraInfo IMX678Defaults =
     {
         "",                         //< Name
-        SENSOR_IMX678,             //< Type
+        SENSOR_IMX678,             //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -258,7 +296,7 @@ static const PerCameraInfo IMX678Defaults =
         true,                       //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        3000000,                    //< Small Video Bitrate
+        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
         true,                       //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
@@ -290,7 +328,7 @@ static const PerCameraInfo IMX678Defaults =
 static const PerCameraInfo TOFDefaults =
     {
         "",                         //Name
-        SENSOR_TOF,                //< Type
+        SENSOR_TOF,                //< Sensor
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -318,36 +356,7 @@ static const PerCameraInfo TOFDefaults =
         5,                          //< Standby Decimator
     };
 
-static const PerCameraInfo emptyDefaults =
-    {
-        "",                         //< Name
-        SENSOR_INVALID,            //Type
-        true,                       //Is mono?
-        -1,                         //ID
-        -1,                         //ID2
-        false,                      //Enabled?
-        -1,                         //Framerate
-        false,                      //< Enable Preview Mode?
-        -1,                         //< Preview Width of the frame
-        -1,                         //< Preview Height of the frame
-        FMT_INVALID,                //< Preview Frame format
-        false,                      //< Enable Small Video
-        -1,                         //< Small Video Width of the frame
-        -1,                         //< Small Video Height of the frame
-        -1,                         //< Small Video Bitrate
-        false,                      //< Enable Large Video
-        -1,                         //< Large Video Width of the frame
-        -1,                         //< Large Video Height of the frame
-        -1,                         //< Large Video Bitrate
-        false,                      //< Enable Snapshot mode?
-        -1,                         //< Snapshot Width of the frame
-        -1,                         //< Snapshot Height of the frame
-        false,                      //< Flip
-        false,                      //< Independent Exposure
-        AE_OFF,                     //< AE Mode
-        false,                      //< Standby Enabled
-        1,                          //< Standby Decimator
-    };
+
 
 const PerCameraInfo getDefaultCameraInfo(sensor_t t) {
     switch(t){

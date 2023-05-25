@@ -123,11 +123,11 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 	}
 
 	for(i=0; i<numCameras; i++){
-		cJSON* item = cJSON_GetArrayItem(parent, i);
+		cJSON* item = cJSON_GetArrayItem(cameras_json, i);
 
 		sensor_t type;
 		char buffer[64];
-		if(json_fetch_string_with_default(cur, JsonTypeString, buffer, 63, cameras)){
+		if(json_fetch_string_with_default(item, JsonTypeString, buffer, 63, cameras)){
 			M_ERROR("Reading config file: camera type not specified for: %s\n", buffer);
 			goto ERROR_EXIT;
 		}
@@ -140,7 +140,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 		// start with our own defaults for that camera type, then load from there
 		PerCameraInfo info = getDefaultCameraInfo(type);
 
-		if(json_fetch_string(cur, JsonNameString, info.name, 63)){
+		if(json_fetch_string(item, JsonNameString, info.name, 63)){
 			M_ERROR("Reading config file: camera name not specified\n", info.name);
 			goto ERROR_EXIT;
 		}
@@ -150,7 +150,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			goto ERROR_EXIT;
 		}
 
-		if(json_fetch_int(cur, JsonCameraIdString, &(info.camId))){
+		if(json_fetch_int(item, JsonCameraIdString, &(info.camId))){
 			M_ERROR("Reading config file: camera id not specified for: %s\n", info.name);
 			goto ERROR_EXIT;
 		}else if(contains(cameraIds, info.camId)){
@@ -160,7 +160,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			cameraIds.push_back(info.camId);
 		}
 
-		if(!cJSON_HasObjectItem(cur, JsonCameraId2String) || json_fetch_int(cur, JsonCameraId2String, &(info.camId2))){
+		if(!cJSON_HasObjectItem(item, JsonCameraId2String) || json_fetch_int(item, JsonCameraId2String, &(info.camId2))){
 			M_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
 			info.camId2 = -1;
 		} else if(contains(cameraIds, info.camId2)){
@@ -171,63 +171,51 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			cameraIds.push_back(info.camId2);
 		}
 
-		json_fetch_int_with_default (cur, JsonFpsString ,   &info.fps, info.fps);
+		json_fetch_int_with_default (item, JsonFpsString ,   &info.fps, info.fps);
 
 		int tmp;
-		json_fetch_bool_with_default(cur, JsonEnabledString, &tmp, true);
+		json_fetch_bool_with_default(item, JsonEnabledString, &tmp, true);
 		info.isEnabled = tmp;
-		json_fetch_bool_with_default(cur, JsonFlipString,    &tmp, false);
+		json_fetch_bool_with_default(item, JsonFlipString,    &tmp, false);
 		info.flip = tmp;
-		json_fetch_bool_with_default(cur, JsonIndExpString,  &tmp, false);
+		json_fetch_bool_with_default(item, JsonIndExpString,  &tmp, false);
 		info.ind_exp = tmp;
-		json_fetch_bool_with_default(cur, JsonSVandbyEnabled, &tmp, false);
+		json_fetch_bool_with_default(item, JsonSVandbyEnabled, &tmp, false);
 		info.standby_enabled = tmp;
 
-		json_fetch_bool_with_default (cur, JsonPEnableString,       &info.en_preview,  info.en_preview);
-		json_fetch_int_with_default  (cur, JsonPWidthString,        &info.pre_width,   info.pre_width);
-		json_fetch_int_with_default  (cur, JsonPHeightString,       &info.pre_height,  info.pre_height);
+		json_fetch_bool_with_default (item, JsonPEnableString,       &info.en_preview,  info.en_preview);
+		json_fetch_int_with_default  (item, JsonPWidthString,        &info.pre_width,   info.pre_width);
+		json_fetch_int_with_default  (item, JsonPHeightString,       &info.pre_height,  info.pre_height);
 
 		if(info.en_small_video){
-			json_fetch_bool_with_default (cur, JsonSVEnableString,       &info.en_small_video,   info.en_small_video);
-			json_fetch_int_with_default  (cur, JsonSVWidthString,       &info.small_video_width,   info.small_video_width);
-			json_fetch_int_with_default  (cur, JsonSVHeightString,      &info.small_video_height,  info.small_video_height);
-			json_fetch_int_with_default  (cur, JsonSVBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
+			json_fetch_bool_with_default (item, JsonSVEnableString,       &info.en_small_video,   info.en_small_video);
+			json_fetch_int_with_default  (item, JsonSVWidthString,       &info.small_video_width,   info.small_video_width);
+			json_fetch_int_with_default  (item, JsonSVHeightString,      &info.small_video_height,  info.small_video_height);
+			json_fetch_int_with_default  (item, JsonSVBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
 		}
 		if(info.en_large_video){
-			json_fetch_bool_with_default (cur, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
-			json_fetch_int_with_default  (cur, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
-			json_fetch_int_with_default  (cur, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
-			json_fetch_int_with_default  (cur, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
+			json_fetch_bool_with_default (item, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
+			json_fetch_int_with_default  (item, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
+			json_fetch_int_with_default  (item, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
+			json_fetch_int_with_default  (item, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
 		}
-		json_fetch_bool_with_default (cur, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
-		json_fetch_int_with_default  (cur, JsonSNWidthString,       &info.snap_width,  info.snap_width);
-		json_fetch_int_with_default  (cur, JsonSNHeightString,      &info.snap_height, info.snap_height);
-		json_fetch_int_with_default  (cur, JsonDecimator,           &info.decimator,   info.decimator);
+		json_fetch_bool_with_default (item, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
+		json_fetch_int_with_default  (item, JsonSNWidthString,       &info.snap_width,  info.snap_width);
+		json_fetch_int_with_default  (item, JsonSNHeightString,      &info.snap_height, info.snap_height);
+		json_fetch_int_with_default  (item, JsonDecimator,           &info.decimator,   info.decimator);
 
 		// See which AE mode the user has defined
-		if (!json_fetch_string(cur, JsonAEModeString, buffer, sizeof(buffer)-1)) {
+		if (!json_fetch_string(item, JsonAEModeString, buffer, sizeof(buffer)-1)) {
 			if (! strcasecmp(buffer,"off")) {
-				if(info.ae_mode != AE_OFF) {
-					need_rewrite = true;
-				}
 				info.ae_mode = AE_OFF;
 			}
 			else if (! strcasecmp(buffer,"isp")) {
-				if(info.ae_mode != AE_ISP) {
-					need_rewrite = true;
-				}
 				info.ae_mode = AE_ISP;
 			}
 			else if (! strcasecmp(buffer,"lme_hist")) {
-				if(info.ae_mode != AE_LME_HIST) {
-					need_rewrite = true;
-				}
 				info.ae_mode = AE_LME_HIST;
 			}
 			else if (! strcasecmp(buffer,"lme_msv")) {
-				if(info.ae_mode != AE_LME_MSV) {
-					need_rewrite = true;
-				}
 				info.ae_mode = AE_LME_MSV;
 			}
 			else {
@@ -236,17 +224,17 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			}
 		}
 
-		json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
-		json_fetch_float_with_default (cur, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
-		json_fetch_float_with_default (cur, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
-		json_fetch_float_with_default (cur, JsonAEMaxIString ,       &info.ae_hist_info.max_i,       info.ae_hist_info.max_i);
+		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
+		json_fetch_float_with_default (item, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
+		json_fetch_float_with_default (item, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
+		json_fetch_float_with_default (item, JsonAEMaxIString ,       &info.ae_hist_info.max_i,       info.ae_hist_info.max_i);
 
-		json_fetch_float_with_default (cur, JsonAEDesiredMSVString , &info.ae_msv_info.desired_msv,                       info.ae_msv_info.desired_msv);
-		json_fetch_float_with_default (cur, JsonAEFilterAlpha ,      &info.ae_msv_info.msv_filter_alpha,                  info.ae_msv_info.msv_filter_alpha);
-		json_fetch_float_with_default (cur, JsonAEIgnoreFraction ,   &info.ae_msv_info.max_saturated_pix_ignore_fraction, info.ae_msv_info.max_saturated_pix_ignore_fraction);
-		json_fetch_float_with_default (cur, JsonAESlope ,            &info.ae_msv_info.exposure_gain_slope,               info.ae_msv_info.exposure_gain_slope);
-		json_fetch_int_with_default   (cur, JsonAEExposurePeriod ,   (int*)&info.ae_msv_info.exposure_update_period, (int)info.ae_msv_info.exposure_update_period);
-		json_fetch_int_with_default   (cur, JsonAEGainPeriod ,       (int*)&info.ae_msv_info.gain_update_period,     (int)info.ae_msv_info.gain_update_period);
+		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &info.ae_msv_info.desired_msv,                       info.ae_msv_info.desired_msv);
+		json_fetch_float_with_default (item, JsonAEFilterAlpha ,      &info.ae_msv_info.msv_filter_alpha,                  info.ae_msv_info.msv_filter_alpha);
+		json_fetch_float_with_default (item, JsonAEIgnoreFraction ,   &info.ae_msv_info.max_saturated_pix_ignore_fraction, info.ae_msv_info.max_saturated_pix_ignore_fraction);
+		json_fetch_float_with_default (item, JsonAESlope ,            &info.ae_msv_info.exposure_gain_slope,               info.ae_msv_info.exposure_gain_slope);
+		json_fetch_int_with_default   (item, JsonAEExposurePeriod ,   (int*)&info.ae_msv_info.exposure_update_period, (int)info.ae_msv_info.exposure_update_period);
+		json_fetch_int_with_default   (item, JsonAEGainPeriod ,       (int*)&info.ae_msv_info.gain_update_period,     (int)info.ae_msv_info.gain_update_period);
 
 		cameraNames.push_back(info.name);
 		cameras.push_back(info);
@@ -254,7 +242,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 	}
 
 	if(json_get_modified_flag()){
-		json_write_to_file_with_parenter(CONFIG_FILE_NAME, parent, CONFIG_FILE_HEADER);
+		json_write_to_file_with_header(CONFIG_FILE_NAME, parent, CONFIG_FILE_HEADER);
 	}
 
 	cJSON_free(parent);
