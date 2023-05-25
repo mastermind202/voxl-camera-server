@@ -81,7 +81,7 @@ int allocateOneBuffer(
         TODO pull these alignment values from HAL3 instead of guessing
         */
         if(height<=480){
-            M_PRINT("ALIGNING HEIGHT FOR VGA\n");
+            M_DEBUG("ALIGNING HEIGHT FOR VGA\n");
             slice = ALIGN_BYTE(height, 64);
             //stride = ALIGN_BYTE(width, 64);
             stride = width;
@@ -92,7 +92,7 @@ int allocateOneBuffer(
             stride = width;
         }
         else{
-            M_PRINT("ALIGNING HEIGHT FOR LARGE IMAGE\n");
+            M_DEBUG("ALIGNING HEIGHT FOR LARGE IMAGE\n");
             // WORKING WITH 214
             // slice = ALIGN_BYTE(height, 512);
             // stride = ALIGN_BYTE(width, 256);

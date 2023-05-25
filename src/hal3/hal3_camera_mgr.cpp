@@ -1015,12 +1015,15 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             size_t lens[] = {sizeof(camera_image_metadata_t), ylen, uvlen};
             pipe_server_write_list(previewPipeColor, 3, bufs, lens);
         }
-        M_VERBOSE("Sent frame %d through pipe %s\n", meta.frame_id, name);
 
         int64_t    new_exposure_ns;
         int32_t    new_gain;
 
+
+        //int64_t t_start = VCU_time_monotonic_ns();
         pthread_mutex_lock(&aeMutex);
+        //int64_t t_start = VCU_time_monotonic_ns();
+
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
@@ -1047,6 +1050,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
             setGain     = new_gain;
         }
         pthread_mutex_unlock(&aeMutex);
+
+        //int64_t t_end = VCU_time_monotonic_ns();
+        //printf("AE time for camera %s: %5.2fms\n", name, (double)(t_end-t_start)/1000000.0);
 
     } else if (partnerMode == MODE_STEREO_MASTER){
 
@@ -1147,7 +1153,6 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
         pthread_mutex_lock(&aeMutex);
 
-        int64_t t_start = VCU_time_monotonic_ns();
         if (ae_mode == AE_LME_HIST && expHistInterface.update_exposure(
                 (uint8_t*)bufferBlockInfo->vaddress,
                 pre_width,
@@ -1185,8 +1190,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
                 otherMgr->setGain = new_gain;
             }
         }
-        int64_t t_end = VCU_time_monotonic_ns();
-        M_ERROR("AE time for camera %s: %5.2fms\n", name, (double)(t_end-t_start)/1000000.0);
+
         pthread_mutex_unlock(&aeMutex);
 
         //Clear the pointers and signal the child thread for cleanup
@@ -1286,7 +1290,7 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderSmall->ItemsInQueue();
     if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_PRINT("dropping small video frame, OMX is getting backed up, has %d in queue already\n", n);
+        M_DEBUG("dropping small video frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
@@ -1336,7 +1340,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderLarge->ItemsInQueue();
     if(n>LARGE_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
-        M_PRINT("dropping large video frame, OMX is getting backed up, has %d in queue already\n", n);
+        M_DEBUG("dropping large video frame, OMX is getting backed up, has %d in queue already\n", n);
         bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
