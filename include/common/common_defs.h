@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 ModalAI Inc.
+ * Copyright 2023 ModalAI Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -43,7 +43,7 @@
 #define PADDING_DISABLED __attribute__((packed))
 
 static const int INT_INVALID_VALUE   = 0xdeadbeef;
-static const int MAX_NAME_LENGTH     = 64;
+static const int MAXNAMELEN     = 64;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Supported stream types
@@ -68,6 +68,58 @@ enum Status
 };
 
 
+//------------------------------------------------------------------------------------------------------------------------------
+// List of camera types
+//------------------------------------------------------------------------------------------------------------------------------
+enum sensor_t
+{
+    SENSOR_INVALID = -1,   ///< Invalid
+    SENSOR_OV7251,
+    SENSOR_OV9782,
+    SENSOR_IMX214,
+    SENSOR_IMX412,
+    SENSOR_IMX678,
+    SENSOR_TOF,
+    SENSOR_MAX_TYPES       ///< Max types
+};
+
+// Get the string associated with the type
+static const inline char* GetTypeString(int type)
+{
+    switch ((sensor_t)type){
+        case SENSOR_OV7251:      return "ov7251";
+        case SENSOR_OV9782:      return "ov9782";
+        case SENSOR_IMX214:      return "imx214";
+        case SENSOR_IMX412:      return "imx412";
+        case SENSOR_IMX678:      return "imx678";
+        case SENSOR_TOF:         return "pmd-tof";
+
+        default:               return "Invalid";
+    }
+}
+
+
+// Get the type associated with the string
+static const inline sensor_t sensor_from_string(char *type)
+{
+
+    char lowerType[strlen(type) + 5];
+    int i;
+    for(i = 0; type[i]; i++){
+      lowerType[i] = tolower(type[i]);
+    }
+    lowerType[i] = 0;
+
+    for(int i = 0; i < SENSOR_MAX_TYPES; i++){
+        if(!strcmp(lowerType, GetTypeString((sensor_t)i))){
+            return (sensor_t)i;
+        }
+    }
+
+    return SENSOR_INVALID;
+}
+
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Supported preview formats
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -82,72 +134,6 @@ enum ImageFormat
     FMT_MAXTYPES        ///< Max Types
 };
 
-//------------------------------------------------------------------------------------------------------------------------------
-// List of camera types
-//------------------------------------------------------------------------------------------------------------------------------
-enum CameraType
-{
-    CAMTYPE_INVALID = -1,   ///< Invalid
-    CAMTYPE_OV7251,
-    CAMTYPE_OV9782,
-    CAMTYPE_IMX214,
-    CAMTYPE_TOF,
-    CAMTYPE_MAX_TYPES       ///< Max types
-};
-
-enum AE_MODE
-{
-    AE_OFF   = 0,
-    AE_ISP,
-    AE_LME_HIST,
-    AE_LME_MSV
-};
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Structure containing information for one camera
-// Any changes to this struct should be reflected in camera_defaults.h as well
-//------------------------------------------------------------------------------------------------------------------------------
-struct PerCameraInfo
-{
-    char          name[MAX_NAME_LENGTH]; ///< Camera name string
-    CameraType    type;                  ///< Type of camera
-    bool          isMono;                ///< mono or stereo
-    int           camId;                 ///< id of camera
-    int           camId2;                ///< id of second camera (if stereo)
-    bool          isEnabled;             ///< Is the camera enabled/disabled
-    int           fps;                  ///< Frame rate - number of frames per second
-
-    int     en_preview;
-    int     pre_width;            ///< Preview Width of the frame
-    int     pre_height;           ///< Preview Height of the frame
-    int     pre_format;           ///< Preview Frame format
-
-    int     en_small_video;
-    int     small_video_width;            ///< Video Stream Width of the frame
-    int     small_video_height;           ///< Video Stream Height of the frame
-    int     small_video_bitrate;          ///< Video Stream Bitrate
-
-    int     en_large_video;
-    int     large_video_width;            ///< Video Record Width of the frame
-    int     large_video_height;           ///< Video Record Height of the frame
-    int     large_video_bitrate;          ///< Video Record Bitrate
-
-    int     en_snapshot;
-    int     snap_width;            ///< Snapshot Width of the frame
-    int     snap_height;           ///< Snapshot Height of the frame
-    bool    flip;                  ///< Flip?
-
-    bool    ind_exp;               ///< For stereo pairs, run exposure independently?
-
-    AE_MODE ae_mode;
-    modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)
-    modal_exposure_msv_config_t  ae_msv_info;  ///< ModalAI AE data (MSV)
-
-    bool    standby_enabled;       ///< Standby enabled for lidar
-    int     decimator;             ///< Decimator to use for standby
-};
-
-
 static const inline char* GetImageFmtString(int fmt)
 {
     switch ((ImageFormat)fmt){
@@ -158,6 +144,7 @@ static const inline char* GetImageFmtString(int fmt)
         default:        return "Invalid";
     }
 }
+
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Convert local format type to HAL3 format type
@@ -188,37 +175,60 @@ static const inline int32_t HalFmtFromType(int fmt)
     }
 }
 
-// Get the string associated with the type
-static const inline char* GetTypeString(int type)
+
+enum AE_MODE
 {
-    switch ((CameraType)type){
-        case CAMTYPE_OV7251:      return "ov7251";
-        case CAMTYPE_OV9782:      return "ov9782";
-        case CAMTYPE_IMX214:      return "imx214";
-        case CAMTYPE_TOF:         return "pmd-tof";
+    AE_OFF   = 0,
+    AE_ISP,
+    AE_LME_HIST,
+    AE_LME_MSV
+};
 
-        default:               return "Invalid";
-    }
-}
-
-// Get the type associated with the string
-static const inline CameraType GetCameraTypeFromString(char *type)
+//------------------------------------------------------------------------------------------------------------------------------
+// Structure containing information for one camera
+// Any changes to this struct should be reflected in camera_defaults.h as well
+//------------------------------------------------------------------------------------------------------------------------------
+struct PerCameraInfo
 {
+    char      name[MAXNAMELEN];   ///< Camera name string
+    sensor_t  type;               ///< Type of camera
+    bool      isMono;             ///< mono or stereo
+    int       camId;              ///< id of camera
+    int       camId2;             ///< id of second camera (if stereo)
+    bool      isEnabled;          ///< Is the camera enabled/disabled
+    int       fps;                ///< Frame rate - number of frames per second
 
-    char lowerType[strlen(type) + 5];
-    int i;
-    for(i = 0; type[i]; i++){
-      lowerType[i] = tolower(type[i]);
-    }
-    lowerType[i] = 0;
+    int     en_preview;
+    int     pre_width;            ///< Preview Width of the frame
+    int     pre_height;           ///< Preview Height of the frame
+    int     pre_format;           ///< Preview Frame format
 
-    for(int i = 0; i < CAMTYPE_MAX_TYPES; i++){
-        if(!strcmp(lowerType, GetTypeString((CameraType)i))){
-            return (CameraType)i;
-        }
-    }
+    int     en_small_video;
+    int     small_video_width;    ///< Video Stream Width of the frame
+    int     small_video_height;   ///< Video Stream Height of the frame
+    int     small_video_bitrate;  ///< Video Stream Bitrate
 
-    return CAMTYPE_INVALID;
-}
+    int     en_large_video;
+    int     large_video_width;    ///< Video Record Width of the frame
+    int     large_video_height;   ///< Video Record Height of the frame
+    int     large_video_bitrate;  ///< Video Record Bitrate
+
+    int     en_snapshot;
+    int     snap_width;            ///< Snapshot Width of the frame
+    int     snap_height;           ///< Snapshot Height of the frame
+    bool    flip;                  ///< Flip?
+
+    bool    ind_exp;               ///< For stereo pairs, run exposure independently?
+
+    AE_MODE ae_mode;
+    modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)
+    modal_exposure_msv_config_t  ae_msv_info;  ///< ModalAI AE data (MSV)
+
+    bool    standby_enabled;       ///< Standby enabled for lidar
+    int     decimator;             ///< Decimator to use for standby
+};
+
+
+
 
 #endif // COMMON_DEFS

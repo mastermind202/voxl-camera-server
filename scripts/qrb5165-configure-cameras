@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Copyright 2021 ModalAI Inc.
+# Copyright 2023 ModalAI Inc.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -36,6 +36,7 @@ set -e
 
 # options set by arguments
 CAM_CONFIG_ID="-1"
+HIRES_SENSOR="${HIRES_SENSOR}"
 ENABLE_CAMERA_SERVER=1
 
 CAM_LIB_DIR="/usr/lib/camera/"
@@ -50,79 +51,88 @@ GRN="\e[32m"
 SET_BOLD="\e[1m"
 
 PRINT_ERROR (){
-    echo -e "${RED}[ERROR] $@${RESET_ALL}"
+	echo -e "${RED}[ERROR] $@${RESET_ALL}"
 }
 
 PRINT_GREEEN_LINE (){
-    echo -e "${GRN}${SET_BOLD}------------------------------------------------------------------${RESET_ALL}"
+	echo -e "${GRN}${SET_BOLD}------------------------------------------------------------------${RESET_ALL}"
 }
 
 
 print_usage () {
-    echo ""
-    echo "Tool to configure camera server"
-    echo ""
-    echo "Usage:"
-    echo "voxl-configure-cameras <config-id>  - set up a specific cam config"
-    echo "voxl-configure-cameras sentinel_v1  - setup for Sentinel drone"
-    echo "voxl-configure-cameras fpv_revB     - setup for fpv_revB"
-    echo "voxl-configure-cameras starling_v2  - setup for Starling V2"
-    echo "voxl-configure-cameras disable      - disables voxl-camera-server"
-    echo "voxl-configure-cameras help         - show this help text"
-    echo ""
-    echo "If no config-id or arguments are given, the user will be"
-    echo "prompted with questions to help complete configuration"
-    echo ""
-    echo "available camera config IDs are as follows:"
-    echo ""
-    qrb5165-print-camera-configs
-    echo ""
-    exit 0
+	echo ""
+	echo "Tool to configure camera server"
+	echo ""
+	echo "Usage:"
+	echo "voxl-configure-cameras <config-id>  - set up a specific cam config"
+	echo "voxl-configure-cameras sentinel_v1  - setup for Sentinel drone"
+	echo "voxl-configure-cameras fpv_revB     - setup for fpv_revB"
+	echo "voxl-configure-cameras starling_v2  - setup for Starling V2"
+	echo "voxl-configure-cameras disable      - disables voxl-camera-server"
+	echo "voxl-configure-cameras help         - show this help text"
+	echo ""
+	echo "If no config-id or arguments are given, the user will be"
+	echo "prompted with questions to help complete configuration"
+	echo ""
+	echo "available camera config IDs are as follows:"
+	echo ""
+	qrb5165-print-camera-configs
+	echo ""
+	echo "If you are using optional imx412 or imx678 units in place of the"
+	echo "default ${HIRES_SENSOR} hires cameras, please use the following args to swap:"
+	echo "--imx412 or --imx678"
+	echo ""
+	exit 0
 }
 
 parse_opts(){
 
-    while [[ $# -gt 0 ]]; do
+	while [[ $# -gt 0 ]]; do
 
-        ## convert argument to lower case for robustness
-        arg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+		## convert argument to lower case for robustness
+		arg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 
-        ## parse arguments
-        case ${arg} in
-            "h"|"-h"|"help"|"--help")
-                print_usage
-                exit 0
-                ;;
-            "disable")
-                if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
-                    CAM_CONFIG_ID=0
-                fi
-                ENABLE_CAMERA_SERVER=0
-                ;;
-            "sentinel_v1")
-                CAM_CONFIG_ID=11 # 6-cam
-                ENABLE_CAMERA_SERVER=1
-                ;;
-            "starling_v2")
-                CAM_CONFIG_ID=6 # tof hires tracking
-                ENABLE_CAMERA_SERVER=1
-                ;;
-            "fpv_revB")
-                CAM_CONFIG_ID=15
-                ENABLE_CAMERA_SERVER=1
-                ;;
-            *)
-                ## all other arguments are either config id numbers or invalid
-                if [[ "$arg" =~ ^[0-9]+$ ]]; then
-                    CAM_CONFIG_ID=$arg
-                else
-                    echo "invalid option $arg"
-                    print_usage
-                    exit -1
-                fi
-        esac
-        shift
-    done
+		## parse arguments
+		case ${arg} in
+			"h"|"-h"|"help"|"--help")
+				print_usage
+				exit 0
+				;;
+			"disable")
+				if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
+					CAM_CONFIG_ID=0
+				fi
+				ENABLE_CAMERA_SERVER=0
+				;;
+			"sentinel_v1")
+				CAM_CONFIG_ID=11 # 6-cam
+				ENABLE_CAMERA_SERVER=1
+				;;
+			"starling_v2")
+				CAM_CONFIG_ID=6 # tof hires tracking
+				ENABLE_CAMERA_SERVER=1
+				;;
+			"fpv_revB")
+				CAM_CONFIG_ID=15
+				ENABLE_CAMERA_SERVER=1
+				;;
+			"--imx412")
+				HIRES_SENSOR="imx412"
+				;;
+			"--imx676")
+				HIRES_SENSOR="imx678"
+			*)
+				## all other arguments are either config id numbers or invalid
+				if [[ "$arg" =~ ^[0-9]+$ ]]; then
+					CAM_CONFIG_ID=$arg
+				else
+					echo "invalid option $arg"
+					print_usage
+					exit -1
+				fi
+		esac
+		shift
+	done
 }
 
 ################################################################################
@@ -132,9 +142,9 @@ parse_opts(){
 parse_opts $@
 
 if [[ "$CAM_CONFIG_ID" == "-1" ]]; then
-    PRINT_ERROR "missing camera config ID"
-    print_usage
-    exit -1
+	PRINT_ERROR "missing camera config ID"
+	print_usage
+	exit -1
 fi
 
 ################################################################################
@@ -144,18 +154,18 @@ echo "Camera Configuration: $CAM_CONFIG_ID"
 
 
 if [ $CAM_CONFIG_ID == "0" ]; then
-    echo "stopping and disabling voxl-camera-server"
-    systemctl disable voxl-camera-server
-    systemctl stop voxl-camera-server
-    exit 0
+	echo "stopping and disabling voxl-camera-server"
+	systemctl disable voxl-camera-server
+	systemctl stop voxl-camera-server
+	exit 0
 fi
 
 
 
 if [ ! -f /usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin ]; then
-    PRINT_ERROR "Your system image is too old to support the new camera driver structure"
-    PRINT_ERROR "Plese update to a system image newer than May 14 2023"
-    exit 1
+	PRINT_ERROR "Your system image is too old to support the new camera driver structure"
+	PRINT_ERROR "Plese update to a system image newer than May 14 2023"
+	exit 1
 fi
 
 
@@ -164,119 +174,119 @@ BIN_LIST=()
 
 
 case $CAM_CONFIG_ID in
-    1) #Tracking + Stereo
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("stereo:ov7251:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
-        ;;
-    2) # Tracking Only
-        CAM_LIST+=("tracking:ov7251:0")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        ;;
-    3) # Hires + Stereo + Tracking
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("hires:imx214:3")
-        CAM_LIST+=("stereo:ov7251:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        ;;
-    4) # Hires + Tracking
-        CAM_LIST+=("tracking:ov7251:0")
-        CAM_LIST+=("hires:imx214:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
-        ;;
-    5) # TOF + Tracking
-        CAM_LIST+=("tof:pmd-tof:0")
-        CAM_LIST+=("tracking:ov7251:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
-        ;;
-    6) # D0005 Starling V2 Hires + TOF + Tracking
-        CAM_LIST+=("tof:pmd-tof:0")
-        CAM_LIST+=("hires:imx214:1")
-        CAM_LIST+=("tracking:ov7251:2")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_2.bin")
-        ;;
-    7) # TOF + Stereo + Tracking
-        CAM_LIST+=("tof:pmd-tof:0")
-        CAM_LIST+=("tracking:ov7251:1")
-        CAM_LIST+=("stereo:ov7251:2:3")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_2.bin")
-        ;;
-    8) # Hires only
-        CAM_LIST+=("hires:imx214:0")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
-        ;;
-    9) # TOF only
-        CAM_LIST+=("tof:pmd-tof:0")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
-        ;;
-    10) # Stereo 7251 only
-        CAM_LIST+=("stereo:ov7251:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
-        ;;
-    11) # 6-cam
-        CAM_LIST+=("tracking:ov7251:2")
-        CAM_LIST+=("hires:imx214:3")
-        CAM_LIST+=("stereo_front:ov7251:0:1")
-        CAM_LIST+=("stereo_rear:ov7251:5:4")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_4.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_5.bin")
-        ;;
-    12) # Stereo 9782 only
-        CAM_LIST+=("stereo:ov9782:0:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
-        ;;
-    13) # Hires + 7251 stereo
-        CAM_LIST+=("hires:imx214:0")
-        CAM_LIST+=("stereo:ov7251:1:2")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/imx214/com.qti.sensormodule.imx214_3.bin")
-        ;;
-    14) # Stereo 9782 + TOF + Tracking
-        CAM_LIST+=("tof:pmd-tof:0")
-        CAM_LIST+=("tracking:ov7251:1")
-        CAM_LIST+=("stereo:ov9782:2:3")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_1.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_3.bin")
-        ;;
-    15) # fpv revB dual 9782
-        CAM_LIST+=("trackingL:ov9782:0")
-        CAM_LIST+=("trackingR:ov9782:1")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_0.bin")
-        BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_1.bin")
-        ;;
-    *)
-        echo "invalid option"
-        echo "Please provide a camera configuration-id"
-        echo ""
-        echo "available camera configurations are as follows:"
-        qrb5165-print-camera-configs
-        exit -1
-        ;;
+	1) #Tracking + Stereo
+		CAM_LIST+=("tracking:ov7251:2")
+		CAM_LIST+=("stereo:ov7251:0:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+		;;
+	2) # Tracking Only
+		CAM_LIST+=("tracking:ov7251:0")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		;;
+	3) # Hires + Stereo + Tracking
+		CAM_LIST+=("tracking:ov7251:2")
+		CAM_LIST+=("hires:${HIRES_SENSOR}:3")
+		CAM_LIST+=("stereo:ov7251:0:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_combo_1.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_3.bin")
+		;;
+	4) # Hires + Tracking
+		CAM_LIST+=("tracking:ov7251:0")
+		CAM_LIST+=("hires:${HIRES_SENSOR}:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
+		;;
+	5) # TOF + Tracking
+		CAM_LIST+=("tof:pmd-tof:0")
+		CAM_LIST+=("tracking:ov7251:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
+		;;
+	6) # D0005 Starling V2 Hires + TOF + Tracking
+		CAM_LIST+=("tof:pmd-tof:0")
+		CAM_LIST+=("hires:${HIRES_SENSOR}:1")
+		CAM_LIST+=("tracking:ov7251:2")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_2.bin")
+		;;
+	7) # TOF + Stereo + Tracking
+		CAM_LIST+=("tof:pmd-tof:0")
+		CAM_LIST+=("tracking:ov7251:1")
+		CAM_LIST+=("stereo:ov7251:2:3")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_2.bin")
+		;;
+	8) # Hires only
+		CAM_LIST+=("hires:${HIRES_SENSOR}:0")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/imx412/com.qti.sensormodule.imx412_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/imx678/com.qti.sensormodule.imx678_3.bin")
+		;;
+	9) # TOF only
+		CAM_LIST+=("tof:pmd-tof:0")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
+		;;
+	10) # Stereo 7251 only
+		CAM_LIST+=("stereo:ov7251:0:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
+		;;
+	11) # 6-cam
+		CAM_LIST+=("tracking:ov7251:2")
+		CAM_LIST+=("hires:${HIRES_SENSOR}:3")
+		CAM_LIST+=("stereo_front:ov7251:0:1")
+		CAM_LIST+=("stereo_rear:ov7251:5:4")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_2.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_4.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_5.bin")
+		;;
+	12) # Stereo 9782 only
+		CAM_LIST+=("stereo:ov9782:0:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
+		;;
+	13) # Hires + 7251 stereo
+		CAM_LIST+=("hires:${HIRES_SENSOR}:0")
+		CAM_LIST+=("stereo:ov7251:1:2")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251-combo/com.qti.sensormodule.ov7251_combo_1.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_3.bin")
+		;;
+	14) # Stereo 9782 + TOF + Tracking
+		CAM_LIST+=("tof:pmd-tof:0")
+		CAM_LIST+=("tracking:ov7251:1")
+		CAM_LIST+=("stereo:ov9782:2:3")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo/com.qti.sensormodule.ov9782_combo_1.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_3.bin")
+		;;
+	15) # fpv revB dual 9782
+		CAM_LIST+=("trackingL:ov9782:0")
+		CAM_LIST+=("trackingR:ov9782:1")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_1.bin")
+		;;
+	*)
+		echo "invalid option"
+		echo "Please provide a camera configuration-id"
+		echo ""
+		echo "available camera configurations are as follows:"
+		qrb5165-print-camera-configs
+		exit -1
+		;;
 esac
 
 
@@ -287,8 +297,8 @@ camera-server-config-helper ${CAM_LIST[@]}
 
 echo "copying required camera drivers in place"
 for f in ${BIN_LIST[@]}; do
-    echo $f
-    cp $f ${CAM_LIB_DIR}
+	echo $f
+	cp $f ${CAM_LIB_DIR}
 done
 
 

@@ -43,16 +43,13 @@
 #include "config_defaults.h"
 #include <modal_journal.h>
 
-#define CURRENT_VERSION 0.1
-#define CONFIG_FILE_NAME "/etc/modalai/voxl-camera-server.conf"
-
 using namespace std;
 
 // Parse the JSON entries from the linked list represented by pJsonParent
 static Status GetCameraInfo(cJSON*          pJsonParent,       ///< Main Json linked list
                             PerCameraInfo*  pPerCameraInfo);   ///< Camera info from the config file
 static bool         IsConfigFileVersionSupported(cJSON* pJsonParent);
-static CameraType   GetCameraType(cJSON* pCameraInfo);
+static sensor_t   Getsensor_t(cJSON* pCameraInfo);
 
 // These are the main element strings in the JSON camera config file - so to speak these are variable names in the config
 // file. Each of these variables have values associated with them and the values could be integer, int64, strings etc
@@ -118,14 +115,14 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
         cur != NULL;
         cur = cur->next){
 
-        CameraType type;
+        sensor_t type;
         char buffer[64];
         if(json_fetch_string(cur, JsonTypeString, buffer, 63)){
             M_ERROR("Reading config file: camera type not specified for: %s\n", buffer);
             goto ERROR_EXIT;
         }
 
-        if((type=GetCameraTypeFromString(buffer)) == CAMTYPE_INVALID){
+        if((type=sensor_from_string(buffer)) == SENSOR_INVALID){
             M_ERROR("Reading config file: invalid type: %s\n", buffer);
             goto ERROR_EXIT;
         }
@@ -246,18 +243,25 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 
     }
 
-    if(need_rewrite) WriteConfigFile(cameras);
+    if(need_rewrite){
+        json_write_to_file_with_header(CONFIG_FILE_NAME, head, CONFIG_FILE_HEADER);
+    }
 
     cJSON_free(head);
     return S_OK;
 
-    ERROR_EXIT:
+ERROR_EXIT:
 
     cJSON_free(head);
     cameras.erase(cameras.begin(), cameras.end());
     return S_ERROR;
 
 }
+
+
+// Note from James: I just commented this entire function out. It duplicates
+// far too much of the logic from ReadConfigFile()
+/*
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Read and parse the config file. This function can be modified to support any config file format. The information for each
@@ -369,3 +373,4 @@ void WriteConfigFile(list<PerCameraInfo> cameras)     ///< Camera info for each 
 
     cJSON_Delete(head);
 }
+*/

@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
         char *cam2_str = strtok(NULL, ":");
         char *opt_str = strtok(NULL, ":");
 
-        CameraType type;
+        sensor_t type;
         int camId;
 
         if (name_str == NULL) { //this trigger shouldn't be possible
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
             printf("Error: missing type for camera %d\n", i-1);
             cameras.clear();
             return -1;
-        } else if ((type = GetCameraTypeFromString(type_str)) == CAMTYPE_INVALID) {
+        } else if ((type = sensor_from_string(type_str)) == SENSOR_INVALID) {
             printf("Error: invalid type: %s for camera %d\n", type_str, i-1);
             cameras.clear();
             return -1;
@@ -110,7 +110,12 @@ int main(int argc, char* argv[])
 
     }
 
-    WriteConfigFile(cameras);
+    remove(CONFIG_FILE_NAME);
+    json_make_empty_file_with_header_if_missing(CONFIG_FILE_NAME, CONFIG_FILE_HEADER);
+
+    ReadConfigFile(cameras);
+
+    //WriteConfigFile(cameras);
 
     cameras.clear();
 

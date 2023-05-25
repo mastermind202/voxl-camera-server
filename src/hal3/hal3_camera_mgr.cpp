@@ -539,7 +539,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
-    if(configInfo.type == CAMTYPE_TOF) {
+    if(configInfo.type == SENSOR_TOF) {
         if(configInfo.standby_enabled){
             pipe_client_set_connect_cb(CPU_CH, _cpu_connect_cb, NULL);
             pipe_client_set_disconnect_cb(CPU_CH, _cpu_disconnect_cb, NULL);
@@ -936,7 +936,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
 
     //Tof is different from the rest, pass the data off to spectre then send it out
-    if(configInfo.type == CAMTYPE_TOF) {
+    if(configInfo.type == SENSOR_TOF) {
         tofFrameCounter++;
         if(standby_active && tofFrameCounter % (int)configInfo.decimator != 0){
             return;
@@ -1634,7 +1634,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
 int PerCameraMgr::HasClientForPreviewFrame()
 {
-    if(configInfo.type == CAMTYPE_TOF){
+    if(configInfo.type == SENSOR_TOF){
         if(pipe_server_get_num_clients(tofPipeIR   )>0) return 1;
         if(pipe_server_get_num_clients(tofPipeDepth)>0) return 1;
         if(pipe_server_get_num_clients(tofPipeConf )>0) return 1;
@@ -1929,7 +1929,7 @@ static const char* CmdStrings[] =
 
 int PerCameraMgr::SetupPipes()
 {
-    if(configInfo.type != CAMTYPE_TOF){
+    if(configInfo.type != SENSOR_TOF){
 
 
         char cont_cmds[256];

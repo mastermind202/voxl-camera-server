@@ -40,7 +40,7 @@
 static const PerCameraInfo OV7251Defaults = 
     {
         "",                         //< Name
-        CAMTYPE_OV7251,             //< Type
+        SENSOR_OV7251,             //< Type
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -97,7 +97,7 @@ static const PerCameraInfo OV7251Defaults =
 static const PerCameraInfo OV9782Defaults =
     {
         "",                         //< Name
-        CAMTYPE_OV9782,             //< Type
+        SENSOR_OV9782,             //< Type
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -155,7 +155,7 @@ static const PerCameraInfo OV9782Defaults =
 static const PerCameraInfo IMX214Defaults =
     {
         "",                         //< Name
-        CAMTYPE_IMX214,             //< Type
+        SENSOR_IMX214,             //< Type
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -196,10 +196,101 @@ static const PerCameraInfo IMX214Defaults =
         }
     };
 
+
+static const PerCameraInfo IMX412Defaults =
+    {
+        "",                         //< Name
+        SENSOR_IMX412,             //< Type
+        true,                       //< Is mono?
+        -1,                         //< ID
+        -1,                         //< ID2
+        true,                       //< Enabled?
+        30,                         //< Framerate
+        false,                      //< Enable Preview Mode?
+        640,                        //< Preview Width of the frame
+        480,                        //< Preview Height of the frame
+        FMT_NV21,                   //< Preview Frame format
+        true,                       //< Enable Small Video
+        1024,                       //< Small Video Width of the frame
+        768,                        //< Small Video Height of the frame
+        3000000,                    //< Small Video Bitrate
+        true,                       //< Enable Large Video
+        2048,                       //< Large Video Width of the frame
+        1536,                       //< Large Video Height of the frame
+        120000000,                  //< Large Video Bitrate
+        true,                       //< Enable Snapshot mode?
+        4160,                       //< Snapshot Width of the frame
+        3120,                       //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Independent Exposure
+        AE_ISP,                     //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
+            100,                    //< Gain Min
+            1000,                   //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            54.0,                   //< Desired MSV
+            8000.0,                 //< k_p_ns
+            5.0,                    //< k_i_ns
+            250.0,                  //< Max i
+            3,                      //< p Good Threshold
+            1,                      //< Exposure Period
+            2,                      //< Gain Period
+            false,                  //< Display Debug
+            8000,                   //< Exposure offset
+        }
+    };
+
+
+static const PerCameraInfo IMX678Defaults =
+    {
+        "",                         //< Name
+        SENSOR_IMX678,             //< Type
+        true,                       //< Is mono?
+        -1,                         //< ID
+        -1,                         //< ID2
+        true,                       //< Enabled?
+        30,                         //< Framerate
+        false,                      //< Enable Preview Mode?
+        640,                        //< Preview Width of the frame
+        480,                        //< Preview Height of the frame
+        FMT_NV21,                   //< Preview Frame format
+        true,                       //< Enable Small Video
+        1024,                       //< Small Video Width of the frame
+        768,                        //< Small Video Height of the frame
+        3000000,                    //< Small Video Bitrate
+        true,                       //< Enable Large Video
+        2048,                       //< Large Video Width of the frame
+        1536,                       //< Large Video Height of the frame
+        120000000,                  //< Large Video Bitrate
+        true,                       //< Enable Snapshot mode?
+        4160,                       //< Snapshot Width of the frame
+        3120,                       //< Snapshot Height of the frame
+        false,                      //< Flip
+        false,                      //< Independent Exposure
+        AE_ISP,                     //< AE Mode
+        {                           //< Hist AE Algorithm Parameters
+            100,                    //< Gain Min
+            1000,                   //< Gain Max
+            20,                     //< Exposure Min
+            33000,                  //< Exposure Max
+            54.0,                   //< Desired MSV
+            8000.0,                 //< k_p_ns
+            5.0,                    //< k_i_ns
+            250.0,                  //< Max i
+            3,                      //< p Good Threshold
+            1,                      //< Exposure Period
+            2,                      //< Gain Period
+            false,                  //< Display Debug
+            8000,                   //< Exposure offset
+        }
+    };
+
+
 static const PerCameraInfo TOFDefaults =
     {
         "",                         //Name
-        CAMTYPE_TOF,                //< Type
+        SENSOR_TOF,                //< Type
         true,                       //< Is mono?
         -1,                         //< ID
         -1,                         //< ID2
@@ -230,7 +321,7 @@ static const PerCameraInfo TOFDefaults =
 static const PerCameraInfo emptyDefaults =
     {
         "",                         //< Name
-        CAMTYPE_INVALID,            //Type
+        SENSOR_INVALID,            //Type
         true,                       //Is mono?
         -1,                         //ID
         -1,                         //ID2
@@ -258,15 +349,15 @@ static const PerCameraInfo emptyDefaults =
         1,                          //< Standby Decimator
     };
 
-const PerCameraInfo getDefaultCameraInfo(CameraType t) {
+const PerCameraInfo getDefaultCameraInfo(sensor_t t) {
     switch(t){
-        case CAMTYPE_OV7251:
+        case SENSOR_OV7251:
             return OV7251Defaults;
-        case CAMTYPE_OV9782:
+        case SENSOR_OV9782:
             return OV9782Defaults;
-        case CAMTYPE_IMX214:
+        case SENSOR_IMX214:
             return IMX214Defaults;
-        case CAMTYPE_TOF:
+        case SENSOR_TOF:
             return TOFDefaults;
 
         default:

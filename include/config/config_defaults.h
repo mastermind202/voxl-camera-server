@@ -36,5 +36,5 @@
 
 #include "common_defs.h"
 
-const PerCameraInfo getDefaultCameraInfo(CameraType t);
+const PerCameraInfo getDefaultCameraInfo(sensor_t t);
 #endif // end #define CAMERA_DEFAULTS_H

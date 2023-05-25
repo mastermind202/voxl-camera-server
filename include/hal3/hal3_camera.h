@@ -94,7 +94,7 @@ public:
 
     const PerCameraInfo        configInfo;                     ///< Per camera config information
     const int32_t              cameraId;                       ///< Camera id
-          char                 name[MAX_NAME_LENGTH];
+          char                 name[MAXNAMELEN];
     const bool                 en_preview;
     const bool                 en_small_video;
     const bool                 en_large_video;
