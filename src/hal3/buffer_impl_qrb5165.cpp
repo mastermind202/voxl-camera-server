@@ -73,12 +73,40 @@ int allocateOneBuffer(
          (consumerFlags & GRALLOC_USAGE_HW_COMPOSER) ||
          (consumerFlags & GRALLOC_USAGE_HW_TEXTURE) ||
          (consumerFlags & GRALLOC_USAGE_SW_WRITE_OFTEN)) {
-        stride = ALIGN_BYTE(width, 256);
-        //slice = ALIGN_BYTE(height, 64);
-        slice = ALIGN_BYTE(height, 1024);
 
-        // times 2 seems
-        buffer_size = (size_t)(stride * slice * 2);
+
+        /*
+        Here is the logic for determining where CAMX is going to put the uv data
+        after the Y data, there is usually a gap.
+        TODO pull these alignment values from HAL3 instead of guessing
+        */
+        if(height<=480){
+            M_PRINT("ALIGNING HEIGHT FOR VGA\n");
+            slice = ALIGN_BYTE(height, 64);
+            //stride = ALIGN_BYTE(width, 64);
+            stride = width;
+        }
+        else if(width==1280 && height==800){
+            M_DEBUG("ALIGNING HEIGHT FOR OV9782\n");
+            slice = ALIGN_BYTE(height, 64);
+            stride = width;
+        }
+        else{
+            M_PRINT("ALIGNING HEIGHT FOR LARGE IMAGE\n");
+            // WORKING WITH 214
+            // slice = ALIGN_BYTE(height, 512);
+            // stride = ALIGN_BYTE(width, 256);
+
+            slice = ALIGN_BYTE(height, 512);
+            stride = width;
+        }
+
+        // times 2 seems unnecessary
+        // buffer_size = (size_t)(stride * slice * 2);
+
+        // James changed this to 1.5 instead of 2 on May 24 2023, if it causes problems
+        // change back to 2
+        buffer_size = (size_t)(stride * slice * 1.5);
 
         M_DEBUG("Allocating img Buffer: width: %4d stride: %4d height: %4d slice: %4d size: %7d\n",
                     width,
@@ -123,7 +151,6 @@ int allocateOneBuffer(
     block.stride   = stride;
     block.slice    = slice;
 
-    //block.uvHead   = (block.vaddress) + (width * slice);
     block.uvHead   = (block.vaddress) + (stride * slice);
 
     native_handle = native_handle_create(1, 4);
