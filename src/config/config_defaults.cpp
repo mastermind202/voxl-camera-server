@@ -357,6 +357,10 @@ const PerCameraInfo getDefaultCameraInfo(sensor_t t) {
             return OV9782Defaults;
         case SENSOR_IMX214:
             return IMX214Defaults;
+        case SENSOR_IMX412:
+            return IMX412Defaults;
+        case SENSOR_IMX678:
+            return IMX678Defaults;
         case SENSOR_TOF:
             return TOFDefaults;
 
