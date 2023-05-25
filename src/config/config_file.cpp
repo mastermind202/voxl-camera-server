@@ -99,6 +99,7 @@ static sensor_t   Getsensor_t(cJSON* pCameraInfo);
 // Note:
 // "cameras" will contain memory allocated by this function and it is the callers responsibility to free/pop it it.
 // -----------------------------------------------------------------------------------------------------------------------------
+// TODO WTF is this a list, why can't it be an array or vector
 Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info for each camera in the config file
 {
 
@@ -111,23 +112,34 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 	cJSON* cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &numCameras);
 	if(numCameras > 7){
 		fprintf(stderr, "array of cameras should be no more than %d long\n", 7);
-		return -1;
+		return S_ERROR;
 	}
 
-	// config file is empty, add array items for all the cameras
+	// config file is empty, likely being opened for writing by helper
 	if(numCameras==0){
 		numCameras = cameras.size();
 		for(i=0; i<numCameras; i++){
 			cJSON_AddItemToArray(parent, cJSON_CreateObject());
 		}
 	}
+	// config is not empty, likely being read by camera server
+	else{
+		for(i=0; i<numCameras; i++){
+			PerCameraInfo info = getDefaultCameraInfo(SENSOR_INVALID);
+			cameras.push_back(info);
+		}
+	}
 
+
+	// now parse through each camera
 	for(i=0; i<numCameras; i++){
+
+		PerCameraInfo* cam = &cameras[i];
 		cJSON* item = cJSON_GetArrayItem(cameras_json, i);
 
 		sensor_t type;
 		char buffer[64];
-		if(json_fetch_string_with_default(item, JsonTypeString, buffer, 63, cameras)){
+		if(json_fetch_string_with_default(item, JsonTypeString, buffer, 63, "ov7251")){
 			M_ERROR("Reading config file: camera type not specified for: %s\n", buffer);
 			goto ERROR_EXIT;
 		}
@@ -138,85 +150,86 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 		}
 
 		// start with our own defaults for that camera type, then load from there
-		PerCameraInfo info = getDefaultCameraInfo(type);
+		PerCameraInfo defaults = getDefaultCameraInfo(type);
 
-		if(json_fetch_string(item, JsonNameString, info.name, 63)){
-			M_ERROR("Reading config file: camera name not specified\n", info.name);
+		if(json_fetch_string(item, JsonNameString, defaults.name, 63)){
+			M_ERROR("Reading config file: camera name not specified\n", defaults.name);
 			goto ERROR_EXIT;
 		}
 
-		if(contains(cameraNames, info.name)){
-			M_ERROR("Reading config file: multiple cameras with name: %s\n", info.name);
+		if(contains(cameraNames, defaults.name)){
+			M_ERROR("Reading config file: multiple cameras with name: %s\n", defaults.name);
 			goto ERROR_EXIT;
 		}
 
-		if(json_fetch_int(item, JsonCameraIdString, &(info.camId))){
-			M_ERROR("Reading config file: camera id not specified for: %s\n", info.name);
+		if(json_fetch_int(item, JsonCameraIdString, &(defaults.camId))){
+			M_ERROR("Reading config file: camera id not specified for: %s\n", defaults.name);
 			goto ERROR_EXIT;
-		}else if(contains(cameraIds, info.camId)){
-			M_ERROR("Reading config file: multiple cameras with id: %d\n", info.camId);
+		}else if(contains(cameraIds, defaults.camId)){
+			M_ERROR("Reading config file: multiple cameras with id: %d\n", defaults.camId);
 			goto ERROR_EXIT;
 		} else {
-			cameraIds.push_back(info.camId);
+			cameraIds.push_back(defaults.camId);
 		}
 
-		if(!cJSON_HasObjectItem(item, JsonCameraId2String) || json_fetch_int(item, JsonCameraId2String, &(info.camId2))){
-			M_VERBOSE("No secondary id found for camera: %s, assuming mono\n", info.name);
-			info.camId2 = -1;
-		} else if(contains(cameraIds, info.camId2)){
-			M_ERROR("Reading config file: multiple cameras with id: %d\n", info.camId);
+		if(!cJSON_HasObjectItem(item, JsonCameraId2String) || json_fetch_int(item, JsonCameraId2String, &(defaults.camId2))){
+			M_VERBOSE("No secondary id found for camera: %s, assuming mono\n", defaults.name);
+			defaults.camId2 = -1;
+		} else if(contains(cameraIds, defaults.camId2)){
+			M_ERROR("Reading config file: multiple cameras with id: %d\n", defaults.camId);
 			goto ERROR_EXIT;
 		} else {
-			M_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", info.name);
-			cameraIds.push_back(info.camId2);
+			M_VERBOSE("Secondary id found for camera: %s, assuming stereo\n", defaults.name);
+			cameraIds.push_back(defaults.camId2);
 		}
 
-		json_fetch_int_with_default (item, JsonFpsString ,   &info.fps, info.fps);
+		json_fetch_int_with_default (item, JsonFpsString ,   &cam->fps, defaults.fps);
 
 		int tmp;
 		json_fetch_bool_with_default(item, JsonEnabledString, &tmp, true);
-		info.isEnabled = tmp;
+		defaults.isEnabled = tmp;
 		json_fetch_bool_with_default(item, JsonFlipString,    &tmp, false);
-		info.flip = tmp;
+		defaults.flip = tmp;
 		json_fetch_bool_with_default(item, JsonIndExpString,  &tmp, false);
-		info.ind_exp = tmp;
+		defaults.ind_exp = tmp;
 		json_fetch_bool_with_default(item, JsonSVandbyEnabled, &tmp, false);
-		info.standby_enabled = tmp;
+		defaults.standby_enabled = tmp;
 
-		json_fetch_bool_with_default (item, JsonPEnableString,       &info.en_preview,  info.en_preview);
-		json_fetch_int_with_default  (item, JsonPWidthString,        &info.pre_width,   info.pre_width);
-		json_fetch_int_with_default  (item, JsonPHeightString,       &info.pre_height,  info.pre_height);
+		json_fetch_bool_with_default (item, JsonPEnableString,         &cam->en_preview,  defaults.en_preview);
+		json_fetch_int_with_default  (item, JsonPWidthString,          &cam->pre_width,   defaults.pre_width);
+		json_fetch_int_with_default  (item, JsonPHeightString,         &cam->pre_height,  defaults.pre_height);
 
-		if(info.en_small_video){
-			json_fetch_bool_with_default (item, JsonSVEnableString,       &info.en_small_video,   info.en_small_video);
-			json_fetch_int_with_default  (item, JsonSVWidthString,       &info.small_video_width,   info.small_video_width);
-			json_fetch_int_with_default  (item, JsonSVHeightString,      &info.small_video_height,  info.small_video_height);
-			json_fetch_int_with_default  (item, JsonSVBitrateString,     &info.small_video_bitrate, info.small_video_bitrate);
+		if(defaults.en_small_video){
+			json_fetch_bool_with_default (item, JsonSVEnableString,    &cam->en_small_video,   defaults.en_small_video);
+			json_fetch_int_with_default  (item, JsonSVWidthString,     &cam->small_video_width,   defaults.small_video_width);
+			json_fetch_int_with_default  (item, JsonSVHeightString,    &cam->small_video_height,  defaults.small_video_height);
+			json_fetch_int_with_default  (item, JsonSVBitrateString,   &cam->small_video_bitrate, defaults.small_video_bitrate);
 		}
-		if(info.en_large_video){
-			json_fetch_bool_with_default (item, JsonLVEnableString,       &info.en_large_video,   info.en_large_video);
-			json_fetch_int_with_default  (item, JsonLVWidthString,        &info.large_video_width,   info.large_video_width);
-			json_fetch_int_with_default  (item, JsonLVHeightString,       &info.large_video_height,  info.large_video_height);
-			json_fetch_int_with_default  (item, JsonLVBitrateString,      &info.large_video_bitrate, info.large_video_bitrate);
+		if(defaults.en_large_video){
+			json_fetch_bool_with_default (item, JsonLVEnableString,    &cam->en_large_video,   defaults.en_large_video);
+			json_fetch_int_with_default  (item, JsonLVWidthString,     &cam->large_video_width,   defaults.large_video_width);
+			json_fetch_int_with_default  (item, JsonLVHeightString,    &cam->large_video_height,  defaults.large_video_height);
+			json_fetch_int_with_default  (item, JsonLVBitrateString,   &cam->large_video_bitrate, defaults.large_video_bitrate);
 		}
-		json_fetch_bool_with_default (item, JsonSNEnableString,      &info.en_snapshot, info.en_snapshot);
-		json_fetch_int_with_default  (item, JsonSNWidthString,       &info.snap_width,  info.snap_width);
-		json_fetch_int_with_default  (item, JsonSNHeightString,      &info.snap_height, info.snap_height);
-		json_fetch_int_with_default  (item, JsonDecimator,           &info.decimator,   info.decimator);
+		json_fetch_bool_with_default (item, JsonSNEnableString,        &cam->en_snapshot, defaults.en_snapshot);
+		json_fetch_int_with_default  (item, JsonSNWidthString,         &cam->snap_width,  defaults.snap_width);
+		json_fetch_int_with_default  (item, JsonSNHeightString,        &cam->snap_height, defaults.snap_height);
+		json_fetch_int_with_default  (item, JsonDecimator,             &cam->decimator,   defaults.decimator);
 
 		// See which AE mode the user has defined
+		// TODO swap to json_fetch_enum
 		if (!json_fetch_string(item, JsonAEModeString, buffer, sizeof(buffer)-1)) {
 			if (! strcasecmp(buffer,"off")) {
-				info.ae_mode = AE_OFF;
+				cam->ae_mode = AE_OFF;
 			}
 			else if (! strcasecmp(buffer,"isp")) {
-				info.ae_mode = AE_ISP;
+				cam->ae_mode = AE_ISP;
 			}
 			else if (! strcasecmp(buffer,"lme_hist")) {
-				info.ae_mode = AE_LME_HIST;
+				cam->ae_mode = AE_LME_HIST;
 			}
 			else if (! strcasecmp(buffer,"lme_msv")) {
-				info.ae_mode = AE_LME_MSV;
+				cam->ae_mode = AE_LME_MSV;
 			}
 			else {
 				M_ERROR("Reading config file: invalid ae_mode: %s\n\tOptions are: 'off' 'isp' 'lme_hist' lme_msv'\n", buffer);
@@ -224,20 +237,19 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			}
 		}
 
-		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &info.ae_hist_info.desired_msv, info.ae_hist_info.desired_msv);
-		json_fetch_float_with_default (item, JsonAEKPString ,         &info.ae_hist_info.k_p_ns,      info.ae_hist_info.k_p_ns);
-		json_fetch_float_with_default (item, JsonAEKIString ,         &info.ae_hist_info.k_i_ns,      info.ae_hist_info.k_i_ns);
-		json_fetch_float_with_default (item, JsonAEMaxIString ,       &info.ae_hist_info.max_i,       info.ae_hist_info.max_i);
+		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &cam->ae_hist_info.desired_msv, defaults.ae_hist_info.desired_msv);
+		json_fetch_float_with_default (item, JsonAEKPString ,         &cam->ae_hist_info.k_p_ns,      defaults.ae_hist_info.k_p_ns);
+		json_fetch_float_with_default (item, JsonAEKIString ,         &cam->ae_hist_info.k_i_ns,      defaults.ae_hist_info.k_i_ns);
+		json_fetch_float_with_default (item, JsonAEMaxIString ,       &cam->ae_hist_info.max_i,       defaults.ae_hist_info.max_i);
 
-		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &info.ae_msv_info.desired_msv,                       info.ae_msv_info.desired_msv);
-		json_fetch_float_with_default (item, JsonAEFilterAlpha ,      &info.ae_msv_info.msv_filter_alpha,                  info.ae_msv_info.msv_filter_alpha);
-		json_fetch_float_with_default (item, JsonAEIgnoreFraction ,   &info.ae_msv_info.max_saturated_pix_ignore_fraction, info.ae_msv_info.max_saturated_pix_ignore_fraction);
-		json_fetch_float_with_default (item, JsonAESlope ,            &info.ae_msv_info.exposure_gain_slope,               info.ae_msv_info.exposure_gain_slope);
-		json_fetch_int_with_default   (item, JsonAEExposurePeriod ,   (int*)&info.ae_msv_info.exposure_update_period, (int)info.ae_msv_info.exposure_update_period);
-		json_fetch_int_with_default   (item, JsonAEGainPeriod ,       (int*)&info.ae_msv_info.gain_update_period,     (int)info.ae_msv_info.gain_update_period);
+		json_fetch_float_with_default (item, JsonAEDesiredMSVString , &cam->ae_msv_info.desired_msv,                       defaults.ae_msv_info.desired_msv);
+		json_fetch_float_with_default (item, JsonAEFilterAlpha ,      &cam->ae_msv_info.msv_filter_alpha,                  defaults.ae_msv_info.msv_filter_alpha);
+		json_fetch_float_with_default (item, JsonAEIgnoreFraction ,   &cam->ae_msv_info.max_saturated_pix_ignore_fraction, defaults.ae_msv_info.max_saturated_pix_ignore_fraction);
+		json_fetch_float_with_default (item, JsonAESlope ,            &cam->ae_msv_info.exposure_gain_slope,               defaults.ae_msv_info.exposure_gain_slope);
+		json_fetch_int_with_default   (item, JsonAEExposurePeriod ,   (int*)&cam->ae_msv_info.exposure_update_period,      (int)defaults.ae_msv_info.exposure_update_period);
+		json_fetch_int_with_default   (item, JsonAEGainPeriod ,       (int*)&cam->ae_msv_info.gain_update_period,          (int)defaults.ae_msv_info.gain_update_period);
 
-		cameraNames.push_back(info.name);
-		cameras.push_back(info);
+		cameraNames.push_back(cam->name);
 
 	}
 

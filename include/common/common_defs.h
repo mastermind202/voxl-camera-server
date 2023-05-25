@@ -192,10 +192,10 @@ struct PerCameraInfo
 {
     char      name[MAXNAMELEN];   ///< Camera name string
     sensor_t  type;               ///< Type of camera
-    bool      isMono;             ///< mono or stereo
+    int       isMono;             ///< mono or stereo
     int       camId;              ///< id of camera
     int       camId2;             ///< id of second camera (if stereo)
-    bool      isEnabled;          ///< Is the camera enabled/disabled
+    int       isEnabled;          ///< Is the camera enabled/disabled
     int       fps;                ///< Frame rate - number of frames per second
 
     int     en_preview;
