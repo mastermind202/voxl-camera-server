@@ -1575,7 +1575,6 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_mutex_unlock(&resultMutex);
             continue;
         }
-        M_DEBUG("resultMsgQueue size is %d\n", resultMsgQueue.size());
 
         image_result result = resultMsgQueue.front();
         resultMsgQueue.pop();
@@ -1628,8 +1627,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
         }
 
-        if (lastResultFrameNumber == result.first)
+        if (lastResultFrameNumber == result.first) {
             num_finished_streams++;
+        }
 
 
 
@@ -1776,7 +1776,7 @@ int PerCameraMgr::SendOneCaptureRequest(uint32_t* frameNumber)
 
             request.num_output_buffers ++;
             streamBufferList.push_back(streamBuffer);
-             M_VERBOSE("added request for snapshot stream\n");
+            M_VERBOSE("added request for snapshot stream\n");
         }
 
     }
@@ -1808,7 +1808,7 @@ int PerCameraMgr::SendOneCaptureRequest(uint32_t* frameNumber)
         }
     }
 
-    M_DEBUG("camera=%s num_output_buffers=%d streamBufferList.size()=%d frameNum=%d", name, request.num_output_buffers, streamBufferList.size(), frameNumber);
+    M_DEBUG("camera=%s num_output_buffers=%d streamBufferList.size()=%d frameNum=%d", name, request.num_output_buffers, streamBufferList.size(), *frameNumber);
     printf(", buffers=[");
     for (auto const& b : streamBufferList) {
         // b.buffer is native_handle_t** so deref to get meaningful address
@@ -1934,7 +1934,10 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     if(EStopped){
         M_WARN("Thread: %s request thread Received ESTOP\n", name);
     }else{
-        lastResultFrameNumber = frame_number;
+        // SendOneCaptureRequest increments frame_number after successfully
+        // sending the last frame -- therefore, the last request which was
+        // actually sent to hal3 was frame_number - 1
+        lastResultFrameNumber = (frame_number -  1);
         M_DEBUG("------ Last request frame for %s: %d\n", name, frame_number);
     }
 
