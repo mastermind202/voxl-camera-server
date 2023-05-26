@@ -60,8 +60,10 @@
 
 #define CAM_CONTROL_COMMANDS "set_exp_gain,set_exp,set_gain,start_ae,stop_ae"
 
-#define NUM_PREVIEW_BUFFERS  32
+// #define NUM_PREVIEW_BUFFERS  32
+#define NUM_PREVIEW_BUFFERS  96
 #define NUM_SNAPSHOT_BUFFERS 8
+
 #define STREAM_ALLOWED_ITEMS_IN_OMX_QUEUE 1 // favor latency when dropping frames
 #define RECORD_ALLOWED_ITEMS_IN_OMX_QUEUE 2 // only drop frames when really getting behind
 
@@ -1490,6 +1492,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_mutex_unlock(&resultMutex);
             continue;
         }
+        M_DEBUG("resultMsgQueue size is %d\n", resultMsgQueue.size());
 
         image_result result = resultMsgQueue.front();
         resultMsgQueue.pop();
@@ -1582,7 +1585,10 @@ int PerCameraMgr::HasClientForPreviewFrame()
 // -----------------------------------------------------------------------------------------------------------------------------
 int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
 {
-    camera3_capture_request_t request;
+    // allocate a capture request to hand off to camera3
+    camera3_capture_request_t* request_ptr = static_cast<camera3_capture_request_t*>(
+        calloc(1, sizeof(camera3_capture_request_t)));
+    camera3_capture_request_t& request = *request_ptr;
 
     if(ae_mode != AE_ISP){
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
@@ -1592,16 +1598,15 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
     std::vector<camera3_stream_buffer_t> streamBufferList;
     request.num_output_buffers  = 0;
 
-    if(en_stream && pipe_server_get_num_clients(streamOutputChannel)>0){
-
+    if(en_stream && pipe_server_get_num_clients(streamOutputChannel) > 0) { 
         int nFree = bufferNumFree(str_bufferGroup);
-        if(nFree<1){
+        if (nFree < 1) {
             M_WARN("Stream stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
-        else{
-
+        else {
             camera3_stream_buffer_t estreamBuffer;
-            if ((estreamBuffer.buffer   = (const native_handle_t**)bufferPop(str_bufferGroup)) == NULL) {
+            estreamBuffer.buffer = (const native_handle_t**) bufferPop(str_bufferGroup));
+            if (estreamBuffer.buffer == NULL) {
                 M_ERROR("Failed to get buffer for stream stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
@@ -1612,20 +1617,20 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
             estreamBuffer.acquire_fence = -1;
             estreamBuffer.release_fence = -1;
 
-            request.num_output_buffers ++;
             streamBufferList.push_back(estreamBuffer);
         }
     }
 
-    if(en_record && pipe_server_get_num_clients(recordOutputChannel)>0){
+    if(en_record && pipe_server_get_num_clients(recordOutputChannel) > 0){
 
         int nFree = bufferNumFree(rec_bufferGroup);
-        if(nFree<1){
+        if(nFree < 1){
             M_WARN("record stream buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
-        else{
+        else {
             camera3_stream_buffer_t rstreamBuffer;
-            if ((rstreamBuffer.buffer   = (const native_handle_t**)bufferPop(rec_bufferGroup)) == NULL) {
+            rstreamBuffer.buffer = (const native_handle_t**) bufferPop(rec_bufferGroup))
+            if (rstreamBuffer.buffer == NULL) {
                 M_ERROR("Failed to get buffer for record stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
@@ -1636,22 +1641,21 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
             rstreamBuffer.acquire_fence = -1;
             rstreamBuffer.release_fence = -1;
 
-            request.num_output_buffers ++;
             streamBufferList.push_back(rstreamBuffer);
         }
     }
 
-    if(en_snapshot && numNeededSnapshots > 0){
-
+    if (en_snapshot && numNeededSnapshots > 0) {
         int nFree = bufferNumFree(snap_bufferGroup);
-        if(nFree<1){
+        if(nFree < 1){
             M_WARN("snapshot buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
         else{
-            numNeededSnapshots --;
+            numNeededSnapshots--;
 
             camera3_stream_buffer_t sstreamBuffer;
-            if((sstreamBuffer.buffer    = (const native_handle_t**)bufferPop(snap_bufferGroup)) == NULL) {
+            sstreamBuffer.buffer = (const native_handle_t**) bufferPop(snap_bufferGroup);
+            if(sstreamBuffer.buffer == NULL) {
                 M_ERROR("Failed to get buffer for snapshot stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
@@ -1661,45 +1665,63 @@ int PerCameraMgr::ProcessOneCaptureRequest(int frameNumber)
             sstreamBuffer.acquire_fence = -1;
             sstreamBuffer.release_fence = -1;
 
-            request.num_output_buffers ++;
             streamBufferList.push_back(sstreamBuffer);
         }
 
     }
 
-    if(  HasClientForPreviewFrame() ||
+    if (HasClientForPreviewFrame() ||
         (ae_mode == AE_ISP && !request.num_output_buffers) ||
         (ae_mode != AE_OFF && ae_mode != AE_ISP))
     {
         int nFree = bufferNumFree(pre_bufferGroup);
-        if(nFree<1){
+        if (nFree < 1) {
             M_WARN("preview buffer pool for Cam(%s), Frame(%d) has %d free, skipping request\n", name, frameNumber, nFree);
         }
-        else{
+        else {
             camera3_stream_buffer_t pstreamBuffer;
-            if((pstreamBuffer.buffer    = (const native_handle_t**)bufferPop(pre_bufferGroup)) == NULL) {
+            pstreamBuffer.buffer = (const native_handle_t**) bufferPop(pre_bufferGroup);
+            if (pstreamBuffer.buffer == NULL) {
                 M_ERROR("Failed to get buffer for preview stream: Cam(%s), Frame(%d)\n", name, frameNumber);
                 EStopCameraServer();
                 return -1;
             }
+
             pstreamBuffer.stream        = &pre_stream;
             pstreamBuffer.status        = 0;
             pstreamBuffer.acquire_fence = -1;
             pstreamBuffer.release_fence = -1;
 
-            request.num_output_buffers ++;
             streamBufferList.push_back(pstreamBuffer);
         }
     }
 
-    request.output_buffers      = streamBufferList.data();
+    M_DEBUG("camera=%s num_output_buffers=%d streamBufferList.size()=%d frameNum=%d", name, request.num_output_buffers, streamBufferList.size(), frameNumber);
+    printf(", buffers=[");
+    for (auto const& b : streamBufferList) {
+        // b.buffer is native_handle_t** so deref to get meaningful address
+        printf("0x%lx, ", (uint64_t) *b.buffer);
+    }
+    printf("]\n");
+
+
+    // the camera3 documentation says that it takes ownership of the request
+    // object, so we need to heap-allocate a buffer to hold the stream buffers
+    // which camera3 can free
+
+    camera3_stream_buffer_t* output_buffer_list = static_cast<camera3_stream_buffer_t*>(
+            calloc(streamBufferList.size(), sizeof(camera3_stream_buffer_t)));
+    std::copy(streamBufferList.begin(), streamBufferList.end(), output_buffer_list);
+
+    request.output_buffers      = output_buffer_list;
+    request.num_output_buffers  = streamBufferList.size();
     request.frame_number        = frameNumber;
     request.settings            = requestMetadata.getAndLock();
     request.input_buffer        = nullptr;
 
     // If there are no output buffers just do nothing
     // Without this an illigal zero output buffer request will be made
-    if (request.num_output_buffers == 0){
+    if (request.num_output_buffers == 0) {
         // Output buffers are full delay the next request
         // Without this wait at high CPU loads the loop will runn away with CPU usage
         usleep(10000);
