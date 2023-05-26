@@ -53,6 +53,7 @@ class RingBuffer {
          * @param size  number of Units in the buffer
          */
         RingBuffer(int size = 25) : size(size){
+            // TODO: Remove calloc, replace with new
             current = (DataNode<T> *)calloc(sizeof(DataNode<T>), 1);
             current->next = current;
             current->prev = current; //prevent segfault on immediate deconstruction
@@ -63,6 +64,16 @@ class RingBuffer {
             current->prev->next = NULL;
             for(DataNode<T> *node = current; node != NULL;){
                 DataNode<T> *tmp = node->next;
+                // TODO: The following line of code is a problem. When `free` is
+                // used on C++ classes rather than `delete`, this can lead to
+                // memory leaks, since the destructors of member variables are
+                // not called.
+                //
+                // In particular, this usage **will** lead to memory leaks if T
+                // is a class containing *any* stack allocated variables.
+                //
+                // Possible fixes:
+                //  1. just use delete
                 free(node);
                 node = tmp;
             }
@@ -78,7 +89,22 @@ class RingBuffer {
         void insert_data(T new_packet){
 
             if(items_in_buf != size){
-
+                // TODO: The following line of code is a problem. Using the
+                // `*alloc` family of functions to allocate a c++ class is
+                // **undefined behavior**
+                //
+                // In particular, it does not call the constructor of any class
+                // members. This means that `DataNode::data` is in a possibly
+                // invalid state when `newNode` is instantiated
+                //
+                // Additionally if any class methods / virtual methods are ever
+                // implemented on DataNode, the vtable associated with the
+                // instance may possibly be left in an undefined state.
+                //
+                // Possible fixes:
+                //  1. implement custom allocator (operator `new`) supporting
+                //  contiguous allocation
+                //  2. *just use new*
                 DataNode<T> * newNode = (DataNode<T> *)calloc(sizeof(DataNode<T>), 1);
                 newNode->next = current->next;
                 current->next = newNode;
