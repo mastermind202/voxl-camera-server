@@ -71,7 +71,7 @@ enum Status
 //------------------------------------------------------------------------------------------------------------------------------
 // List of camera types
 //------------------------------------------------------------------------------------------------------------------------------
-enum sensor_t
+typedef enum sensor_t
 {
     SENSOR_INVALID = -1,   ///< Invalid
     SENSOR_OV7251,
@@ -81,7 +81,10 @@ enum sensor_t
     SENSOR_IMX678,
     SENSOR_TOF,
     SENSOR_MAX_TYPES       ///< Max types
-};
+} sensor_t;
+
+#define SENSOR_STRINGS {"ov7251", "ov9782", "imx214", "imx412", "imx678", "pmf-tof"}
+
 
 // Get the string associated with the type
 static const inline char* GetTypeString(int type)
@@ -176,13 +179,16 @@ static const inline int32_t HalFmtFromType(int fmt)
 }
 
 
-enum AE_MODE
+typedef enum AE_MODE
 {
     AE_OFF   = 0,
     AE_ISP,
     AE_LME_HIST,
-    AE_LME_MSV
-};
+    AE_LME_MSV,
+    AE_MAX_MODES
+} AE_MODE;
+
+#define AE_STRINGS {"off", "isp", "lme_hist", "lme_msv"}
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Structure containing information for one camera

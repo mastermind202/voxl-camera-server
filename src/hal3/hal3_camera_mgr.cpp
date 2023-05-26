@@ -525,6 +525,11 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
             requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
             break;
         }
+
+   	    default:
+   	        M_ERROR("unknown ae mode: %d\n", ae_mode);
+   	        return -1;
+
     }
 
     if(en_snapshot){
