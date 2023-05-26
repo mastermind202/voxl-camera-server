@@ -921,6 +921,10 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
+    if (bufferBlockInfo == NULL) {
+        M_ERROR("Buffer address was corrupted -- unable to find buffer info for buffer 0x%lx", (uint64_t) *result.second.buffer);
+        return;
+    }
 
     camera_image_metadata_t meta;
     if(getMeta(result.first, &meta)) {
@@ -1571,6 +1575,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_mutex_unlock(&resultMutex);
             continue;
         }
+        M_DEBUG("resultMsgQueue size is %d\n", resultMsgQueue.size());
 
         image_result result = resultMsgQueue.front();
         resultMsgQueue.pop();
@@ -1579,6 +1584,16 @@ void* PerCameraMgr::ThreadPostProcessResult()
         buffer_handle_t  *handle      = result.second.buffer;
         camera3_stream_t *stream      = result.second.stream;
         BufferGroup      *bufferGroup = GetBufferGroup(stream);
+
+        int rel_fence_fd = result.second.release_fence;
+        int acq_fence_fd = result.second.acquire_fence;
+
+        if (rel_fence_fd != -1) {
+            M_WARN("Received stream with non-nil release fence: fd=%d\n", rel_fence_fd);
+        }
+        if (acq_fence_fd != -1) {
+            M_WARN("Received stream with non-nil acquire fence: fd=%d\n", acq_fence_fd);
+        }
 
 
         // Coming here means we have a result frame to process
@@ -1671,7 +1686,10 @@ int PerCameraMgr::HasClientForLargeVideo()
 // -----------------------------------------------------------------------------------------------------------------------------
 int PerCameraMgr::SendOneCaptureRequest(uint32_t* frameNumber)
 {
-    camera3_capture_request_t request;
+    // allocate a capture request to hand off to camera3
+    camera3_capture_request_t* request_ptr = static_cast<camera3_capture_request_t*>(
+        calloc(1, sizeof(camera3_capture_request_t)));
+    camera3_capture_request_t& request = *request_ptr;
 
     if(ae_mode != AE_ISP){
         requestMetadata.update(ANDROID_SENSOR_EXPOSURE_TIME, &setExposure, 1);
@@ -1790,7 +1808,25 @@ int PerCameraMgr::SendOneCaptureRequest(uint32_t* frameNumber)
         }
     }
 
-    request.output_buffers      = streamBufferList.data();
+    M_DEBUG("camera=%s num_output_buffers=%d streamBufferList.size()=%d frameNum=%d", name, request.num_output_buffers, streamBufferList.size(), frameNumber);
+    printf(", buffers=[");
+    for (auto const& b : streamBufferList) {
+        // b.buffer is native_handle_t** so deref to get meaningful address
+        printf("0x%lx, ", (uint64_t) *b.buffer);
+    }
+    printf("]\n");
+
+
+    // the camera3 documentation says that it takes ownership of the request
+    // object, so we need to heap-allocate a buffer to hold the stream buffers
+    // which camera3 can free
+
+    camera3_stream_buffer_t* output_buffer_list = static_cast<camera3_stream_buffer_t*>(
+            calloc(streamBufferList.size(), sizeof(camera3_stream_buffer_t)));
+    std::copy(streamBufferList.begin(), streamBufferList.end(), output_buffer_list);
+
+    request.output_buffers      = output_buffer_list;
+    request.num_output_buffers  = streamBufferList.size();
     request.frame_number        = *frameNumber;
     request.settings            = requestMetadata.getAndLock();
     request.input_buffer        = nullptr;
