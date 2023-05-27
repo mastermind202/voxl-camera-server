@@ -1618,8 +1618,9 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
         }
 
-        if (lastResultFrameNumber == result.first)
+        if (lastResultFrameNumber == result.first){
             num_finished_streams++;
+        }
 
 
 
@@ -1903,7 +1904,10 @@ void* PerCameraMgr::ThreadIssueCaptureRequests()
     if(EStopped){
         M_WARN("Thread: %s request thread Received ESTOP\n", name);
     }else{
-        lastResultFrameNumber = frame_number;
+        // SendOneCaptureRequest increments frame_number after successfully
+        // sending the last frame -- therefore, the last request which was
+        // actually sent to hal3 was frame_number - 1
+        lastResultFrameNumber = (frame_number -  1);
         M_DEBUG("------ Last request frame for %s: %d\n", name, frame_number);
     }
 
