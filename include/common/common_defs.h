@@ -173,7 +173,8 @@ static const inline int32_t HalFmtFromType(int fmt)
 #ifdef APQ8096
             return HAL_PIXEL_FORMAT_BLOB;
 #elif QRB5165
-            return HAL_PIXEL_FORMAT_RAW12;
+            //return HAL_PIXEL_FORMAT_RAW12;
+            return HAL_PIXEL_FORMAT_RAW10;
 #else
     #error "Platform invalid"
 #endif
