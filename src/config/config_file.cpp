@@ -48,6 +48,54 @@ using namespace std;
 
 
 
+
+
+int config_file_print(PerCameraInfo* cams, int n)
+{
+	printf("=================================================================");
+	printf("configuration for %d cameras:\n", n);
+	printf("\n");
+
+	for(int i=0; i<n; i++){
+		printf("cam #%d\n", i);
+		printf("    name:                %s\n", cams[i].name);
+		printf("    sensor type:         %s\n", GetTypeString(cams[i].type));
+		printf("    isMono:              %d\n", cams[i].isMono);
+		printf("    isEnabled:           %d\n", cams[i].isEnabled);
+		printf("    camId:               %d\n", cams[i].camId);
+		printf("    camId2:              %d\n", cams[i].camId2);
+		printf("    fps:                 %d\n", cams[i].fps);
+		printf("\n");
+		printf("    en_preview:          %d\n", cams[i].en_preview);
+		printf("    pre_width:           %d\n", cams[i].pre_width);
+		printf("    pre_height:          %d\n", cams[i].pre_height);
+		printf("    pre_format:          %s\n", GetImageFmtString(cams[i].pre_format));
+		printf("\n");
+		printf("    en_small_video:      %d\n", cams[i].en_small_video);
+		printf("    small_video_width:   %d\n", cams[i].small_video_width);
+		printf("    small_video_height:  %d\n", cams[i].small_video_height);
+		printf("    small_video_bitrate: %d (bps)\n", cams[i].small_video_bitrate);
+		printf("\n");
+		printf("    en_large_video:      %d\n", cams[i].en_large_video);
+		printf("    large_video_width:   %d\n", cams[i].large_video_width);
+		printf("    large_video_height:  %d\n", cams[i].large_video_height);
+		printf("    large_video_bitrate: %d (bps)\n", cams[i].large_video_bitrate);
+		printf("\n");
+		printf("    en_snapshot:         %d\n", cams[i].en_snapshot);
+		printf("    snap_width:          %d\n", cams[i].snap_width);
+		printf("    snap_height:         %d\n", cams[i].snap_height);
+		printf("\n");
+		printf("    ae_mode:             %s\n", GetAEModeString(cams[i].ae_mode));
+		printf("    standby_enabled:     %d\n", cams[i].standby_enabled);
+		printf("    decimator:           %d\n", cams[i].decimator);
+		printf("\n");
+	}
+	printf("=================================================================");
+	printf("\n");
+	return 0;
+}
+
+
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -71,9 +119,9 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 	int numCameras;
 
 	// caller provided a list of cameras, must be writing a new file from cam config helper
-	if(camera_len>0){
+	if(*camera_len>0){
 		is_writing_fresh = 1;
-		numCameras = camera_len;
+		numCameras = *camera_len;
 		remove(CONFIG_FILE_NAME);
 		parent = cJSON_CreateObject();
 		cJSON_AddNumberToObject(parent, "version", CURRENT_VERSION);
@@ -87,6 +135,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			M_ERROR("missing config file\n");
 			return S_ERROR;
 		}
+		// get number of cameras from length of the array in the file
 		cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &numCameras);
 	}
 
@@ -134,7 +183,10 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			goto ERROR_EXIT;
 		}
 		cameraNames.push_back(cam->name);
-		printf("name: %s\n", cam->name);
+
+		json_fetch_bool_with_default(item, "enabled", (int*)&cam->isEnabled, cam->isEnabled);
+		json_fetch_bool_with_default(item, "isMono", (int*)&cam->isMono, cam->isMono);
+
 
 		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
 			M_ERROR("Reading config file: camera id not specified for: %s\n", cam->name);
@@ -166,8 +218,6 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		}
 
 		json_fetch_int_with_default(item, "fps" , &cam->fps, cam->fps);
-		json_fetch_bool_with_default(item, "enabled", (int*)&cam->isEnabled, cam->isEnabled);
-		printf("ENABLED: %d\n", cam->isEnabled);
 
 
 		// now we parse the 4 streams, preview, small, large video, and snapshot

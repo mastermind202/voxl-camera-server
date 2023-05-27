@@ -50,6 +50,8 @@
  */\n"
 
 
+int config_file_print(PerCameraInfo* cams, int n);
+
 // Read and parse the config file given in the command line argument
 Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len);    ///< Returned camera info for each camera in the config file
 

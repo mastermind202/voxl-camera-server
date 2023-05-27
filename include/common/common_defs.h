@@ -191,8 +191,20 @@ typedef enum AE_MODE
 
 #define AE_STRINGS {"off", "isp", "lme_hist", "lme_msv"}
 
+static const inline char* GetAEModeString(int mode)
+{
+    switch ((AE_MODE)mode){
+        case AE_OFF:      return "off";
+        case AE_ISP:      return "isp";
+        case AE_LME_HIST: return "lme_hist";
+        case AE_LME_MSV:  return "lme_msv";
+        default:          return "Invalid";
+    }
+}
+
 //------------------------------------------------------------------------------------------------------------------------------
 // Structure containing information for one camera
+// DON'T MESS WITH THE ORDER HERE
 // Any changes to this struct should be reflected in camera_defaults.h as well
 //------------------------------------------------------------------------------------------------------------------------------
 struct PerCameraInfo
@@ -234,6 +246,7 @@ struct PerCameraInfo
     bool    standby_enabled;       ///< Standby enabled for lidar
     int     decimator;             ///< Decimator to use for standby
 };
+
 
 
 

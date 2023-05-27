@@ -114,7 +114,9 @@ int main(int argc, char* const argv[])
             M_ERROR("Failed to read config file\n");
             return -1;
         }
-    } else { //We're gonna ask hal3 for a list of cameras
+        config_file_print(cameraInfo, n_cams);
+    }
+    else { //We're gonna ask hal3 for a list of cameras
         if(HAL3_get_debug_configuration(cameraInfo, &n_cams)){
             M_ERROR("Failed to get valid debug configuration\n");
             return -1;
