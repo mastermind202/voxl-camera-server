@@ -355,6 +355,6 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format);
  *
  * @param[in]  cameras  Reference to list that we'll populate with camera info
  */
-Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras);
+Status HAL3_get_debug_configuration(PerCameraInfo* cameras, int* num_cameras);
 
 #endif

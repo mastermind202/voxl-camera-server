@@ -49,7 +49,8 @@
 int main(int argc, char* argv[])
 {
 
-    std::list<PerCameraInfo> cameras;
+    PerCameraInfo cameras[MAX_CAMS];
+    int n_cams = 0;
 
     for (int i = 1; i < argc; i++){
 
@@ -64,23 +65,19 @@ int main(int argc, char* argv[])
 
         if (name_str == NULL) { //this trigger shouldn't be possible
             printf("Error: missing name for camera %d\n", i-1);
-            cameras.clear();
             return -1;
         }
 
         if (type_str == NULL) {
             printf("Error: missing type for camera %d\n", i-1);
-            cameras.clear();
             return -1;
         } else if ((type = sensor_from_string(type_str)) == SENSOR_INVALID) {
             printf("Error: invalid type: %s for camera %d\n", type_str, i-1);
-            cameras.clear();
             return -1;
         }
 
         if (cam1_str == NULL) {
             printf("Error: missing camera ID for camera %d\n", i-1);
-            cameras.clear();
             return -1;
         } else {
             camId=atoi(cam1_str);
@@ -106,12 +103,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        cameras.push_back(info);
-
+        if(i>MAX_CAMS){
+            fprintf(stderr, "ERROR too many cameras\n");
+            return -1;
+        }
+        cameras[i-1]=info;
+        n_cams++;
     }
 
-    ReadConfigFile(cameras);
-    cameras.clear();
+    ReadConfigFile(cameras, &n_cams);
 
     return 0;
 

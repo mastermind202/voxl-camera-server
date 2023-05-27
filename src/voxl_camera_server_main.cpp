@@ -106,23 +106,26 @@ int main(int argc, char* const argv[])
 
     main_running = 1;
 
-    list<PerCameraInfo> cameraInfo;
+    PerCameraInfo cameraInfo[MAX_CAMS];
+    int n_cams = 0;
 
     if(source_is_config_file){
-        if(ReadConfigFile(cameraInfo)){
+        if(ReadConfigFile(cameraInfo, &n_cams)){
             M_ERROR("Failed to read config file\n");
             return -1;
         }
     } else { //We're gonna ask hal3 for a list of cameras
-        if(HAL3_get_debug_configuration(cameraInfo)){
+        if(HAL3_get_debug_configuration(cameraInfo, &n_cams)){
             M_ERROR("Failed to get valid debug configuration\n");
             return -1;
         }
     }
 
-    M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", cameraInfo.size());
+    M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", n_cams);
 
-    for(PerCameraInfo info : cameraInfo){
+    for(int i=0; i<n_cams; i++){
+
+        PerCameraInfo info = cameraInfo[i];
 
         M_PRINT("Starting Camera: %s\n", info.name);
 
@@ -139,14 +142,11 @@ int main(int argc, char* const argv[])
         } catch(int) {
             M_ERROR("Failed to start camera: %s, exiting\n", info.name);
             cleanManagers();
-            cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
             return -1;
         }
-
         M_DEBUG("Started Camera: %s\n", info.name);
 
     }
-    cameraInfo.erase(cameraInfo.begin(), cameraInfo.end());
 
     M_PRINT("\n------ voxl-camera-server: Camera server is now running\n");
 
@@ -227,8 +227,8 @@ static int ParseArgs(int         argc,                 ///< Number of arguments
                 return -1;
 
             case ':':
-            	M_ERROR("Missing argument for %s\n", argv[optopt]);
-				return -1;
+                M_ERROR("Missing argument for %s\n", argv[optopt]);
+                return -1;
             // Unknown argument
             case '?':
                 M_ERROR("Invalid argument passed: %s\n", argv[optopt]);

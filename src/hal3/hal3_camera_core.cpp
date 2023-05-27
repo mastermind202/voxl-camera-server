@@ -249,7 +249,7 @@ void HAL3_print_camera_resolutions(int camId){
 
 }
 
-Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
+Status HAL3_get_debug_configuration(PerCameraInfo* cameras, int* numCameras)
 {
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
@@ -258,14 +258,14 @@ Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
         return S_ERROR;
     }
 
-    int numCameras = cameraModule->get_number_of_cameras();
+    *numCameras = cameraModule->get_number_of_cameras();
 
     if(numCameras == 0){
         M_ERROR("Did not detect any cameras plugged in\n");
         return S_ERROR;
     }
 
-    for(int i = 0; i < numCameras; i++){
+    for(int i = 0; i < *numCameras; i++){
 
         sensor_t type;
 
@@ -286,13 +286,11 @@ Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
             M_PRINT("Assuming type: PMD_TOF for camera %d\n", i);
         }
 
-        PerCameraInfo info = getDefaultCameraInfo(type);
+        cameras[i] = getDefaultCameraInfo(type);
 
-        sprintf(info.name, "cam%d", i);
-        info.camId = i;
-        info.camId2 = -1;
-
-        cameras.push_back(info);
+        sprintf(cameras[i].name, "cam%d", i);
+        cameras[i].camId = i;
+        cameras[i].camId2 = -1;
 
     }
 
