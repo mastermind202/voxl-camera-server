@@ -83,15 +83,12 @@ int main(int argc, char* argv[])
             camId=atoi(cam1_str);
         }
 
-
-
         // copy in the basics
         PerCameraInfo info = getDefaultCameraInfo(type);
         info.camId  = camId;
         info.camId2 = -1;
         info.isEnabled = true;
         strcpy(info.name, name_str);
-
 
         // optional fields. Allow "N" in the last field to inidcate disabling the camera
         // TODO formalize that more, just for debug and development for now
@@ -111,7 +108,14 @@ int main(int argc, char* argv[])
         n_cams++;
     }
 
-    ReadConfigFile(cameras, &n_cams);
+    printf("writing the following %d cameras to file:\n", n_cams);
+    config_file_print(cameras, n_cams);
+    if(ReadConfigFile(cameras, &n_cams)){
+        fprintf(stderr, "FAILED TO WRITE CONFIG TO DISK\n");
+        return -1;
+    }
+
+    printf("successfully wrote camera config to disk\n");
 
     return 0;
 

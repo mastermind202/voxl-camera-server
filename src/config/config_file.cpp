@@ -52,10 +52,9 @@ using namespace std;
 
 int config_file_print(PerCameraInfo* cams, int n)
 {
-	printf("=================================================================");
+	printf("=================================================================\n");
 	printf("configuration for %d cameras:\n", n);
 	printf("\n");
-
 	for(int i=0; i<n; i++){
 		printf("cam #%d\n", i);
 		printf("    name:                %s\n", cams[i].name);
@@ -90,8 +89,7 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("    decimator:           %d\n", cams[i].decimator);
 		printf("\n");
 	}
-	printf("=================================================================");
-	printf("\n");
+	printf("=================================================================\n");
 	return 0;
 }
 
@@ -113,10 +111,11 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 	const char* sensor_strings[] = SENSOR_STRINGS;
 	const char* ae_strings[] = AE_STRINGS;
+	const char* format_strings[] = FORMAT_STRINGS;
 
-	cJSON* parent;
-	cJSON* cameras_json;
-	int numCameras;
+	cJSON* parent = NULL;
+	cJSON* cameras_json = NULL;
+	int numCameras = 0;
 
 	// caller provided a list of cameras, must be writing a new file from cam config helper
 	if(*camera_len>0){
@@ -125,6 +124,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		remove(CONFIG_FILE_NAME);
 		parent = cJSON_CreateObject();
 		cJSON_AddNumberToObject(parent, "version", CURRENT_VERSION);
+		tmp = 0;
 		cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &tmp);
 	}
 	// normal reading mode
@@ -135,41 +135,43 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			M_ERROR("missing config file\n");
 			return S_ERROR;
 		}
-		// get number of cameras from length of the array in the file
-		cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &numCameras);
+		cameras_json = json_fetch_array_of_objects_and_add_if_missing(parent, "cameras", &numCameras);
 	}
 
 	// sanity check
 	if(numCameras<1 || numCameras > 7){
-		fprintf(stderr, "array of cameras should be between 1 and 7\n");
+		fprintf(stderr, "array of cameras should be between 1 and 7, found %d\n", numCameras);
 		return S_ERROR;
 	}
 
 	// now go through all the cameras, preset or empty
 	for(i=0; i<numCameras; i++){
-
 		PerCameraInfo* cam = &cameras[i];
 
-		cJSON* item = cJSON_GetArrayItem(cameras_json, i);
+		cJSON* item;
+		if(is_writing_fresh){
+			item = cJSON_CreateObject();
+			cJSON_AddItemToArray(cameras_json, item);
+		}
+		else{
+			item = cJSON_GetArrayItem(cameras_json, i);
+			*cam = getDefaultCameraInfo(SENSOR_INVALID);
+		}
+
 		if(item==NULL){
 			M_ERROR("failed to fetch item %d from json array\n", i);
 			goto ERROR_EXIT;
 		}
 
-		if(!is_writing_fresh){
-			// start with an empty caminfo struct for each camera in the config
-			*cam = getDefaultCameraInfo(SENSOR_INVALID);
-		}
-
 		// if writing fresh, this name will have been set by the config helper
 		if(json_fetch_enum_with_default(item, "type", (int*)&cam->type, sensor_strings, SENSOR_MAX_TYPES, (int)cam->type)){
+			M_ERROR("failed to parse type for camera %d\n", i);
 			goto ERROR_EXIT;
 		}
 
-		// if not writing fresh, set the whole cam info struct to default
+		// if not writing fresh, reset the whole cam info struct to default
 		if(!is_writing_fresh){
 			*cam = getDefaultCameraInfo(cam->type);
-			printf("type: %d\n", cam->type);
 		}
 
 		if(json_fetch_string_with_default(item, "name", cam->name, 63, cam->name)){
@@ -186,13 +188,15 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		json_fetch_bool_with_default(item, "enabled", (int*)&cam->isEnabled, cam->isEnabled);
 		json_fetch_bool_with_default(item, "isMono", (int*)&cam->isMono, cam->isMono);
-
+		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
+			M_ERROR("failed for fetch pre_format for camera %d\n", i);
+			goto ERROR_EXIT;
+		}
 
 		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
 			M_ERROR("Reading config file: camera id not specified for: %s\n", cam->name);
 			goto ERROR_EXIT;
 		}
-		printf("id: %d\n", cam->camId);
 
 		// record the cam id and make sure there are no duplicates
 		if(contains(cameraIds, cam->camId)){
@@ -281,15 +285,19 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 	// check if we got any errors in that process
 	if(json_get_parse_error_flag()){
-		fprintf(stderr, "failed to parse data in %s\n", CONFIG_FILE_NAME);
+		M_ERROR("failed to parse data in %s\n", CONFIG_FILE_NAME);
 		cJSON_Delete(parent);
 		return S_ERROR;
 	}
 
 	if(json_get_modified_flag()){
-		json_write_to_file_with_header(CONFIG_FILE_NAME, parent, CONFIG_FILE_HEADER);
+		if(json_write_to_file_with_header(CONFIG_FILE_NAME, parent, CONFIG_FILE_HEADER)){
+			M_ERROR("failed to write config file to disk\n");
+			return S_ERROR;
+		}
 	}
 
+	*camera_len = numCameras;
 	cJSON_free(parent);
 	return S_OK;
 

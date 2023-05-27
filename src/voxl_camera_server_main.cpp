@@ -125,6 +125,7 @@ int main(int argc, char* const argv[])
 
     M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", n_cams);
 
+
     for(int i=0; i<n_cams; i++){
 
         PerCameraInfo info = cameraInfo[i];

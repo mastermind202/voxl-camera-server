@@ -138,6 +138,9 @@ enum ImageFormat
     FMT_MAXTYPES        ///< Max Types
 };
 
+#define FORMAT_STRINGS {"raw8", "raw10", "nv12", "nv21", "tof"}
+
+
 static const inline char* GetImageFmtString(int fmt)
 {
     switch ((ImageFormat)fmt){
@@ -145,6 +148,7 @@ static const inline char* GetImageFmtString(int fmt)
         case FMT_RAW10: return "raw10";
         case FMT_NV12:  return "nv12";
         case FMT_NV21:  return "nv21";
+        case FMT_TOF:   return "tof";
         default:        return "Invalid";
     }
 }
