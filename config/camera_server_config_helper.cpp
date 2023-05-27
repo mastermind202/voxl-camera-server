@@ -110,13 +110,7 @@ int main(int argc, char* argv[])
 
     }
 
-    remove(CONFIG_FILE_NAME);
-    json_make_empty_file_with_header_if_missing(CONFIG_FILE_NAME, CONFIG_FILE_HEADER);
-
     ReadConfigFile(cameras);
-
-    //WriteConfigFile(cameras);
-
     cameras.clear();
 
     return 0;

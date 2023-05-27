@@ -120,15 +120,17 @@ int main(int argc, char* const argv[])
         }
     }
 
-    M_DEBUG("------ voxl-camera-server: Starting camera server\n");
+    M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", cameraInfo.size());
 
     for(PerCameraInfo info : cameraInfo){
 
+        M_PRINT("Starting Camera: %s\n", info.name);
+
         if(!info.isEnabled) {
-            M_VERBOSE("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
+            M_PRINT("\tSkipping Camera: %s, configuration marked disabled\n", info.name);
             continue;
         }
-        M_DEBUG("Starting Camera: %s\n", info.name);
+
 
         try{
             PerCameraMgr *mgr = new PerCameraMgr(info);

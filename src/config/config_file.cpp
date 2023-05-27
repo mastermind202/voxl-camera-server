@@ -57,39 +57,40 @@ using namespace std;
 // Note:
 // "cameras" will contain memory allocated by this function and it is the callers responsibility to free/pop it it.
 // -----------------------------------------------------------------------------------------------------------------------------
-// TODO WTF is this a list, why can't it be an array or vector
-Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info for each camera in the config file
+Status ReadConfigFile(list<PerCameraInfo> &cameras)
 {
-
-	cJSON* parent = json_read_file(CONFIG_FILE_NAME);
-	int i, tmp;
+	int i, tmp, is_writing_fresh;
 	std::list<int> cameraIds;
 	std::list<string> cameraNames;
 
-	// write in the current version, only if missing
-	if(cJSON_GetObjectItem(parent, "version")==NULL){
+	const char* sensor_strings[] = SENSOR_STRINGS;
+	const char* ae_strings[] = AE_STRINGS;
+
+	cJSON* parent;
+	cJSON* cameras_json;
+	int numCameras = cameras.size();
+
+	// caller provided a list of cameras, must be writing a new file
+	if(numCameras>0){
+		is_writing_fresh = 1;
+		remove(CONFIG_FILE_NAME);
+		parent = cJSON_CreateObject();
 		cJSON_AddNumberToObject(parent, "version", CURRENT_VERSION);
-	}
-
-	int numCameras;
-	cJSON* cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &numCameras);
-	if(numCameras > 7){
-		fprintf(stderr, "array of cameras should be no more than %d long\n", 7);
-		return S_ERROR;
-	}
-
-	// config file is empty, likely being opened for writing by helper
-	bool is_writing_fresh = true;
-	if(numCameras==0){
-		numCameras = cameras.size();
-		// add an array item for each known camera
+		cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &tmp);
+		// add an empty array item for each known camera
 		for(i=0; i<numCameras; i++){
-			cJSON_AddItemToArray(parent, cJSON_CreateObject());
+			cJSON_AddItemToArray(cameras_json, cJSON_CreateObject());
 		}
 	}
-	// config is not empty, likely being read by camera server
+	// normal reading mode
 	else{
-		is_writing_fresh = false;
+		is_writing_fresh = 0;
+		parent = json_read_file(CONFIG_FILE_NAME);
+		if(parent==NULL){
+			M_ERROR("missing config file\n");
+			return S_ERROR;
+		}
+		cameras_json = json_fetch_array_and_add_if_missing(parent, "cameras", &numCameras);
 		// start with an empty caminfo struct for each camera in the config
 		for(i=0; i<numCameras; i++){
 			PerCameraInfo info = getDefaultCameraInfo(SENSOR_INVALID);
@@ -97,24 +98,31 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 		}
 	}
 
+	// sanity check
+	if(numCameras<1 || numCameras > 7){
+		fprintf(stderr, "array of cameras should be between 1 and 7\n");
+		return S_ERROR;
+	}
 
-	// now parse through each camera
-	for(i=0; i<numCameras; i++){
+	i=0;
+	for(PerCameraInfo camf : cameras){
 
-		PerCameraInfo* cam = &cameras[i];
+		PerCameraInfo* cam = &camf;
+
 		cJSON* item = cJSON_GetArrayItem(cameras_json, i);
 
 		// if writing fresh, this name will have been set by the config helper
-		if(json_fetch_enum_with_default(item, "type", (int*)&cam->type, SENSOR_STRINGS, (int)cam->type, SENSOR_MAX_TYPES)){
+		if(json_fetch_enum_with_default(item, "type", (int*)&cam->type, sensor_strings, SENSOR_MAX_TYPES, (int)cam->type)){
 			goto ERROR_EXIT;
 		}
 
 		// if not writing fresh, set the whole cam info struct to defualt
 		if(!is_writing_fresh){
 			*cam = getDefaultCameraInfo(cam->type);
+			printf("type: %d\n", cam->type);
 		}
 
-		if(json_fetch_string(item, "name", cam->name, 63)){
+		if(json_fetch_string_with_default(item, "name", cam->name, 63, cam->name)){
 			M_ERROR("Reading config file: camera name not specified\n", cam->name);
 			goto ERROR_EXIT;
 		}
@@ -125,11 +133,13 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			goto ERROR_EXIT;
 		}
 		cameraNames.push_back(cam->name);
+		printf("name: %s\n", cam->name);
 
-		if(json_fetch_int(item, "camera_id", &(cam->camId))){
+		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
 			M_ERROR("Reading config file: camera id not specified for: %s\n", cam->name);
 			goto ERROR_EXIT;
 		}
+		printf("id: %d\n", cam->camId);
 
 		// record the cam id and make sure there are no duplicates
 		if(contains(cameraIds, cam->camId)){
@@ -151,16 +161,12 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 		if(cam->camId2>0){
 			M_DEBUG("Secondary id found for camera: %s, assuming stereo\n", cam->name);
 			cameraIds.push_back(cam->camId2);
-			json_fetch_bool_with_default(item, "independent_exposure",  &tmp, cam->ind_exp);
-			cam->ind_exp = tmp;
+			json_fetch_bool_with_default(item, "independent_exposure",  (int*)&cam->ind_exp, cam->ind_exp);
 		}
 
-		json_fetch_int_with_default (item, "fps" , &cam->fps, cam->fps);
-
-		// TODO figure out why c++ is weird with bools and ints
-		json_fetch_bool_with_default(item, "enabled", &tmp, cam->isEnabled);
-		cam->isEnabled = tmp;
-
+		json_fetch_int_with_default(item, "fps" , &cam->fps, cam->fps);
+		json_fetch_bool_with_default(item, "enabled", (int*)&cam->isEnabled, cam->isEnabled);
+		printf("ENABLED: %d\n", cam->isEnabled);
 
 
 		// now we parse the 4 streams, preview, small, large video, and snapshot
@@ -191,7 +197,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			json_fetch_int_with_default  (item, "en_snapshot_height", &cam->snap_height, cam->snap_height);
 		}
 
-		if(json_fetch_enum_with_default(item, "ae_mode", (int*)&cam->ae_mode, AE_STRINGS, (int)cam->ae_mode, AE_MAX_MODES)){
+		if(json_fetch_enum_with_default(item, "ae_mode", (int*)&cam->ae_mode, ae_strings, AE_MAX_MODES, (int)cam->ae_mode)){
 			goto ERROR_EXIT;
 		}
 
@@ -204,7 +210,7 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 		}
 
 		// only load msv settings if enabled (default for all but hires cams)
-		if(cam->ae_mode == AE_LME_HIST){
+		if(cam->ae_mode == AE_LME_MSV){
 			json_fetch_float_with_default (item, "ae_desired_msv",     &cam->ae_msv_info.desired_msv,                       cam->ae_msv_info.desired_msv);
 			json_fetch_float_with_default (item, "ae_filter_alpha",    &cam->ae_msv_info.msv_filter_alpha,                  cam->ae_msv_info.msv_filter_alpha);
 			json_fetch_float_with_default (item, "ae_ignore_fraction", &cam->ae_msv_info.max_saturated_pix_ignore_fraction, cam->ae_msv_info.max_saturated_pix_ignore_fraction);
@@ -213,12 +219,23 @@ Status ReadConfigFile(list<PerCameraInfo> &cameras)    ///< Returned camera info
 			json_fetch_int_with_default   (item, "ae_gain_period",     (int*)&cam->ae_msv_info.gain_update_period,          (int)cam->ae_msv_info.gain_update_period);
 		}
 
-		// standby settings
-		json_fetch_bool_with_default(item, "standby_enabled", &tmp, cam->standby_enabled);
-		cam->standby_enabled = tmp;
-		json_fetch_int_with_default  (item, "decimator", &cam->decimator,   cam->decimator);
+		// standby settings for tof only
+		if(cam->type == SENSOR_TOF){
+			json_fetch_bool_with_default(item, "standby_enabled", (int*)&cam->standby_enabled, cam->standby_enabled);
+			json_fetch_int_with_default  (item, "decimator", &cam->decimator,   cam->decimator);
+		}
 
+		// bump counter
+		i++;
 	} // end of loop through cameras
+
+
+	// check if we got any errors in that process
+	if(json_get_parse_error_flag()){
+		fprintf(stderr, "failed to parse data in %s\n", CONFIG_FILE_NAME);
+		cJSON_Delete(parent);
+		return S_ERROR;
+	}
 
 	if(json_get_modified_flag()){
 		json_write_to_file_with_header(CONFIG_FILE_NAME, parent, CONFIG_FILE_HEADER);

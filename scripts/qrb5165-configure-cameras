@@ -36,7 +36,7 @@ set -e
 
 # options set by arguments
 CAM_CONFIG_ID="-1"
-HIRES_SENSOR="${HIRES_SENSOR}"
+HIRES_SENSOR="imx214"
 ENABLE_CAMERA_SERVER=1
 
 CAM_LIB_DIR="/usr/lib/camera/"
@@ -116,11 +116,15 @@ parse_opts(){
 				CAM_CONFIG_ID=15
 				ENABLE_CAMERA_SERVER=1
 				;;
+			"--imx214")
+				HIRES_SENSOR="imx214"
+				;;
 			"--imx412")
 				HIRES_SENSOR="imx412"
 				;;
 			"--imx676")
 				HIRES_SENSOR="imx678"
+				;;
 			*)
 				## all other arguments are either config id numbers or invalid
 				if [[ "$arg" =~ ^[0-9]+$ ]]; then
@@ -290,7 +294,6 @@ case $CAM_CONFIG_ID in
 esac
 
 
-echo "erasing old cam binaries before setup"
 rm -rf /usr/lib/camera/com.qti.sensormodule*
 
 camera-server-config-helper ${CAM_LIST[@]}

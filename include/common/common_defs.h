@@ -44,6 +44,7 @@
 
 static const int INT_INVALID_VALUE   = 0xdeadbeef;
 static const int MAXNAMELEN     = 64;
+#define MAX_CAMS 7 // todo test this limit
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Supported stream types
