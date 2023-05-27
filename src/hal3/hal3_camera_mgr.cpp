@@ -761,6 +761,22 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         }
 
         resultMetaRing.insert_data(meta);
+
+        // check if there are result buffer returned before the meta data is avaliable
+        image_result result_list[16]; // only 3 is needed
+        int num = getAllResult(pHalResult->frame_number, result_list);
+        if (num > 0 ) {
+            M_VERBOSE("Find %d buffer in result ring for frame %d\n", num, pHalResult->frame_number);
+            pthread_mutex_lock(&resultMutex);
+
+            // Queue up work for the result thread "ThreadPostProcessResult"
+            for (int i = 0; i < num; i++){
+               resultMsgQueue.push(result_list[i]);
+            }
+            pthread_cond_signal(&resultCond);
+            pthread_mutex_unlock(&resultMutex);
+        }
+
     }
 
 
@@ -770,12 +786,20 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         M_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
         // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
-        pthread_mutex_lock(&resultMutex);
+        // if buffer arrive before meta data, save them in the ringbuffer
+        image_result i_result = {pHalResult->frame_number, pHalResult->output_buffers[i]};
+        camera_image_metadata_t imageInfo;
+        if(getMeta(i_result.first, &imageInfo)) {
+            M_VERBOSE("Buffer arrive before meta frame %d\n", i_result.first);
+            resultMsgRing.insert_data(i_result);
+        } else {
+            pthread_mutex_lock(&resultMutex);
 
-        // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push({pHalResult->frame_number, pHalResult->output_buffers[i]});
-        pthread_cond_signal(&resultCond);
-        pthread_mutex_unlock(&resultMutex);
+            // Queue up work for the result thread "ThreadPostProcessResult"
+            resultMsgQueue.push(i_result);
+            pthread_cond_signal(&resultCond);
+            pthread_mutex_unlock(&resultMutex);
+        }
 
     }
 

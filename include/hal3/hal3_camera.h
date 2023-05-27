@@ -157,6 +157,19 @@ private:
         return -1;
     }
 
+    int getAllResult(int frameNumber, image_result result_list[]){
+        int count = 0;
+        for(image_result r : resultMsgRing){
+            // fprintf(stderr, "%s, %d : %d - %d\n", __FUNCTION__, __LINE__, frameNumber, c.frame_id );
+
+            if(r.first == frameNumber) {
+                result_list[count] = r;
+                count++;
+            }
+        }
+        return count;
+    }
+
     // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
     // the time of processing the frame result. When we register the callbacks with the camera module, we register the starting
     // address of this structure (which is camera3_callbacks_ops) but followed by our private information. When we receive a
@@ -245,6 +258,7 @@ private:
     int32_t                             setGain     = 800;           ///< Gain
     queue<image_result>                 resultMsgQueue;
     RingBuffer<camera_image_metadata_t> resultMetaRing;
+    RingBuffer<image_result>            resultMsgRing;
     pthread_mutex_t                     stereoMutex;                 ///< Mutex for stereo comms
     pthread_cond_t                      stereoCond;                  ///< Condition variable for wake up
     PerCameraMgr*                       otherMgr;                    ///< Pointer to the partner manager in a stereo pair
