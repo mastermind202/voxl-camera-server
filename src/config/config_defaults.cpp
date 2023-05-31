@@ -302,8 +302,8 @@ static const PerCameraInfo IMX678Defaults =
         1536,                       //< Large Video Height of the frame
         120000000,                  //< Large Video Bitrate
         true,                       //< Enable Snapshot mode?
-        4160,                       //< Snapshot Width of the frame
-        3120,                       //< Snapshot Height of the frame
+        3840,                       //< Snapshot Width of the frame
+        2160,                       //< Snapshot Height of the frame
         false,                      //< Flip
         false,                      //< Independent Exposure
         AE_ISP,                     //< AE Mode
