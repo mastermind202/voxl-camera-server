@@ -1226,8 +1226,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         childFrame = NULL;
         pthread_mutex_unlock(&stereoMutex);
         pthread_cond_signal(&(otherMgr->stereoCond));
+    }
 
-    } else if (partnerMode == MODE_STEREO_SLAVE){
+    else if (partnerMode == MODE_STEREO_SLAVE){
 
         pthread_mutex_lock(&(otherMgr->stereoMutex));
 
@@ -1670,6 +1671,10 @@ int PerCameraMgr::HasClientForPreviewFrame()
         if(pipe_server_get_num_clients(tofPipeConf )>0) return 1;
         if(pipe_server_get_num_clients(tofPipePC   )>0) return 1;
         if(pipe_server_get_num_clients(tofPipeFull )>0) return 1;
+    }
+    else if(partnerMode == MODE_STEREO_SLAVE){
+        if(pipe_server_get_num_clients(otherMgr->previewPipeGrey)>0) return 1;
+        if(otherMgr->previewPipeColor>=0 && pipe_server_get_num_clients(otherMgr->previewPipeColor)>0) return 1;
     }
     else{
         if(pipe_server_get_num_clients(previewPipeGrey)>0) return 1;

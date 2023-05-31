@@ -296,6 +296,8 @@ esac
 
 rm -rf /usr/lib/camera/com.qti.sensormodule*
 
+
+echo calling camera-server-config-helper ${CAM_LIST[@]}
 camera-server-config-helper ${CAM_LIST[@]}
 
 echo "copying required camera drivers in place"

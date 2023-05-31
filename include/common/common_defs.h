@@ -216,7 +216,6 @@ struct PerCameraInfo
 {
     char      name[MAXNAMELEN];   ///< Camera name string
     sensor_t  type;               ///< Type of camera
-    int       isMono;             ///< mono or stereo
     int       camId;              ///< id of camera
     int       camId2;             ///< id of second camera (if stereo)
     int       isEnabled;          ///< Is the camera enabled/disabled
@@ -240,15 +239,14 @@ struct PerCameraInfo
     int     en_snapshot;
     int     snap_width;            ///< Snapshot Width of the frame
     int     snap_height;           ///< Snapshot Height of the frame
-    bool    flip;                  ///< Flip?
 
-    bool    ind_exp;               ///< For stereo pairs, run exposure independently?
+    int     ind_exp;               ///< For stereo pairs, run exposure independently?
 
     AE_MODE ae_mode;
     modal_exposure_config_t      ae_hist_info; ///< ModalAI AE data (Histogram)
     modal_exposure_msv_config_t  ae_msv_info;  ///< ModalAI AE data (MSV)
 
-    bool    standby_enabled;       ///< Standby enabled for lidar
+    int     standby_enabled;       ///< Standby enabled for lidar
     int     decimator;             ///< Decimator to use for standby
 };
 

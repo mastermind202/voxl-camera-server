@@ -71,7 +71,9 @@ int main(int argc, char* argv[])
         if (type_str == NULL) {
             printf("Error: missing type for camera %d\n", i-1);
             return -1;
-        } else if ((type = sensor_from_string(type_str)) == SENSOR_INVALID) {
+        }
+        type = sensor_from_string(type_str);
+        if ( type == SENSOR_INVALID) {
             printf("Error: invalid type: %s for camera %d\n", type_str, i-1);
             return -1;
         }
@@ -90,7 +92,7 @@ int main(int argc, char* argv[])
         info.isEnabled = true;
         strcpy(info.name, name_str);
 
-        // optional fields. Allow "N" in the last field to inidcate disabling the camera
+        // optional fields. Allow "N" in the last field to indicate disabling the camera
         // TODO formalize that more, just for debug and development for now
         if(cam2_str != NULL){
             if(cam2_str[0]=='N') info.isEnabled = false;
@@ -104,18 +106,20 @@ int main(int argc, char* argv[])
             fprintf(stderr, "ERROR too many cameras\n");
             return -1;
         }
+
         cameras[i-1]=info;
         n_cams++;
     }
 
-    printf("writing the following %d cameras to file:\n", n_cams);
-    config_file_print(cameras, n_cams);
     if(ReadConfigFile(cameras, &n_cams)){
         fprintf(stderr, "FAILED TO WRITE CONFIG TO DISK\n");
         return -1;
     }
+    printf("successfully wrote this camera config to disk:\n");
+    config_file_print(cameras, n_cams);
 
-    printf("successfully wrote camera config to disk\n");
+
+    printf("camera_server_config_helper is done\n");
 
     return 0;
 

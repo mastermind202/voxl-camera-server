@@ -59,7 +59,6 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("cam #%d\n", i);
 		printf("    name:                %s\n", cams[i].name);
 		printf("    sensor type:         %s\n", GetTypeString(cams[i].type));
-		printf("    isMono:              %d\n", cams[i].isMono);
 		printf("    isEnabled:           %d\n", cams[i].isEnabled);
 		printf("    camId:               %d\n", cams[i].camId);
 		printf("    camId2:              %d\n", cams[i].camId2);
@@ -87,6 +86,7 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("    ae_mode:             %s\n", GetAEModeString(cams[i].ae_mode));
 		printf("    standby_enabled:     %d\n", cams[i].standby_enabled);
 		printf("    decimator:           %d\n", cams[i].decimator);
+		printf("    independent_exposure:%d\n", cams[i].ind_exp);
 		printf("\n");
 	}
 	printf("=================================================================\n");
@@ -149,10 +149,13 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		PerCameraInfo* cam = &cameras[i];
 
 		cJSON* item;
+
+		// if writing fresh, we have caminfo structs but need to create json array items
 		if(is_writing_fresh){
 			item = cJSON_CreateObject();
 			cJSON_AddItemToArray(cameras_json, item);
 		}
+		// if not writing fresh, we fetch the array item and start with a clean camInfo struct
 		else{
 			item = cJSON_GetArrayItem(cameras_json, i);
 			*cam = getDefaultCameraInfo(SENSOR_INVALID);
@@ -171,6 +174,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		// if not writing fresh, reset the whole cam info struct to default
 		if(!is_writing_fresh){
+			printf("getting fresh defaults for cam type %s\n", sensor_strings[cam->type]);
 			*cam = getDefaultCameraInfo(cam->type);
 		}
 
@@ -186,19 +190,18 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		}
 		cameraNames.push_back(cam->name);
 
-		json_fetch_bool_with_default(item, "enabled", (int*)&cam->isEnabled, cam->isEnabled);
-		json_fetch_bool_with_default(item, "isMono", (int*)&cam->isMono, cam->isMono);
+		json_fetch_bool_with_default(item, "enabled", &tmp, cam->isEnabled);
+		cam->isEnabled = tmp;
 		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
 			M_ERROR("failed for fetch pre_format for camera %d\n", i);
 			goto ERROR_EXIT;
 		}
 
+		// check cam id1 is present and not a duplicate
 		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
 			M_ERROR("Reading config file: camera id not specified for: %s\n", cam->name);
 			goto ERROR_EXIT;
 		}
-
-		// record the cam id and make sure there are no duplicates
 		if(contains(cameraIds, cam->camId)){
 			M_ERROR("Reading config file: multiple cameras with id: %d\n", cam->camId);
 			goto ERROR_EXIT;
@@ -206,21 +209,23 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		cameraIds.push_back(cam->camId);
 
 
-		if(!cJSON_HasObjectItem(item, "camera_id_second") || json_fetch_int(item, "camera_id_second", &(cam->camId2))){
-			M_DEBUG("No secondary id found for camera: %s, assuming mono\n", cam->name);
-		}
-		if(contains(cameraIds, cam->camId2)){
-			M_ERROR("Reading config file: multiple cameras with id: %d\n", cam->camId);
-			goto ERROR_EXIT;
+		// check cam id2 is present and not a duplicate
+		if(cJSON_HasObjectItem(item, "camera_id_second") || cam->camId2>=0){
+			json_fetch_int_with_default(item, "camera_id_second", &(cam->camId2), cam->camId2);
+			M_DEBUG("stereo camera \"%s\"with cam ids %d & %d\n", cam->name, cam->camId, cam->camId2);
+			if(contains(cameraIds, cam->camId2)){
+				M_ERROR("Reading config file: multiple cameras with id: %d\n", cam->camId2);
+				goto ERROR_EXIT;
+			}
 		}
 
-		// record the second camid for stereo cams
+		// if in stereo mode, also show the independent exposure flag
 		if(cam->camId2>0){
 			M_DEBUG("Secondary id found for camera: %s, assuming stereo\n", cam->name);
 			cameraIds.push_back(cam->camId2);
-			json_fetch_bool_with_default(item, "independent_exposure",  (int*)&cam->ind_exp, cam->ind_exp);
+			json_fetch_bool_with_default(item, "independent_exposure",  &cam->ind_exp, cam->ind_exp);
 		}
-
+		// framerate is simple
 		json_fetch_int_with_default(item, "fps" , &cam->fps, cam->fps);
 
 
