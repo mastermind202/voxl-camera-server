@@ -1,0 +1,41 @@
+#!/bin/bash
+################################################################################
+# Copyright (c) 2023 ModalAI, Inc. All rights reserved.
+################################################################################
+
+# Script to test different camera resolutions for voxl-camera-server and start streamer
+
+## Declare all the possible x and y dimensions of the resolutions you want to test here
+x_dimension=("640" "1280" "1920")
+y_dimension=("480" "720" "1080")
+
+# Empty variables do NOT pay attention to this
+preview_resolution_width=''
+preview_resolution_height=''
+
+# Iterate through array of dimensions, run sed on /etc/modalai/voxl-camera-server.conf and
+# run voxl-camera-server - if is-active yields true will print out the value of voxl-camera-server
+# to be good, otherwise will say false
+for i in "${!x_dimension[@]}"; do
+  preview_resolution_width=${x_dimension[i]}
+  preview_resolution_height=${y_dimension[i]}
+
+  adb shell sed -i "/preview_width/c\ \t\t\t\t\t\t\"preview_width\" : $preview_resolution_width," /etc/modalai/voxl-camera-server.conf
+  adb shell sed -i "/preview_height/c\ \t\t\t\t\t\t\"preview_height\" : $preview_resolution_height," /etc/modalai/voxl-camera-server.conf
+
+  # Push edited camera-server file to /etc/modalai and start service
+  adb shell systemctl restart voxl-camera-server
+
+  # Configure voxl-streamer to intake hires_stream and start service
+  # No need to worry about decimator since using hires_stream should ignore decimator
+  # adb shell voxl-configure-streamer -i hires_stream
+  # adb shell systemctl start voxl-streamer
+
+  sleep 10s
+
+  printf "${x_dimension[i]}" "x" "${y_dimension[i]}"  " value of voxl-camera-server is: "
+  adb shell systemctl is-active voxl-camera-server
+  #echo "Value of voxl-streamer is: "
+  #adb shell systemctl is-active voxl-streamer
+
+done
