@@ -41,6 +41,9 @@
 #include <mutex>
 #include <list>
 #include <condition_variable>
+
+#include "gps_pose_subscriber.h"
+
 #include <modal_start_stop.h>
 #include <modal_pipe.h>
 #include <voxl_cutils.h>
@@ -83,6 +86,21 @@ int main(int argc, char* const argv[])
         return -1;
     }
 
+    // Setup necessary pipes for GPS and pose
+    pipe_client_set_connect_cb(GPS_CH, _gps_connect_cb, NULL);
+    pipe_client_set_disconnect_cb(GPS_CH, _gps_disconnect_cb, NULL);
+    pipe_client_set_simple_helper_cb(GPS_CH, _gps_helper_cb, NULL);
+    pipe_client_open(GPS_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-gps", \
+                    EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
+                    MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
+
+    pipe_client_set_connect_cb(POSE_CH, _local_pose_connect_cb, NULL);
+    pipe_client_set_disconnect_cb(POSE_CH, _local_pose_disconnect_cb, NULL);
+    pipe_client_set_simple_helper_cb(POSE_CH, _local_pose_connect_helper_cb, NULL);
+    pipe_client_open(POSE_CH, GPS_RAW_OUT_PATH, "voxl-inspect-camera-local-pose", \
+                    EN_PIPE_CLIENT_SIMPLE_HELPER | EN_PIPE_CLIENT_AUTO_RECONNECT, \
+                    MAVLINK_MESSAGE_T_RECOMMENDED_READ_BUF_SIZE);
+
     // make sure another instance isn't running
     // if return value is -3 then a background process is running with
     // higher privaledges and we couldn't kill it, in which case we should
@@ -124,8 +142,7 @@ int main(int argc, char* const argv[])
     }
 
     M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", n_cams);
-
-
+    
     for(int i=0; i<n_cams; i++){
 
         PerCameraInfo info = cameraInfo[i];
