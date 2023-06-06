@@ -244,7 +244,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			json_fetch_int_with_default  (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
 			json_fetch_int_with_default  (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
 			json_fetch_int_with_default  (item, "small_video_bitrate", &cam->small_video_bitrate, cam->small_video_bitrate);
-			json_fetch_int_with_default  (item, "small_video_h265_en", &cam->small_video_h265_en, cam->small_video_h265_en);
+			json_fetch_bool_with_default  (item, "small_video_h265_en", &cam->small_video_h265_en, cam->small_video_h265_en);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_large_video")!=NULL || cam->en_large_video){
@@ -252,7 +252,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_height,  cam->large_video_height);
 			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_width,   cam->large_video_width);
 			json_fetch_int_with_default  (item, "large_video_bitrate", &cam->large_video_bitrate, cam->large_video_bitrate);
-			json_fetch_int_with_default  (item, "large_video_h265_en", &cam->large_video_h265_en, cam->large_video_h265_en);
+			json_fetch_bool_with_default  (item, "large_video_h265_en", &cam->large_video_h265_en, cam->large_video_h265_en);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_snapshot")!=NULL || cam->en_large_video){
