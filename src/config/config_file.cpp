@@ -73,13 +73,13 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("    small_video_width:   %d\n", cams[i].small_video_width);
 		printf("    small_video_height:  %d\n", cams[i].small_video_height);
 		printf("    small_video_bitrate: %d (bps)\n", cams[i].small_video_bitrate);
-		printf("	small_video_h265_en: %d\n", cams[i].small_video_h265_en);
+		printf("    small_video_h265_en: %d (bps)\n", cams[i].small_video_h265_en);
 		printf("\n");
 		printf("    en_large_video:      %d\n", cams[i].en_large_video);
 		printf("    large_video_width:   %d\n", cams[i].large_video_width);
 		printf("    large_video_height:  %d\n", cams[i].large_video_height);
 		printf("    large_video_bitrate: %d (bps)\n", cams[i].large_video_bitrate);
-		printf("	large_video_h265_en: %d\n", cams[i].large_video_h265_en);
+		printf("    large_video_h265_en: %d (bps)\n", cams[i].large_video_h265_en);
 		printf("\n");
 		printf("    en_snapshot:         %d\n", cams[i].en_snapshot);
 		printf("    snap_width:          %d\n", cams[i].snap_width);
