@@ -1107,7 +1107,6 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
     while (!stop)
     {
         pthread_mutex_lock(&out_mutex);
-
         if (out_msgQueue.empty())
         {
             pthread_cond_wait(&out_cond, &out_mutex);
@@ -1116,14 +1115,14 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         }
 
         if(out_metaQueue.empty()){
-            M_DEBUG("Trying to process omx output with missing metadata\n");
+            //M_WARN("Trying to process omx output with missing metadata\n");
             pthread_cond_wait(&out_cond, &out_mutex);
             pthread_mutex_unlock(&out_mutex);
             continue;
         }
 
         if(m_outputPipe==NULL){
-            M_DEBUG("Trying to process omx output without initialized pipe\n");
+            M_WARN("Trying to process omx output without initialized pipe\n");
             pthread_cond_wait(&out_cond, &out_mutex);
             pthread_mutex_unlock(&out_mutex);
             continue;
