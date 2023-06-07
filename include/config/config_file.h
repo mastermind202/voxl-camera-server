@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020 ModalAI Inc.
+ * Copyright 2023 ModalAI Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -37,10 +37,27 @@
 #include <list>
 #include "common_defs.h"
 
-// Read and parse the config file given in the command line argument
-Status ReadConfigFile(std::list<PerCameraInfo>& cameras);    ///< Returned camera info for each camera in the config file
+
+#define CURRENT_VERSION 0.1
+#define CONFIG_FILE_NAME "/etc/modalai/voxl-camera-server.conf"
+
+
+#define CONFIG_FILE_HEADER "\
+/**\n\
+ * voxl-camera-server Configuration File\n\
+ *\n\
+ *TODO write this\n\
+ */\n"
+
+
+int config_file_print(PerCameraInfo* cams, int n);
 
 // Read and parse the config file given in the command line argument
+Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len);    ///< Returned camera info for each camera in the config file
+
+/*
+// Read and parse the config file given in the command line argument
 void WriteConfigFile(std::list<PerCameraInfo> cameras);     ///< Passed camera info for each camera in the config file
+*/
 
 #endif // end #define CAMERA_CONFIG_H

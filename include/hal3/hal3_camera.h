@@ -94,7 +94,7 @@ public:
 
     const PerCameraInfo        configInfo;                     ///< Per camera config information
     const int32_t              cameraId;                       ///< Camera id
-          char                 name[MAX_NAME_LENGTH];
+          char                 name[MAXNAMELEN];
     const bool                 en_preview;
     const bool                 en_small_video;
     const bool                 en_large_video;
@@ -155,6 +155,19 @@ private:
             }
         }
         return -1;
+    }
+
+    int getAllResult(int frameNumber, image_result result_list[]){
+        int count = 0;
+        for(image_result r : resultMsgRing){
+            // fprintf(stderr, "%s, %d : %d - %d\n", __FUNCTION__, __LINE__, frameNumber, c.frame_id );
+
+            if(r.first == frameNumber) {
+                result_list[count] = r;
+                count++;
+            }
+        }
+        return count;
     }
 
     // camera3_callback_ops is returned to us in every result callback. We piggy back any private information we may need at
@@ -245,6 +258,7 @@ private:
     int32_t                             setGain     = 800;           ///< Gain
     queue<image_result>                 resultMsgQueue;
     RingBuffer<camera_image_metadata_t> resultMetaRing;
+    RingBuffer<image_result>            resultMsgRing;
     pthread_mutex_t                     stereoMutex;                 ///< Mutex for stereo comms
     pthread_cond_t                      stereoCond;                  ///< Condition variable for wake up
     PerCameraMgr*                       otherMgr;                    ///< Pointer to the partner manager in a stereo pair
@@ -355,6 +369,6 @@ bool HAL3_is_config_supported(int camId, int width, int height, int format);
  *
  * @param[in]  cameras  Reference to list that we'll populate with camera info
  */
-Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras);
+Status HAL3_get_debug_configuration(PerCameraInfo* cameras, int* num_cameras);
 
 #endif

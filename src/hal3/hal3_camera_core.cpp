@@ -249,7 +249,7 @@ void HAL3_print_camera_resolutions(int camId){
 
 }
 
-Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
+Status HAL3_get_debug_configuration(PerCameraInfo* cameras, int* numCameras)
 {
     camera_module_t* cameraModule = HAL3_get_camera_module();
 
@@ -258,39 +258,39 @@ Status HAL3_get_debug_configuration(std::list<PerCameraInfo>& cameras)
         return S_ERROR;
     }
 
-    int numCameras = cameraModule->get_number_of_cameras();
+    *numCameras = cameraModule->get_number_of_cameras();
 
     if(numCameras == 0){
         M_ERROR("Did not detect any cameras plugged in\n");
         return S_ERROR;
     }
 
-    for(int i = 0; i < numCameras; i++){
+    for(int i = 0; i < *numCameras; i++){
 
-        CameraType type;
+        sensor_t type;
 
         // Best way for now to detect camera type right now
+        // TODO put TOF first since it's most unique
+        // then add resolutions for 412 and 678
         if(HAL3_is_config_supported(i, 3840, 2160, HAL_PIXEL_FORMAT_BLOB)){
-            type = CAMTYPE_IMX214;
+            type = SENSOR_IMX214;
             M_PRINT("Assuming type: IMX214 for camera %d\n", i);
         } else if(HAL3_is_config_supported(i, 1280, 800, HAL3_FMT_YUV)){
-            type = CAMTYPE_OV9782;
+            type = SENSOR_OV9782;
             M_PRINT("Assuming type: OV9782 for camera %d\n", i);
         } else if(HAL3_is_config_supported(i, 640, 480, HAL_PIXEL_FORMAT_RAW10)){
-            type = CAMTYPE_OV7251;
+            type = SENSOR_OV7251;
             M_PRINT("Assuming type: OV7251 for camera %d\n", i);
         } else {
-            type = CAMTYPE_TOF;
+            type = SENSOR_TOF;
             M_PRINT("Assuming type: PMD_TOF for camera %d\n", i);
         }
 
-        PerCameraInfo info = getDefaultCameraInfo(type);
+        cameras[i] = getDefaultCameraInfo(type);
 
-        sprintf(info.name, "cam%d", i);
-        info.camId = i;
-        info.camId2 = -1;
-
-        cameras.push_back(info);
+        sprintf(cameras[i].name, "cam%d", i);
+        cameras[i].camId = i;
+        cameras[i].camId2 = -1;
 
     }
 

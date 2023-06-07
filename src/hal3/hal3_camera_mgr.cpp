@@ -525,6 +525,11 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
             requestMetadata.update(ANDROID_CONTROL_AF_MODE,             &afMode,             1);
             break;
         }
+
+   	    default:
+   	        M_ERROR("unknown ae mode: %d\n", ae_mode);
+   	        return -1;
+
     }
 
     if(en_snapshot){
@@ -539,7 +544,7 @@ int PerCameraMgr::ConstructDefaultRequestSettings()
     requestMetadata.update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE, &fpsRange[0],        2);
     requestMetadata.update(ANDROID_SENSOR_FRAME_DURATION,       &frameDuration,      1);
 
-    if(configInfo.type == CAMTYPE_TOF) {
+    if(configInfo.type == SENSOR_TOF) {
         if(configInfo.standby_enabled){
             pipe_client_set_connect_cb(CPU_CH, _cpu_connect_cb, NULL);
             pipe_client_set_disconnect_cb(CPU_CH, _cpu_disconnect_cb, NULL);
@@ -756,6 +761,22 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         }
 
         resultMetaRing.insert_data(meta);
+
+        // check if there are result buffer returned before the meta data is avaliable
+        image_result result_list[16]; // only 3 is needed
+        int num = getAllResult(pHalResult->frame_number, result_list);
+        if (num > 0 ) {
+            M_VERBOSE("Find %d buffer in result ring for frame %d\n", num, pHalResult->frame_number);
+            pthread_mutex_lock(&resultMutex);
+
+            // Queue up work for the result thread "ThreadPostProcessResult"
+            for (int i = 0; i < num; i++){
+               resultMsgQueue.push(result_list[i]);
+            }
+            pthread_cond_signal(&resultCond);
+            pthread_mutex_unlock(&resultMutex);
+        }
+
     }
 
 
@@ -765,12 +786,20 @@ void PerCameraMgr::ProcessOneCaptureResult(const camera3_capture_result* pHalRes
         M_VERBOSE("Received output buffer %d from camera %s\n", pHalResult->frame_number, name);
 
         // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
-        pthread_mutex_lock(&resultMutex);
+        // if buffer arrive before meta data, save them in the ringbuffer
+        image_result i_result = {pHalResult->frame_number, pHalResult->output_buffers[i]};
+        camera_image_metadata_t imageInfo;
+        if(getMeta(i_result.first, &imageInfo)) {
+            M_VERBOSE("Buffer arrive before meta frame %d\n", i_result.first);
+            resultMsgRing.insert_data(i_result);
+        } else {
+            pthread_mutex_lock(&resultMutex);
 
-        // Queue up work for the result thread "ThreadPostProcessResult"
-        resultMsgQueue.push({pHalResult->frame_number, pHalResult->output_buffers[i]});
-        pthread_cond_signal(&resultCond);
-        pthread_mutex_unlock(&resultMutex);
+            // Queue up work for the result thread "ThreadPostProcessResult"
+            resultMsgQueue.push(i_result);
+            pthread_cond_signal(&resultCond);
+            pthread_mutex_unlock(&resultMutex);
+        }
 
     }
 
@@ -940,7 +969,7 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
 
 
     //Tof is different from the rest, pass the data off to spectre then send it out
-    if(configInfo.type == CAMTYPE_TOF) {
+    if(configInfo.type == SENSOR_TOF) {
         tofFrameCounter++;
         if(standby_active && tofFrameCounter % (int)configInfo.decimator != 0){
             return;
@@ -1201,8 +1230,9 @@ void PerCameraMgr::ProcessPreviewFrame(image_result result)
         childFrame = NULL;
         pthread_mutex_unlock(&stereoMutex);
         pthread_cond_signal(&(otherMgr->stereoCond));
+    }
 
-    } else if (partnerMode == MODE_STEREO_SLAVE){
+    else if (partnerMode == MODE_STEREO_SLAVE){
 
         pthread_mutex_lock(&(otherMgr->stereoMutex));
 
@@ -1627,7 +1657,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
                 break;
         }
 
-        if (lastResultFrameNumber == result.first) {
+        if (lastResultFrameNumber == result.first){
             num_finished_streams++;
         }
 
@@ -1649,12 +1679,16 @@ void* PerCameraMgr::ThreadPostProcessResult()
 
 int PerCameraMgr::HasClientForPreviewFrame()
 {
-    if(configInfo.type == CAMTYPE_TOF){
+    if(configInfo.type == SENSOR_TOF){
         if(pipe_server_get_num_clients(tofPipeIR   )>0) return 1;
         if(pipe_server_get_num_clients(tofPipeDepth)>0) return 1;
         if(pipe_server_get_num_clients(tofPipeConf )>0) return 1;
         if(pipe_server_get_num_clients(tofPipePC   )>0) return 1;
         if(pipe_server_get_num_clients(tofPipeFull )>0) return 1;
+    }
+    else if(partnerMode == MODE_STEREO_SLAVE){
+        if(pipe_server_get_num_clients(otherMgr->previewPipeGrey)>0) return 1;
+        if(otherMgr->previewPipeColor>=0 && pipe_server_get_num_clients(otherMgr->previewPipeColor)>0) return 1;
     }
     else{
         if(pipe_server_get_num_clients(previewPipeGrey)>0) return 1;
@@ -1968,7 +2002,7 @@ static const char* CmdStrings[] =
 
 int PerCameraMgr::SetupPipes()
 {
-    if(configInfo.type != CAMTYPE_TOF){
+    if(configInfo.type != SENSOR_TOF){
 
 
         char cont_cmds[256];
