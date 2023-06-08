@@ -1137,20 +1137,18 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
         camera_image_metadata_t meta     = out_metaQueue.front();
         // h264 metadata packet, don't associate it with a frame
-        if(meta.format == IMAGE_FORMAT_H264){
-            if(pOMXBuffer->pBuffer[4] != 0x67){
-                out_metaQueue.pop_front();
-            } else {
-                meta.frame_id = -1;
-            }
-        } else if (meta.format == IMAGE_FORMAT_H265){
+        if (m_VideoEncoderConfig.isH265){
             if(pOMXBuffer->pBuffer[4] != 0x40){
                 out_metaQueue.pop_front();
             } else {
                 meta.frame_id = -1;
-            } 
+            }
         } else {
-            meta.frame_id = -1;
+            if(pOMXBuffer->pBuffer[4] != 0x67){
+                out_metaQueue.pop_front();
+            } else {
+                meta.frame_id = -1;
+            } 
         }
 
         pthread_mutex_unlock(&out_mutex);
