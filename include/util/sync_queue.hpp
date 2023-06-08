@@ -147,7 +147,7 @@ public:
     * possible.
     */
     void push(T data) {
-        // push data
+        // push data -- scope lock guard to release mutex before notifying
         {
             std::lock_guard<mutex>(m_mutex);
             m_queue.push(data);
@@ -233,6 +233,20 @@ public:
         lock_guard<mutex> lk(m_mutex);
         return m_queue.empty();
     };
+
+
+    /**
+     * Cancel the queue. This will cause all threads waiting on `pop()` to
+     * unblock and return Err(Canceled) 
+     */
+    void cancel() {
+        // scope lock guard to release mutex before notifying
+        {
+            lock_guard<mutex> lk(m_mutex);
+            m_canceled = true;
+        }
+        m_cond.notify_all();
+    }
 
 private:
     std::deque<T> m_queue;
