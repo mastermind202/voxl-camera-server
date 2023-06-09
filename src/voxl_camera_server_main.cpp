@@ -41,6 +41,9 @@
 #include <mutex>
 #include <list>
 #include <condition_variable>
+
+#include "gps_pose_subscriber.h"
+
 #include <modal_start_stop.h>
 #include <modal_pipe.h>
 #include <voxl_cutils.h>
@@ -83,6 +86,8 @@ int main(int argc, char* const argv[])
         return -1;
     }
 
+    (void) gps_data_grab_init();
+    
     // make sure another instance isn't running
     // if return value is -3 then a background process is running with
     // higher privaledges and we couldn't kill it, in which case we should
@@ -124,8 +129,7 @@ int main(int argc, char* const argv[])
     }
 
     M_DEBUG("------ voxl-camera-server: Starting %d cameras\n", n_cams);
-
-
+    
     for(int i=0; i<n_cams; i++){
 
         PerCameraInfo info = cameraInfo[i];

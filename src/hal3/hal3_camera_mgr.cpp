@@ -38,7 +38,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <iostream>
-#include <modal_pipe.h>
 #include <vector>
 #include <string.h>
 #include <camera/CameraMetadata.h>
@@ -47,6 +46,9 @@
 #include <voxl_cutils.h>
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
+
+#include "gps_pose_subscriber.h"
+
 #include <modal_journal.h>
 #include <modal_pipe.h>
 
@@ -90,6 +92,19 @@
     #define NUM_RECORD_BUFFERS   16 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
 #else
     #error "No Platform defined"
+#endif
+
+// Libexif includes for QRB platform
+#ifndef PLATFORM_APQ8096
+#include <libexif/exif-data.h>
+#include <libexif/exif-entry.h>
+#include <libexif/exif-utils.h>
+/* raw EXIF header data */
+static const unsigned char exif_header[] = {
+  0xff, 0xd8, 0xff, 0xe1
+};
+static const unsigned int exif_header_len = sizeof(exif_header);
+#define FILE_BYTE_ORDER EXIF_BYTE_ORDER_INTEL
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
@@ -1380,6 +1395,71 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
 
 }
 
+#ifndef PLATFORM_APQ8096
+/* Get an existing tag, or create one if it doesn't exist */
+static ExifEntry *init_tag(ExifData *exif, ExifIfd ifd, ExifTag tag)
+{
+	ExifEntry *entry;
+	/* Return an existing tag if one exists */
+	if (!((entry = exif_content_get_entry (exif->ifd[ifd], tag)))) {
+	    /* Allocate a new entry */
+	    entry = exif_entry_new ();
+	    assert(entry != NULL); /* catch an out of memory condition */
+	    entry->tag = tag; /* tag must be set before calling
+				 exif_content_add_entry */
+
+	    /* Attach the ExifEntry to an IFD */
+	    exif_content_add_entry (exif->ifd[ifd], entry);
+
+	    /* Allocate memory for the entry and fill with default data */
+	    exif_entry_initialize (entry, tag);
+
+	    /* Ownership of the ExifEntry has now been passed to the IFD.
+	     * One must be very careful in accessing a structure after
+	     * unref'ing it; in this case, we know "entry" won't be freed
+	     * because the reference count was bumped when it was added to
+	     * the IFD.
+	     */
+	    exif_entry_unref(entry);
+	}
+	return entry;
+}
+
+static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t len)
+{
+	void *buf;
+	ExifEntry *entry;
+	
+	/* Create a memory allocator to manage this ExifEntry */
+	ExifMem *mem = exif_mem_new_default();
+	assert(mem != NULL); /* catch an out of memory condition */
+
+	/* Create a new ExifEntry using our allocator */
+	entry = exif_entry_new_mem (mem);
+	assert(entry != NULL);
+
+	/* Allocate memory to use for holding the tag data */
+	buf = exif_mem_alloc(mem, len);
+	assert(buf != NULL);
+
+	/* Fill in the entry */
+	entry->data = buf;
+	entry->size = len;
+	entry->tag = tag;
+	entry->components = len;
+	entry->format = EXIF_FORMAT_UNDEFINED;
+
+	/* Attach the ExifEntry to an IFD */
+	exif_content_add_entry (exif->ifd[ifd], entry);
+
+	/* The ExifMem and ExifEntry are now owned elsewhere */
+	exif_mem_unref(mem);
+	exif_entry_unref(entry);
+
+	return entry;
+}
+#endif
+
 void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&snap_bufferGroup, result.second.buffer);
@@ -1402,6 +1482,80 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 
     M_DEBUG("Snapshot jpeg start: %6d len %8d\n", start_index, extractJpgSize);
 
+#ifndef PLATFORM_APQ8096
+    // Load the EXIF data from the file
+    unsigned char *exif_data;
+    unsigned int exif_data_len;
+    ExifEntry *entry;
+   
+    ExifData* exif = exif_data_new_from_data(src_data + start_index, extractJpgSize);
+    if (exif == nullptr) {
+        printf("Issue getting exif data from origin\n");
+        return;
+    }
+
+    struct gps_data gps_grabbed_info = grab_gps_info();
+
+    // Code to add latitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (gps_grabbed_info.latitude >= 0) {
+        memcpy(entry->data, "N", sizeof("N"));
+    } else {
+        memcpy(entry->data, "S", sizeof("S"));
+        gps_grabbed_info.latitude *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lat = (ExifLong)gps_grabbed_info.latitude;
+    ExifLong minutes_lat = (ExifLong)(60 * (gps_grabbed_info.latitude - degrees_lat));
+    ExifLong microseconds_lat = (ExifLong)(3600000000u * (gps_grabbed_info.latitude - degrees_lat - minutes_lat / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lat, 1000000});
+
+    // Code to add longitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (gps_grabbed_info.longitude >= 0) {
+        memcpy(entry->data, "E", sizeof("E"));
+    } else {
+        memcpy(entry->data, "W", sizeof("W"));
+        gps_grabbed_info.longitude *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lon = (ExifLong)gps_grabbed_info.longitude;
+    ExifLong minutes_lon = (ExifLong)(60 * (gps_grabbed_info.longitude - degrees_lon));
+    ExifLong microseconds_lon = (ExifLong)(3600000000u * (gps_grabbed_info.longitude - degrees_lon - minutes_lon / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lon, 1000000}); 
+
+    // Code to add altitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_ALTITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 1;
+
+    ExifSLong alt_lon = (ExifSLong)gps_grabbed_info.altitude;
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
+    
+    /* Get a pointer to the EXIF data block we just created */
+    exif_data_fix(exif);
+    exif_data_save_data(exif, &exif_data, &exif_data_len);
+
+    assert(exif_data != NULL);
+#endif
 
     meta.magic_number = CAMERA_MAGIC_NUMBER;
     meta.width        = snap_width;
@@ -1432,11 +1586,36 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             }
         }
 
-        int ret = fwrite(&src_data[start_index], extractJpgSize, 1, file_descriptor);
+#ifndef PLATFORM_APQ8096
+        /* Write EXIF header */
+        if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file inin exif header %s\n", filename);
+        }
+        /* Write EXIF block length in big-endian order */
+        if (fputc((exif_data_len+2) >> 8, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file in big endian order %s\n", filename);
+        }
+        if (fputc((exif_data_len+2) & 0xff, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file with fputc %s\n", filename);
+        }
+        /* Write EXIF data block */
+        if (fwrite(exif_data, exif_data_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with data block %s\n", filename);
+        }
 
+        // /* Write JPEG image data, skipping the non-EXIF header */
+        if (fwrite(src_data + start_index + 2, extractJpgSize - 2, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with jpeg %s\n", filename);
+        }
+
+        free(exif_data);
+        exif_data_unref(exif);
+#else 
+        int ret = fwrite(&src_data[start_index], extractJpgSize, 1, file_descriptor);
         if(ret!=1){
             M_ERROR("snapshot failed to write to disk\n");
         }
+#endif
 
         fclose(file_descriptor);
         free(filename);
