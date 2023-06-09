@@ -802,7 +802,7 @@ void VideoEncoder::ProcessFrameToEncode(camera_image_metadata_t meta, BufferBloc
     pthread_mutex_lock(&out_mutex);
     // Queue up work for thread "ThreadProcessOMXOutputPort"
     out_metaQueue.push_back(meta);
-    pthread_cond_signal(&out_cond);
+    //pthread_cond_signal(&out_cond);
     pthread_mutex_unlock(&out_mutex);
 
     OMX_BUFFERHEADERTYPE* OMXBuffer = NULL;
@@ -1117,7 +1117,7 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
         if(out_metaQueue.empty()){
             M_WARN("Trying to process omx output with missing metadata\n");
-            pthread_cond_wait(&out_cond, &out_mutex);
+            //pthread_cond_wait(&out_cond, &out_mutex);
             pthread_mutex_unlock(&out_mutex);
             continue;
         }
@@ -1137,10 +1137,18 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
         camera_image_metadata_t meta     = out_metaQueue.front();
         // h264 metadata packet, don't associate it with a frame
-        if(pOMXBuffer->pBuffer[4] != 0x67){
-            out_metaQueue.pop_front();
+        if (m_VideoEncoderConfig.isH265){
+            if(pOMXBuffer->pBuffer[4] != 0x40){
+                out_metaQueue.pop_front();
+            } else {
+                meta.frame_id = -1;
+            }
         } else {
-            meta.frame_id = -1;
+            if(pOMXBuffer->pBuffer[4] != 0x67){
+                out_metaQueue.pop_front();
+            } else {
+                meta.frame_id = -1;
+            } 
         }
 
         pthread_mutex_unlock(&out_mutex);

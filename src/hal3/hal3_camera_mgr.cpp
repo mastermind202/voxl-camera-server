@@ -173,9 +173,11 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     small_video_width         (pCameraInfo.small_video_width),
     small_video_height        (pCameraInfo.small_video_height),
     small_video_bitrate       (pCameraInfo.small_video_bitrate),
+    small_video_h265_en       (pCameraInfo.small_video_h265_en),
     large_video_width         (pCameraInfo.large_video_width),
     large_video_height        (pCameraInfo.large_video_height),
     large_video_bitrate       (pCameraInfo.large_video_bitrate),
+    large_video_h265_en       (pCameraInfo.large_video_h265_en),
     snap_width        (pCameraInfo.snap_width),
     snap_height       (pCameraInfo.snap_height),
     snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
@@ -276,17 +278,32 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)small_video_width,   ///< Image width
-                .height =            (uint32_t)small_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            false,                 ///< Is it H265 encoding or H264
-                .inputBuffers =      &small_vid_bufferGroup,
-                .outputPipe =        &smallVideoPipeH264
-            };
+            VideoEncoderConfig enc_info;
+            if(small_video_h265_en){
+                enc_info = {
+                    .width =             (uint32_t)small_video_width,   ///< Image width
+                    .height =            (uint32_t)small_video_height,  ///< Image height
+                    .format =            (uint32_t)vid_halfmt,  ///< Image format
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
+                    .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                    .isH265 =            true,                 ///< Is it H265 encoding or H264
+                    .inputBuffers =      &small_vid_bufferGroup,
+                    .outputPipe =        &smallVideoPipeH265
+                };
+            } else {
+                enc_info = {
+                    .width =             (uint32_t)small_video_width,   ///< Image width
+                    .height =            (uint32_t)small_video_height,  ///< Image height
+                    .format =            (uint32_t)vid_halfmt,  ///< Image format
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
+                    .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                    .isH265 =            false,                 ///< Is it H265 encoding or H264
+                    .inputBuffers =      &small_vid_bufferGroup,
+                    .outputPipe =        &smallVideoPipeH264
+                };
+            }
             pVideoEncoderSmall = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
@@ -308,17 +325,32 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)large_video_width,   ///< Image width
-                .height =            (uint32_t)large_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            false,                 ///< Is it H265 encoding or H264
-                .inputBuffers =      &large_vid_bufferGroup,
-                .outputPipe =        &largeVideoPipeH264
-            };
+            VideoEncoderConfig enc_info;
+            if(large_video_h265_en){
+                enc_info = {
+                    .width =             (uint32_t)large_video_width,   ///< Image width
+                    .height =            (uint32_t)large_video_height,  ///< Image height
+                    .format =            (uint32_t)vid_halfmt,  ///< Image format
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
+                    .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                    .isH265 =            true,                 ///< Is it H265 encoding or H264
+                    .inputBuffers =      &large_vid_bufferGroup,
+                    .outputPipe =        &largeVideoPipeH265
+                };
+            } else {
+                enc_info = {
+                    .width =             (uint32_t)large_video_width,   ///< Image width
+                    .height =            (uint32_t)large_video_height,  ///< Image height
+                    .format =            (uint32_t)vid_halfmt,  ///< Image format
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
+                    .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                    .isH265 =            false,                 ///< Is it H265 encoding or H264
+                    .inputBuffers =      &large_vid_bufferGroup,
+                    .outputPipe =        &largeVideoPipeH264
+                };
+            }
             pVideoEncoderLarge = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
@@ -1327,11 +1359,19 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     }
 
     // no need to pass data to OMX if there are no h264 clients
-    if(pipe_server_get_num_clients(smallVideoPipeH264)<1){
-        bufferPush(small_vid_bufferGroup, result.second.buffer);
-        return;
+    if(small_video_h265_en){
+        // no need to pass data to OMX if there are no h265 clients
+        if(pipe_server_get_num_clients(smallVideoPipeH265)<1){
+            bufferPush(small_vid_bufferGroup, result.second.buffer);
+            return;
+        }
+    } else {
+        if(pipe_server_get_num_clients(smallVideoPipeH264)<1){
+            bufferPush(small_vid_bufferGroup, result.second.buffer);
+            return;
+        }
     }
-
+    
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderSmall->ItemsInQueue();
     if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
@@ -1339,7 +1379,6 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
         bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
-
     // add to the OMX queue
     pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
 
@@ -1377,9 +1416,17 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     }
 
     // no need to pass data to OMX if there are no h264 clients
-    if(pipe_server_get_num_clients(largeVideoPipeH264)<1){
-        bufferPush(large_vid_bufferGroup, result.second.buffer);
-        return;
+    if(large_video_h265_en){
+        // no need to pass data to OMX if there are no h265 clients
+        if(pipe_server_get_num_clients(largeVideoPipeH265)<1){
+            bufferPush(large_vid_bufferGroup, result.second.buffer);
+            return;
+        }
+    } else {
+        if(pipe_server_get_num_clients(largeVideoPipeH264)<1){
+            bufferPush(large_vid_bufferGroup, result.second.buffer);
+            return;
+        }
     }
 
     // check health of the encoder and drop this frame if it's getting backed up
@@ -1389,7 +1436,6 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
         bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
-
     // add to the OMX queue
     pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
 
@@ -1868,7 +1914,11 @@ int PerCameraMgr::HasClientForSmallVideo()
 {
     if(pipe_server_get_num_clients(smallVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(smallVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(smallVideoPipeH264  )>0) return 1;
+    if(small_video_h265_en){
+        if(pipe_server_get_num_clients(smallVideoPipeH265  )>0) return 1;
+    } else {
+        if(pipe_server_get_num_clients(smallVideoPipeH264  )>0) return 1;
+    }
     return 0;
 }
 
@@ -1876,7 +1926,11 @@ int PerCameraMgr::HasClientForLargeVideo()
 {
     if(pipe_server_get_num_clients(largeVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(largeVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(largeVideoPipeH264  )>0) return 1;
+    if(large_video_h265_en){
+        if(pipe_server_get_num_clients(largeVideoPipeH265  )>0) return 1;
+    } else {
+        if(pipe_server_get_num_clients(largeVideoPipeH264  )>0) return 1;
+    }
     return 0;
 }
 
@@ -2207,11 +2261,19 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(smallVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
 
-            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
-            smallVideoPipeH264 = pipe_server_get_next_available_channel();
-            pipe_server_set_control_cb(smallVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
-            pipe_server_create(smallVideoPipeH264, info, flags);
-            pipe_server_set_available_control_commands(smallVideoPipeH264, cont_cmds);
+            if(small_video_h265_en){
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h265", name);
+                smallVideoPipeH265 = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(smallVideoPipeH265, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+                pipe_server_create(smallVideoPipeH265, info, flags);
+                pipe_server_set_available_control_commands(smallVideoPipeH265, cont_cmds);
+            } else {
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
+                smallVideoPipeH264 = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(smallVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+                pipe_server_create(smallVideoPipeH264, info, flags);
+                pipe_server_set_available_control_commands(smallVideoPipeH264, cont_cmds);
+            }
         }
 
         // large encoded video stream for hires cameras
@@ -2228,11 +2290,19 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(largeVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
 
-            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
-            largeVideoPipeH264 = pipe_server_get_next_available_channel();
-            pipe_server_set_control_cb(largeVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
-            pipe_server_create(largeVideoPipeH264, info, flags);
-            pipe_server_set_available_control_commands(largeVideoPipeH264, cont_cmds);
+            if(large_video_h265_en){
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h265", name);
+                largeVideoPipeH265 = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(largeVideoPipeH265, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+                pipe_server_create(largeVideoPipeH265, info, flags);
+                pipe_server_set_available_control_commands(largeVideoPipeH265, cont_cmds); 
+            } else {
+                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
+                largeVideoPipeH264 = pipe_server_get_next_available_channel();
+                pipe_server_set_control_cb(largeVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+                pipe_server_create(largeVideoPipeH264, info, flags);
+                pipe_server_set_available_control_commands(largeVideoPipeH264, cont_cmds);
+            }
         }
 
 

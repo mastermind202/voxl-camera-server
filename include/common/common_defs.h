@@ -230,11 +230,13 @@ struct PerCameraInfo
     int     small_video_width;    ///< Video Stream Width of the frame
     int     small_video_height;   ///< Video Stream Height of the frame
     int     small_video_bitrate;  ///< Video Stream Bitrate
+    int     small_video_h265_en;  ///< Video Stream h265 encoding enabled
 
     int     en_large_video;
     int     large_video_width;    ///< Video Record Width of the frame
     int     large_video_height;   ///< Video Record Height of the frame
     int     large_video_bitrate;  ///< Video Record Bitrate
+    int     large_video_h265_en;  ///< Video Record h265 encoding enabled
 
     int     en_snapshot;
     int     snap_width;            ///< Snapshot Width of the frame

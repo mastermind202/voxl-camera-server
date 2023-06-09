@@ -38,7 +38,8 @@
 #include "common_defs.h"
 
 // small video stream is usually for rtsp
-#define RTSP_BITRATE_DEFAULT 3000000 // mbps
+#define RTSP_BITRATE_DEFAULT    1000000  // bps
+#define RECORD_BITRATE_DEFAULT  12000000 // bps
 
 static const PerCameraInfo emptyDefaults =
     {
@@ -56,10 +57,12 @@ static const PerCameraInfo emptyDefaults =
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
         -1,                         //< Small Video Bitrate
+        -1,                         //< Small Video H265 Enabled
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
         -1,                         //< Large Video Bitrate
+        -1,                         //< Large Video H265 Enabled
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -86,10 +89,12 @@ static const PerCameraInfo OV7251Defaults =
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
         -1,                         //< Small Video Bitrate
+        1,                          //< Small Video H265 Enabled
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
         -1,                         //< Large Video Bitrate
+        1,                          //< Large Video H265 Enabled
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -143,10 +148,12 @@ static const PerCameraInfo OV9782Defaults =
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
         -1,                         //< Small Video Bitrate
+        1,                          //< Small Video H265 Enabled
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
         -1,                         //< Large Video Bitrate
+        1,                          //< Large Video H265 Enabled
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
@@ -196,19 +203,28 @@ static const PerCameraInfo IMX214Defaults =
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
+#ifdef APQ8096
         1,                          //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
         RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        0,                          //< Small Video h265 enabled
         1,                          //< Enable Large Video
-#ifdef APQ8096
         1920,                       //< Large Video Width of the frame
         1080,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        RECORD_BITRATE_DEFAULT,     //< Large Video Bitrate
+        0,                          //< Large Video h265 enabled
 #else
+        1,                          //< Enable Small Video
+        1024,                       //< Small Video Width of the frame
+        768,                        //< Small Video Height of the frame
+        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        1,                          //< Small Video h265 enabled
+        1,                          //< Enable Large Video
         4096,                       //< Large Video Width of the frame
         2160,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        RECORD_BITRATE_DEFAULT,     //< Large Video Bitrate
+        1,                          //< Large Video h265 enabled
 #endif
         1,                          //< Enable Snapshot mode?
         4160,                       //< Snapshot Width of the frame
@@ -249,10 +265,12 @@ static const PerCameraInfo IMX412Defaults =
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
         RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        1,                          //< Small Video h265 enabled
         1,                          //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        RECORD_BITRATE_DEFAULT,     //< Large Video Bitrate
+        1,                          //< Large Video h265 enabled
         1,                          //< Enable Snapshot mode?
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
@@ -292,10 +310,12 @@ static const PerCameraInfo IMX678Defaults =
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
         RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        1,                          //< Small Video h265 enabled
         1,                          //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        RECORD_BITRATE_DEFAULT,     //< Large Video Bitrate
+        1,                          //< Large Video h265 enabled
         1,                          //< Enable Snapshot mode?
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
@@ -335,10 +355,12 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
         -1,                         //< Small Video Bitrate
+        0,                          //< Small Video h265 enabled
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
         -1,                         //< Large Video Bitrate
+        0,                          //< Large Video h265 enabled
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
