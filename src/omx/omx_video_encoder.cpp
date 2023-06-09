@@ -425,12 +425,12 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
-        // stream gets 4 I frames per second
-        #define N_I_FRAMES_STREAM 1
+        // stream gets more I frames per second
+        #define N_I_FRAMES_STREAM 2
         if(m_VideoEncoderConfig.target == TARGET_STREAM){
             avc.nPFrames = (pVideoEncoderConfig->frameRate/N_I_FRAMES_STREAM)-1;
             avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
-            avc.eLevel                    = OMX_VIDEO_AVCLevel51;
+            avc.eLevel                    = OMX_VIDEO_AVCLevel41;
         }else{ // record gets 1
             avc.nPFrames = pVideoEncoderConfig->frameRate-1;
             avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
@@ -501,6 +501,8 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     }
 
     #define QUANTIZATION 30
+    #define QUANTIZATION_MIN 20
+    #define QUANTIZATION_MAX 30
     {
         //SetUp QP parameter.
         // RC ON
@@ -535,7 +537,16 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         //     M_ERROR("%s Failed to set Quantization Parameter\n", __func__);
         //     return ret;
         // }
+        //
 
+
+//         TODO set
+//          */
+// typedef struct OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE {
+//     OMX_U32 nSize;              /** Size of the structure in bytes */
+//     OMX_VERSIONTYPE nVersion;   /** OMX specification version information */
+//     OMX_U32 nPeakBitrate;       /** Peak bitrate value */
+// } OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE;
 
 
         OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
@@ -554,12 +565,20 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         // qp_range.maxPQP = 51;
         // qp_range.minBQP = 10;
         // qp_range.maxBQP = 51;
-        qp_range.minIQP = QUANTIZATION;
-        qp_range.maxIQP = QUANTIZATION;
-        qp_range.minPQP = QUANTIZATION;
-        qp_range.maxPQP = QUANTIZATION;
-        qp_range.minBQP = QUANTIZATION;
-        qp_range.maxBQP = QUANTIZATION;
+        //
+        // qp_range.minIQP = QUANTIZATION;
+        // qp_range.maxIQP = QUANTIZATION;
+        // qp_range.minPQP = QUANTIZATION;
+        // qp_range.maxPQP = QUANTIZATION;
+        // qp_range.minBQP = QUANTIZATION;
+        // qp_range.maxBQP = QUANTIZATION;
+
+        qp_range.minIQP = QUANTIZATION_MIN;
+        qp_range.maxIQP = QUANTIZATION_MAX;
+        qp_range.minPQP = QUANTIZATION_MIN;
+        qp_range.maxPQP = QUANTIZATION_MAX;
+        qp_range.minBQP = QUANTIZATION_MIN;
+        qp_range.maxBQP = QUANTIZATION_MAX;
 
         if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
             static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
@@ -636,7 +655,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         paramBitRate.nTargetBitrate = pVideoEncoderConfig->targetBitRate;
     }
     else{
-        // note, disabling bitrate limiting looks FANTASTIC but is crazy bitrate at 4k
         printf("setting target bitrate to DISABLE\n");
         paramBitRate.eControlRate = OMX_Video_ControlRateDisable;
         // printf("setting target bitrate to VARIABLE\n");

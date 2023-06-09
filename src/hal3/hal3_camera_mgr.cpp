@@ -284,7 +284,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)small_video_width,   ///< Image width
                     .height =            (uint32_t)small_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = false,                  ///< Is the bit rate constant
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
                     .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            true,                 ///< Is it H265 encoding or H264
@@ -297,7 +297,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)small_video_width,   ///< Image width
                     .height =            (uint32_t)small_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = false,                  ///< Is the bit rate constant
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
                     .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            false,                 ///< Is it H265 encoding or H264
@@ -333,7 +333,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)large_video_width,   ///< Image width
                     .height =            (uint32_t)large_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = false,                  ///< Is the bit rate constant
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
                     .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            true,                 ///< Is it H265 encoding or H264
@@ -346,7 +346,7 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)large_video_width,   ///< Image width
                     .height =            (uint32_t)large_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = false,                  ///< Is the bit rate constant
+                    .isBitRateConstant = true,                  ///< Is the bit rate constant
                     .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            false,                 ///< Is it H265 encoding or H264
