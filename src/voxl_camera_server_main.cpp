@@ -107,7 +107,7 @@ int main(int argc, char* const argv[])
     // make our own safely.
     make_pid_file(PROCESS_NAME);
 
-    pipe_set_process_priority(THREAD_PRIORITY_RT_MED);
+    pipe_set_process_priority(THREAD_PRIORITY_RT_HIGH);
 
     main_running = 1;
 
@@ -165,6 +165,8 @@ int main(int argc, char* const argv[])
     M_PRINT("\n------ voxl-camera-server: Camera server is now stopping\n");
     cleanManagers();
 
+    pipe_client_close_all();
+    remove_pid_file(PROCESS_NAME);
     M_PRINT("\n------ voxl-camera-server: Camera server exited gracefully\n\n");
 
     return 0;

@@ -425,11 +425,19 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             return OMX_ErrorUndefined;
         }
 
+        // stream gets 4 I frames per second
+        #define N_I_FRAMES_STREAM 1
+        if(m_VideoEncoderConfig.target == TARGET_STREAM){
+            avc.nPFrames = (pVideoEncoderConfig->frameRate/N_I_FRAMES_STREAM)-1;
+            avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
+            avc.eLevel                    = OMX_VIDEO_AVCLevel51;
+        }else{ // record gets 1
+            avc.nPFrames = pVideoEncoderConfig->frameRate-1;
+            avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
+            avc.eLevel                    = OMX_VIDEO_AVCLevel51;
+        }
 
-        avc.nPFrames                  = pVideoEncoderConfig->frameRate - 1;
         avc.nBFrames                  = 0;
-        avc.eProfile                  = OMX_VIDEO_AVCProfileHigh;
-        avc.eLevel                    = OMX_VIDEO_AVCLevel51;
         avc.bUseHadamard              = OMX_TRUE;
         avc.nRefFrames                = 2;
         avc.nRefIdx10ActiveMinus1     = 0;
@@ -492,16 +500,19 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorBadParameter;
     }
 
-
+    #define QUANTIZATION 30
     {
         //SetUp QP parameter.
         // RC ON
         QOMX_EXTNINDEX_VIDEO_INITIALQP initqp;
         OMX_RESET_STRUCT_SIZE_VERSION(&initqp, QOMX_EXTNINDEX_VIDEO_INITIALQP);
         initqp.nPortIndex = 1;
-        initqp.nQpI = 27;
-        initqp.nQpP = 28;
-        initqp.nQpB = 28;
+        // initqp.nQpI = 27;
+        // initqp.nQpP = 28;
+        // initqp.nQpB = 28;
+        initqp.nQpI = QUANTIZATION;
+        initqp.nQpP = QUANTIZATION;
+        initqp.nQpB = QUANTIZATION;
         initqp.bEnableInitQp = 0x7; // Intial QP applied to all frame
         if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
             static_cast<OMX_INDEXTYPE>(QOMX_IndexParamVideoInitialQp),
@@ -509,6 +520,23 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             M_ERROR("%s Failed to set Initial QP parameter\n", __func__);
             return ret;
         }
+
+
+        // standard OMX quantization struct, doesn't seem to work
+        // OMX_VIDEO_PARAM_QUANTIZATIONTYPE quantization;
+        // OMX_RESET_STRUCT_SIZE_VERSION(&quantization, OMX_VIDEO_PARAM_QUANTIZATIONTYPE);
+        // initqp.nPortIndex = 1;
+        // quantization.nQpI = 35;
+        // quantization.nQpP = 35;
+        // quantization.nQpB = 35;
+        // if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
+        //     static_cast<OMX_INDEXTYPE>(OMX_IndexParamQuantizationTable),
+        //     reinterpret_cast<OMX_PTR>(&initqp))) {
+        //     M_ERROR("%s Failed to set Quantization Parameter\n", __func__);
+        //     return ret;
+        // }
+
+
 
         OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
         OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
@@ -520,12 +548,18 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
             M_ERROR("%s Failed to get IPBQP Range parameter\n", __func__);
             return ret;
         }
-        qp_range.minIQP = 10;
-        qp_range.maxIQP = 51;
-        qp_range.minPQP = 10;
-        qp_range.maxPQP = 51;
-        qp_range.minBQP = 10;
-        qp_range.maxBQP = 51;
+        // qp_range.minIQP = 10;
+        // qp_range.maxIQP = 51;
+        // qp_range.minPQP = 10;
+        // qp_range.maxPQP = 51;
+        // qp_range.minBQP = 10;
+        // qp_range.maxBQP = 51;
+        qp_range.minIQP = QUANTIZATION;
+        qp_range.maxIQP = QUANTIZATION;
+        qp_range.minPQP = QUANTIZATION;
+        qp_range.maxPQP = QUANTIZATION;
+        qp_range.minBQP = QUANTIZATION;
+        qp_range.maxBQP = QUANTIZATION;
 
         if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
             static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
@@ -592,19 +626,32 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         M_ERROR("OMX_GetParameter of OMX_IndexParamVideoBitrate failed!\n");
         return OMX_ErrorUndefined;
     }
-    paramBitRate.eControlRate = OMX_Video_ControlRateVariable;
 
-    if (pVideoEncoderConfig->isBitRateConstant == true)
-    {
+    printf("DEFAULT eControlRate: %d\n", paramBitRate.eControlRate);
+
+
+    if (pVideoEncoderConfig->isBitRateConstant == true){
+        printf("setting target bitrate to CONSTANT\n");
         paramBitRate.eControlRate = OMX_Video_ControlRateConstant;
-    }
-
-    paramBitRate.nTargetBitrate = TargetBitrateDefault;
-
-    if (pVideoEncoderConfig->targetBitRate > 0)
-    {
         paramBitRate.nTargetBitrate = pVideoEncoderConfig->targetBitRate;
     }
+    else{
+        // note, disabling bitrate limiting looks FANTASTIC but is crazy bitrate at 4k
+        printf("setting target bitrate to DISABLE\n");
+        paramBitRate.eControlRate = OMX_Video_ControlRateDisable;
+        // printf("setting target bitrate to VARIABLE\n");
+        // paramBitRate.eControlRate = OMX_Video_ControlRateVariable;
+        // paramBitRate.nTargetBitrate = 0;
+    }
+
+    // printf("DEFAULT BITRATE: %d\n", TargetBitrateDefault);
+    // paramBitRate.nTargetBitrate = TargetBitrateDefault;
+
+    // if (pVideoEncoderConfig->targetBitRate > 0)
+    // {
+    //     paramBitRate.nTargetBitrate = pVideoEncoderConfig->targetBitRate;
+    // }
+
 
     OMX_RESET_STRUCT_SIZE_VERSION(&paramBitRate, OMX_VIDEO_PARAM_BITRATETYPE);
 
@@ -724,11 +771,17 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
 
     // Get the port buffer count and size
     FractionToQ16(sPortDef.format.video.xFramerate,(int)(frameRate * 2), 2);
+    //FractionToQ16(sPortDef.format.video.xFramerate,(int)(frameRate), 2);
 
     sPortDef.format.video.nFrameWidth  = width;
     sPortDef.format.video.nStride      = width;
     sPortDef.format.video.nFrameHeight = height;
-    sPortDef.format.video.nBitrate     = bitrate;
+
+    //sPortDef.format.video.nBitrate     = bitrate;
+    // TODO figure out why omx is scaling the bitrate higher than we want
+    //
+    //sPortDef.format.video.nBitrate     = bitrate/12;
+    sPortDef.format.video.nBitrate     = 0;
 
     if (portIndex == PortIndexIn)
     {
@@ -873,6 +926,7 @@ void VideoEncoder::Stop()
     // The thread wont finish and the "join" call will not return till the last expected encoded frame is received from
     // the encoder OMX component
     pthread_cond_signal(&out_cond);
+
     pthread_join(out_thread, NULL);
 
     pthread_mutex_destroy(&out_mutex);
@@ -1083,7 +1137,7 @@ OMX_ERRORTYPE OMXFillHandler(OMX_OUT OMX_HANDLETYPE        hComponent,  ///< OMX
                              OMX_OUT OMX_BUFFERHEADERTYPE* pBuffer)     ///< Buffer that has been filled by OMX component
 {
     VideoEncoder*  pVideoEncoder = (VideoEncoder*)pAppData;
-
+    if(pVideoEncoder->stop) return OMX_ErrorNone;
     pthread_mutex_lock(&pVideoEncoder->out_mutex);
     // Queue up work for thread "ThreadProcessOMXOutputPort"
     pVideoEncoder->out_msgQueue.push_back(pBuffer);
@@ -1160,8 +1214,10 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         pipe_server_write_camera_frame(*m_outputPipe, meta, pOMXBuffer->pBuffer);
         M_VERBOSE("Sent encoded frame: %d\n", frameNumber);
 
-        // Since we processed the OMX buffer we can immediately recycle it by sending it to the output port of the OMX
-        // component
+        // Since we processed the OMX buffer we can immediately recycle it by
+        // sending it to the output port of the OMX component
+        // reset filled len
+        pOMXBuffer->nFilledLen=0;
         if (OMX_FillThisBuffer(m_OMXHandle, pOMXBuffer))
         {
             M_ERROR("OMX_FillThisBuffer resulted in error for frame %d\n", frameNumber);

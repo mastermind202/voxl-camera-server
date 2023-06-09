@@ -284,24 +284,26 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)small_video_width,   ///< Image width
                     .height =            (uint32_t)small_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .isBitRateConstant = false,                  ///< Is the bit rate constant
                     .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            true,                 ///< Is it H265 encoding or H264
                     .inputBuffers =      &small_vid_bufferGroup,
-                    .outputPipe =        &smallVideoPipeH265
+                    .outputPipe =        &smallVideoPipeH265,
+                    .target =            TARGET_STREAM
                 };
             } else {
                 enc_info = {
                     .width =             (uint32_t)small_video_width,   ///< Image width
                     .height =            (uint32_t)small_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .isBitRateConstant = false,                  ///< Is the bit rate constant
                     .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            false,                 ///< Is it H265 encoding or H264
                     .inputBuffers =      &small_vid_bufferGroup,
-                    .outputPipe =        &smallVideoPipeH264
+                    .outputPipe =        &smallVideoPipeH264,
+                    .target =            TARGET_STREAM
                 };
             }
             pVideoEncoderSmall = new VideoEncoder(&enc_info);
@@ -331,24 +333,26 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
                     .width =             (uint32_t)large_video_width,   ///< Image width
                     .height =            (uint32_t)large_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .isBitRateConstant = false,                  ///< Is the bit rate constant
                     .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            true,                 ///< Is it H265 encoding or H264
                     .inputBuffers =      &large_vid_bufferGroup,
-                    .outputPipe =        &largeVideoPipeH265
+                    .outputPipe =        &largeVideoPipeH265,
+                    .target =            TARGET_RECORD
                 };
             } else {
                 enc_info = {
                     .width =             (uint32_t)large_video_width,   ///< Image width
                     .height =            (uint32_t)large_video_height,  ///< Image height
                     .format =            (uint32_t)vid_halfmt,  ///< Image format
-                    .isBitRateConstant = true,                  ///< Is the bit rate constant
+                    .isBitRateConstant = false,                  ///< Is the bit rate constant
                     .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
                     .frameRate =         pCameraInfo.fps,       ///< Frame rate
                     .isH265 =            false,                 ///< Is it H265 encoding or H264
                     .inputBuffers =      &large_vid_bufferGroup,
-                    .outputPipe =        &largeVideoPipeH264
+                    .outputPipe =        &largeVideoPipeH264,
+                    .target =            TARGET_RECORD
                 };
             }
             pVideoEncoderLarge = new VideoEncoder(&enc_info);
@@ -716,9 +720,12 @@ void PerCameraMgr::Stop()
 
     pthread_cond_broadcast(&stereoCond);
     pthread_cond_broadcast(&resultCond);
-    pthread_join(resultThread, NULL);
+
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
+    pthread_join(resultThread, NULL);
+
+
     pthread_mutex_destroy(&resultMutex);
     pthread_cond_destroy(&resultCond);
 
@@ -1818,7 +1825,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
-        if(EStopped) {
+        if(EStopped || stopped) {
             pthread_mutex_unlock(&resultMutex);
             break;
         }

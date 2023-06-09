@@ -41,6 +41,11 @@
 #include <stdio.h>
 #include <buffer_manager.h>
 
+typedef enum encode_target_t{
+    TARGET_STREAM,
+    TARGET_RECORD
+} encode_target_t;
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Video encoder config data
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -55,6 +60,7 @@ typedef struct VideoEncoderConfig
     bool     isH265;                ///< Is it H265 encoding or H264
     BufferGroup* inputBuffers;      ///< Input buffers coming from hal3
     int*     outputPipe;            ///< Pre-configured MPA output pipe
+    encode_target_t target;         ///< TARGET_STREAM or TARGET_RECORD
 } VideoEncoderConfig;
 
 //------------------------------------------------------------------------------------------------------------------------------
