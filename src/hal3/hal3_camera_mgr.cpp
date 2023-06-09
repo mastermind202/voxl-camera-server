@@ -1443,7 +1443,7 @@ static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t le
 	assert(buf != NULL);
 
 	/* Fill in the entry */
-	entry->data = buf;
+	entry->data = (unsigned char*)buf;
 	entry->size = len;
 	entry->tag = tag;
 	entry->components = len;
@@ -1497,7 +1497,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
     struct gps_data gps_grabbed_info = grab_gps_info();
 
     // Code to add latitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE_REF, 2);
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LATITUDE_REF, 2);
     entry->format = EXIF_FORMAT_ASCII;
     entry->components = 1;
     if (gps_grabbed_info.latitude >= 0) {
@@ -1507,7 +1507,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
         gps_grabbed_info.latitude *= -1;
     }
 
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LATITUDE, 24);
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LATITUDE, 24);
     entry->format = EXIF_FORMAT_RATIONAL;
     entry->components = 3;
 
@@ -1520,7 +1520,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             (ExifRational){microseconds_lat, 1000000});
 
     // Code to add longitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE_REF, 2);
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LONGITUDE_REF, 2);
     entry->format = EXIF_FORMAT_ASCII;
     entry->components = 1;
     if (gps_grabbed_info.longitude >= 0) {
@@ -1530,7 +1530,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
         gps_grabbed_info.longitude *= -1;
     }
 
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_LONGITUDE, 24);
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LONGITUDE, 24);
     entry->format = EXIF_FORMAT_RATIONAL;
     entry->components = 3;
 
@@ -1543,12 +1543,13 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             (ExifRational){microseconds_lon, 1000000}); 
 
     // Code to add altitude to exif tag
-    entry = create_tag(exif, EXIF_IFD_GPS, EXIF_TAG_GPS_ALTITUDE, 24);
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_ALTITUDE, 24);
     entry->format = EXIF_FORMAT_RATIONAL;
     entry->components = 1;
 
     ExifSLong alt_lon = (ExifSLong)gps_grabbed_info.altitude;
-    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){alt_lon * 1000, 1000});
+    unsigned int tmp = alt_lon * 1000;
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){tmp, 1000});
     
     /* Get a pointer to the EXIF data block we just created */
     exif_data_fix(exif);
