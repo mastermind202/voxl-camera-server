@@ -46,7 +46,7 @@
 
 using namespace std;
 
-
+#define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
 
 
 
@@ -94,7 +94,25 @@ int config_file_print(PerCameraInfo* cams, int n)
 }
 
 
-#define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
+
+// swap height and width if necessary (common mistake when typing in config file)
+static void _check_and_swap_width_height(int* w, int* h)
+{
+	// all is well
+	if(*h <= *w) return;
+
+	M_WARN("detected swapped height and width %d %d in config file\n", *h, *w);
+	M_WARN("automatically switching them\n");
+
+	int height = *h;
+	int width = *w;
+
+	*h = width;
+	*w = height;
+	return;
+}
+
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Read and parse the config file. This function can be modified to support any config file format. The information for each
@@ -233,28 +251,34 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		// only populate and parse if enabled by default or explicitly set by the user
 		if(cJSON_GetObjectItem(item, "en_preview")!=NULL || cam->en_preview){
 			json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
-			json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
 			json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
+			json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
+			if(cam->type != SENSOR_TOF){
+				_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
+			}
 		}
 
 		if(cJSON_GetObjectItem(item, "en_small_video")!=NULL || cam->en_small_video){
 			json_fetch_bool_with_default (item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
-			json_fetch_int_with_default  (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
 			json_fetch_int_with_default  (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
+			json_fetch_int_with_default  (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
 			json_fetch_int_with_default  (item, "small_video_bitrate", &cam->small_video_bitrate, cam->small_video_bitrate);
+			_check_and_swap_width_height(&cam->small_video_width, &cam->small_video_height);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_large_video")!=NULL || cam->en_large_video){
 			json_fetch_bool_with_default (item, "en_large_video",      &cam->en_large_video,      cam->en_large_video);
-			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_height,  cam->large_video_height);
-			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_width,   cam->large_video_width);
+			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_width,   cam->large_video_width);
+			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_height,  cam->large_video_height);
 			json_fetch_int_with_default  (item, "large_video_bitrate", &cam->large_video_bitrate, cam->large_video_bitrate);
+			_check_and_swap_width_height(&cam->large_video_width, &cam->large_video_height);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_snapshot")!=NULL || cam->en_large_video){
 			json_fetch_bool_with_default (item, "en_snapshot",        &cam->en_snapshot, cam->en_snapshot);
 			json_fetch_int_with_default  (item, "en_snapshot_width",  &cam->snap_width,  cam->snap_width);
 			json_fetch_int_with_default  (item, "en_snapshot_height", &cam->snap_height, cam->snap_height);
+			_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
 		}
 
 		if(json_fetch_enum_with_default(item, "ae_mode", (int*)&cam->ae_mode, ae_strings, AE_MAX_MODES, (int)cam->ae_mode)){
