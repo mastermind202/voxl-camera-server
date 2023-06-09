@@ -201,9 +201,15 @@ static const PerCameraInfo IMX214Defaults =
         768,                        //< Small Video Height of the frame
         RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
         1,                          //< Enable Large Video
+#ifdef APQ8096
+        1920,                       //< Large Video Width of the frame
+        1080,                       //< Large Video Height of the frame
+        120000000,                  //< Large Video Bitrate
+#else
         4096,                       //< Large Video Width of the frame
         2160,                       //< Large Video Height of the frame
         120000000,                  //< Large Video Bitrate
+#endif
         1,                          //< Enable Snapshot mode?
         4160,                       //< Snapshot Width of the frame
         3120,                       //< Snapshot Height of the frame
