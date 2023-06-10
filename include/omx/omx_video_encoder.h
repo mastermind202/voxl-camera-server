@@ -255,4 +255,133 @@ static void _print_omx_error(OMX_ERRORTYPE e)
     return;
 }
 
+
+
+
+static const char * colorFormatStr(OMX_COLOR_FORMATTYPE fmt) {
+    switch (fmt){
+        case OMX_COLOR_FormatUnused:
+            return "OMX_COLOR_FormatUnused";
+        case OMX_COLOR_FormatMonochrome:
+            return "OMX_COLOR_FormatMonochrome";
+        case OMX_COLOR_Format8bitRGB332:
+            return "OMX_COLOR_Format8bitRGB332";
+        case OMX_COLOR_Format12bitRGB444:
+            return "OMX_COLOR_Format12bitRGB444";
+        case OMX_COLOR_Format16bitARGB4444:
+            return "OMX_COLOR_Format16bitARGB4444";
+        case OMX_COLOR_Format16bitARGB1555:
+            return "OMX_COLOR_Format16bitARGB1555";
+        case OMX_COLOR_Format16bitRGB565:
+            return "OMX_COLOR_Format16bitRGB565";
+        case OMX_COLOR_Format16bitBGR565:
+            return "OMX_COLOR_Format16bitBGR565";
+        case OMX_COLOR_Format18bitRGB666:
+            return "OMX_COLOR_Format18bitRGB666";
+        case OMX_COLOR_Format18bitARGB1665:
+            return "OMX_COLOR_Format18bitARGB1665";
+        case OMX_COLOR_Format19bitARGB1666:
+            return "OMX_COLOR_Format19bitARGB1666";
+        case OMX_COLOR_Format24bitRGB888:
+            return "OMX_COLOR_Format24bitRGB888";
+        case OMX_COLOR_Format24bitBGR888:
+            return "OMX_COLOR_Format24bitBGR888";
+        case OMX_COLOR_Format24bitARGB1887:
+            return "OMX_COLOR_Format24bitARGB1887";
+        case OMX_COLOR_Format25bitARGB1888:
+            return "OMX_COLOR_Format25bitARGB1888";
+        case OMX_COLOR_Format32bitBGRA8888:
+            return "OMX_COLOR_Format32bitBGRA8888";
+        case OMX_COLOR_Format32bitARGB8888:
+            return "OMX_COLOR_Format32bitARGB8888";
+        case OMX_COLOR_FormatYUV411Planar:
+            return "OMX_COLOR_FormatYUV411Planar";
+        case OMX_COLOR_FormatYUV411PackedPlanar:
+            return "OMX_COLOR_FormatYUV411PackedPlanar";
+        case OMX_COLOR_FormatYUV420Planar:
+            return "OMX_COLOR_FormatYUV420Planar";
+        case OMX_COLOR_FormatYUV420PackedPlanar:
+            return "OMX_COLOR_FormatYUV420PackedPlanar";
+        case OMX_COLOR_FormatYUV420SemiPlanar:
+            return "OMX_COLOR_FormatYUV420SemiPlanar";
+        case OMX_COLOR_FormatYUV422Planar:
+            return "OMX_COLOR_FormatYUV422Planar";
+        case OMX_COLOR_FormatYUV422PackedPlanar:
+            return "OMX_COLOR_FormatYUV422PackedPlanar";
+        case OMX_COLOR_FormatYUV422SemiPlanar:
+            return "OMX_COLOR_FormatYUV422SemiPlanar";
+        case OMX_COLOR_FormatYCbYCr:
+            return "OMX_COLOR_FormatYCbYCr";
+        case OMX_COLOR_FormatYCrYCb:
+            return "OMX_COLOR_FormatYCrYCb";
+        case OMX_COLOR_FormatCbYCrY:
+            return "OMX_COLOR_FormatCbYCrY";
+        case OMX_COLOR_FormatCrYCbY:
+            return "OMX_COLOR_FormatCrYCbY";
+        case OMX_COLOR_FormatYUV444Interleaved:
+            return "OMX_COLOR_FormatYUV444Interleaved";
+        case OMX_COLOR_FormatRawBayer8bit:
+            return "OMX_COLOR_FormatRawBayer8bit";
+        case OMX_COLOR_FormatRawBayer10bit:
+            return "OMX_COLOR_FormatRawBayer10bit";
+        case OMX_COLOR_FormatRawBayer8bitcompressed:
+            return "OMX_COLOR_FormatRawBayer8bitcompressed";
+        case OMX_COLOR_FormatL2:
+            return "OMX_COLOR_FormatL2";
+        case OMX_COLOR_FormatL4:
+            return "OMX_COLOR_FormatL4";
+        case OMX_COLOR_FormatL8:
+            return "OMX_COLOR_FormatL8";
+        case OMX_COLOR_FormatL16:
+            return "OMX_COLOR_FormatL16";
+        case OMX_COLOR_FormatL24:
+            return "OMX_COLOR_FormatL24";
+        case OMX_COLOR_FormatL32:
+            return "OMX_COLOR_FormatL32";
+        case OMX_COLOR_FormatYUV420PackedSemiPlanar:
+            return "OMX_COLOR_FormatYUV420PackedSemiPlanar";
+        case OMX_COLOR_FormatYUV422PackedSemiPlanar:
+            return "OMX_COLOR_FormatYUV422PackedSemiPlanar";
+        case OMX_COLOR_Format18BitBGR666:
+            return "OMX_COLOR_Format18BitBGR666";
+        case OMX_COLOR_Format24BitARGB6666:
+            return "OMX_COLOR_Format24BitARGB6666";
+        case OMX_COLOR_Format24BitABGR6666:
+            return "OMX_COLOR_Format24BitABGR6666";
+        case OMX_COLOR_FormatKhronosExtensions:
+            return "OMX_COLOR_FormatKhronosExtensions";
+        case OMX_COLOR_FormatVendorStartUnused:
+            return "OMX_COLOR_FormatVendorStartUnused";
+        case OMX_COLOR_FormatAndroidOpaque:
+            return "OMX_COLOR_FormatAndroidOpaque";
+    // QRB only???
+    #ifdef QRB5165
+        case OMX_COLOR_Format32BitRGBA8888:
+            return "OMX_COLOR_Format32BitRGBA8888";
+        case OMX_COLOR_FormatYUV420Flexible:
+            return "OMX_COLOR_FormatYUV420Flexible";
+        case OMX_COLOR_FormatYUV420Planar16:
+            return "OMX_COLOR_FormatYUV420Planar16";
+        case OMX_COLOR_FormatYUV444Y410:
+            return "OMX_COLOR_FormatYUV444Y410";
+    #endif
+        case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+            return "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar";
+        case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
+            return "OMX_QCOM_COLOR_FormatYVU420SemiPlanar";
+        case OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka:
+            return "OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka";
+        case OMX_SEC_COLOR_FormatNV12Tiled:
+            return "OMX_SEC_COLOR_FormatNV12Tiled";
+        case OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m:
+            return "OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m";
+        case OMX_COLOR_FormatMax:
+            return "OMX_COLOR_FormatMax";
+        default:
+            return "Unknown";
+    }
+}
+
+
+
 #endif // VOXL_CAMERA_SERVER_VIDEO_ENCODER
