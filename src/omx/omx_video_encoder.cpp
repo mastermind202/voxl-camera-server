@@ -346,38 +346,33 @@ static const char * colorFormatStr(OMX_COLOR_FORMATTYPE fmt) {
 // -----------------------------------------------------------------------------------------------------------------------------
 OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
 {
+    OMX_ERRORTYPE ret;
+    int  codingType;
+    char* pComponentName;
     OMX_CALLBACKTYPE                 callbacks = {OMXEventHandler, OMXEmptyBufferHandler, OMXFillHandler};
     OMX_COLOR_FORMATTYPE             omxFormat = OMX_COLOR_FormatMax;
     OMX_VIDEO_PARAM_PORTFORMATTYPE   videoPortFmt;
-    // OMX_VIDEO_PARAM_PROFILELEVELTYPE profileLevel;
-    int  codingType;
 
     m_pHALInputBuffers = pVideoEncoderConfig->inputBuffers;
-
     OMX_RESET_STRUCT(&videoPortFmt, OMX_VIDEO_PARAM_PORTFORMATTYPE);
-    // OMX_RESET_STRUCT(&profileLevel, OMX_VIDEO_PARAM_PROFILELEVELTYPE);
 
-    char* pComponentName;
-
-    if (pVideoEncoderConfig->isH265 == true)
-    {
+    if(pVideoEncoderConfig->isH265 == true){
         pComponentName = (char *)"OMX.qcom.video.encoder.hevc";
         codingType     = OMX_VIDEO_CodingHEVC;
     }
-    else
-    {
+    else{
         pComponentName = (char *)"OMX.qcom.video.encoder.avc";
         codingType     = OMX_VIDEO_CodingAVC;
     }
 
-    if (OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks))
-    {
+    ret = OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks);
+    if(ret){
         M_ERROR("OMX Get handle failed!\n");
+        _print_omx_error(ret);
         return OMX_ErrorUndefined;
     }
 
-    if (pVideoEncoderConfig->format != HAL_PIXEL_FORMAT_YCbCr_420_888)
-    {
+    if(pVideoEncoderConfig->format != HAL_PIXEL_FORMAT_YCbCr_420_888){
         M_ERROR("OMX Unknown video recording format!\n");
         return OMX_ErrorBadParameter;
     }
@@ -389,24 +384,15 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
 
     M_DEBUG("Available color formats for OMX:\n");
 
-    while (!OMX_GetParameter(m_OMXHandle, OMX_IndexParamVideoPortFormat, (OMX_PTR)&videoPortFmt))
-    {
+    while (!OMX_GetParameter(m_OMXHandle, OMX_IndexParamVideoPortFormat, (OMX_PTR)&videoPortFmt)){
         videoPortFmt.nPortIndex = PortIndexIn;
         videoPortFmt.nIndex     = index;
-
-        if (videoPortFmt.eColorFormat == omxFormat)
-        {
-            isFormatSupported = true;
-            // break;
-        }
-
+        if (videoPortFmt.eColorFormat == omxFormat) isFormatSupported = true;
         M_DEBUG("\t%s (0x%x)\n", colorFormatStr(videoPortFmt.eColorFormat), videoPortFmt.eColorFormat);
-
         index++;
     }
 
-    if (!isFormatSupported)
-    {
+    if (!isFormatSupported){
         M_ERROR("OMX unsupported video input format: %s\n", colorFormatStr(omxFormat));
         return OMX_ErrorBadParameter;
     }
@@ -414,14 +400,17 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
     // Configure for H264
     if (codingType == OMX_VIDEO_CodingAVC)
     {
-        OMX_VIDEO_PARAM_AVCTYPE avc;
 
+        ////////////////////////////////////////////////////////////////////////
+        // set OMX_VIDEO_PARAM_AVCTYPE
+        ////////////////////////////////////////////////////////////////////////
+        OMX_VIDEO_PARAM_AVCTYPE avc;
         OMX_RESET_STRUCT(&avc, OMX_VIDEO_PARAM_AVCTYPE);
         avc.nPortIndex = PortIndexOut;
-
-        if (OMX_GetParameter(m_OMXHandle, OMX_IndexParamVideoAvc, (OMX_PTR)&avc))
-        {
+        ret = OMX_GetParameter(m_OMXHandle, OMX_IndexParamVideoAvc, (OMX_PTR)&avc);
+        if(ret){
             M_ERROR("OMX Get parameter of OMX_IndexParamVideoAvc failed\n");
+            _print_omx_error(ret);
             return OMX_ErrorUndefined;
         }
 
@@ -459,23 +448,23 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         avc.nSliceHeaderSpacing       = 1024;
 
 
-        OMX_RESET_STRUCT_SIZE_VERSION(&avc, OMX_VIDEO_PARAM_AVCTYPE);
-
-        if (OMX_SetParameter(m_OMXHandle, OMX_IndexParamVideoAvc, (OMX_PTR)&avc))
-        {
+        //OMX_RESET_STRUCT_SIZE_VERSION(&avc, OMX_VIDEO_PARAM_AVCTYPE);
+        ret = OMX_SetParameter(m_OMXHandle, OMX_IndexParamVideoAvc, (OMX_PTR)&avc);
+        if(ret){
             M_ERROR("OMX_SetParameter of OMX_IndexParamVideoAvc failed!\n");
+            _print_omx_error(ret);
             return OMX_ErrorUndefined;
         }
     }
     // Configure for H265
     else if (codingType == OMX_VIDEO_CodingHEVC)
     {
+        ////////////////////////////////////////////////////////////////////////
+        // set OMX_VIDEO_PARAM_AVCTYPE
+        ////////////////////////////////////////////////////////////////////////
         OMX_VIDEO_PARAM_HEVCTYPE hevc;
-
         OMX_RESET_STRUCT(&hevc, OMX_VIDEO_PARAM_HEVCTYPE);
-
         hevc.nPortIndex = PortIndexOut;
-
         if (OMX_GetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_IndexParamVideoHevc, (OMX_PTR)&hevc))
         {
             M_ERROR("OMX_GetParameter of OMX_IndexParamVideoHevc failed!\n");
@@ -500,104 +489,100 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         return OMX_ErrorBadParameter;
     }
 
-    #define QUANTIZATION 30
+
+
     #define QUANTIZATION_MIN 20
     #define QUANTIZATION_MAX 30
-    {
-        //SetUp QP parameter.
-        // RC ON
-        QOMX_EXTNINDEX_VIDEO_INITIALQP initqp;
-        OMX_RESET_STRUCT_SIZE_VERSION(&initqp, QOMX_EXTNINDEX_VIDEO_INITIALQP);
-        initqp.nPortIndex = 1;
-        // initqp.nQpI = 27;
-        // initqp.nQpP = 28;
-        // initqp.nQpB = 28;
-        initqp.nQpI = QUANTIZATION;
-        initqp.nQpP = QUANTIZATION;
-        initqp.nQpB = QUANTIZATION;
-        initqp.bEnableInitQp = 0x7; // Intial QP applied to all frame
-        if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
-            static_cast<OMX_INDEXTYPE>(QOMX_IndexParamVideoInitialQp),
-            reinterpret_cast<OMX_PTR>(&initqp))) {
-            M_ERROR("%s Failed to set Initial QP parameter\n", __func__);
-            return ret;
-        }
 
 
-        // standard OMX quantization struct, doesn't seem to work
-        // OMX_VIDEO_PARAM_QUANTIZATIONTYPE quantization;
-        // OMX_RESET_STRUCT_SIZE_VERSION(&quantization, OMX_VIDEO_PARAM_QUANTIZATIONTYPE);
-        // initqp.nPortIndex = 1;
-        // quantization.nQpI = 35;
-        // quantization.nQpP = 35;
-        // quantization.nQpB = 35;
-        // if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
-        //     static_cast<OMX_INDEXTYPE>(OMX_IndexParamQuantizationTable),
-        //     reinterpret_cast<OMX_PTR>(&initqp))) {
-        //     M_ERROR("%s Failed to set Quantization Parameter\n", __func__);
-        //     return ret;
-        // }
-        //
-
-
-//         TODO set
-//          */
-// typedef struct OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE {
-//     OMX_U32 nSize;              /** Size of the structure in bytes */
-//     OMX_VERSIONTYPE nVersion;   /** OMX specification version information */
-//     OMX_U32 nPeakBitrate;       /** Peak bitrate value */
-// } OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE;
-
-
-        OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
-        OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
-        qp_range.nPortIndex = 1;
-
-        if(OMX_ERRORTYPE ret = OMX_GetParameter(m_OMXHandle,
-            static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
-            reinterpret_cast<OMX_PTR>(&qp_range))) {
-            M_ERROR("%s Failed to get IPBQP Range parameter\n", __func__);
-            return ret;
-        }
-        // qp_range.minIQP = 10;
-        // qp_range.maxIQP = 51;
-        // qp_range.minPQP = 10;
-        // qp_range.maxPQP = 51;
-        // qp_range.minBQP = 10;
-        // qp_range.maxBQP = 51;
-        //
-        // qp_range.minIQP = QUANTIZATION;
-        // qp_range.maxIQP = QUANTIZATION;
-        // qp_range.minPQP = QUANTIZATION;
-        // qp_range.maxPQP = QUANTIZATION;
-        // qp_range.minBQP = QUANTIZATION;
-        // qp_range.maxBQP = QUANTIZATION;
-
-        qp_range.minIQP = QUANTIZATION_MIN;
-        qp_range.maxIQP = QUANTIZATION_MAX;
-        qp_range.minPQP = QUANTIZATION_MIN;
-        qp_range.maxPQP = QUANTIZATION_MAX;
-        qp_range.minBQP = QUANTIZATION_MIN;
-        qp_range.maxBQP = QUANTIZATION_MAX;
-
-        if(OMX_ERRORTYPE ret = OMX_SetParameter(m_OMXHandle,
-            static_cast<OMX_INDEXTYPE>(OMX_QcomIndexParamVideoIPBQPRange),
-            reinterpret_cast<OMX_PTR>(&qp_range))) {
-            M_ERROR("%s Failed to set IPBQP Range parameter\n", __func__);
-            return ret;
-        }
+    ////////////////////////////////////////////////////////////////////////
+    // set QOMX_EXTNINDEX_VIDEO_INITIALQP
+    // bitrate still seems to fluctuate a lot on startup, but does it
+    // slightly less when starting with the max compression
+    ////////////////////////////////////////////////////////////////////////
+    QOMX_EXTNINDEX_VIDEO_INITIALQP initqp;
+    OMX_RESET_STRUCT_SIZE_VERSION(&initqp, QOMX_EXTNINDEX_VIDEO_INITIALQP);
+    initqp.nPortIndex = PortIndexOut;
+    initqp.nQpI = QUANTIZATION_MAX;
+    initqp.nQpP = QUANTIZATION_MAX;
+    initqp.nQpB = QUANTIZATION_MAX;
+    initqp.bEnableInitQp = 0x7; // apply to all I, P, and B
+    ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)QOMX_IndexParamVideoInitialQp,(OMX_PTR)&initqp);
+    if(ret){
+        M_ERROR("%s Failed to set Initial QP parameter\n", __func__);
+        _print_omx_error(ret);
+        return ret;
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    // set OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE
+    // standard OMX_VIDEO_PARAM_QUANTIZATIONTYPE doesn't work
+    // this is the main quantization range that's respected!
+    ////////////////////////////////////////////////////////////////////////
+    OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
+    OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
+    qp_range.nPortIndex = PortIndexOut;
+    qp_range.minIQP = QUANTIZATION_MIN;
+    qp_range.maxIQP = QUANTIZATION_MAX;
+    qp_range.minPQP = QUANTIZATION_MIN;
+    qp_range.maxPQP = QUANTIZATION_MAX;
+    qp_range.minBQP = QUANTIZATION_MIN;
+    qp_range.maxBQP = QUANTIZATION_MAX;
+    ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_QcomIndexParamVideoIPBQPRange, (OMX_PTR)&qp_range);
+    if(ret){
+        M_ERROR("%s Failed to set IPBQP Range parameter\n", __func__);
+        _print_omx_error(ret);
+        return ret;
+    }
+
+
+/*
+    ////////////////////////////////////////////////////////////////////////
+    // OMX_VIDEO_PARAM_QUANTIZATIONTYPE
+    // standard OMX quantization struct, doesn't seem to work
+    // returns OMX_ErrorUnsupportedIndex
+    ////////////////////////////////////////////////////////////////////////
+    OMX_VIDEO_PARAM_QUANTIZATIONTYPE quant;
+    OMX_RESET_STRUCT_SIZE_VERSION(&quant, OMX_VIDEO_PARAM_QUANTIZATIONTYPE);
+    initqp.nPortIndex = PortIndexOut;
+    quant.nQpI = 35;
+    quant.nQpP = 35;
+    quant.nQpB = 35;
+    ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_IndexParamQuantizationTable, (OMX_PTR)&quant);
+    if(ret){
+        M_ERROR("%s Failed to set Quantization Parameter\n", __func__);
+        _print_omx_error(ret);
+        return ret;
+    }
+*/
+
+
+/*
+    ////////////////////////////////////////////////////////////////////////
+    // set OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE
+    // not working, returns OMX_ErrorUnsupportedIndex
+    // maybe it would work with hevc and just not avc?
+    ////////////////////////////////////////////////////////////////////////
+    OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE peak_br;
+    OMX_RESET_STRUCT_SIZE_VERSION(&peak_br, OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE);
+    peak_br.nPeakBitrate = pVideoEncoderConfig->targetBitRate;
+    ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_QcomIndexParamPeakBitrate, (OMX_PTR)&peak_br);
+    if(ret){
+        M_ERROR("%s Failed to set Peak Bitrate parameter\n", __func__);
+        _print_omx_error(ret);
+        return ret;
+    }
+
+*/
+
 
 
     // Set framerate
     OMX_CONFIG_FRAMERATETYPE framerate;
-
     OMX_RESET_STRUCT(&framerate, OMX_CONFIG_FRAMERATETYPE);
-
     framerate.nPortIndex = PortIndexIn;
-
-    if (OMX_GetConfig(m_OMXHandle, OMX_IndexConfigVideoFramerate, (OMX_PTR)&framerate))
-    {
+    if (OMX_GetConfig(m_OMXHandle, OMX_IndexConfigVideoFramerate, (OMX_PTR)&framerate)){
         M_ERROR("OMX_GetConfig of OMX_IndexConfigVideoFramerate failed!\n");
         return OMX_ErrorUndefined;
     }
@@ -611,6 +596,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(VideoEncoderConfig* pVideoEncoderConfig)
         M_ERROR("OMX_SetConfig of OMX_IndexConfigVideoFramerate failed!\n");
         return OMX_ErrorUndefined;
     }
+
 
     // Set Color aspect parameters
     // android::DescribeColorAspectsParams colorParams;
@@ -952,6 +938,8 @@ void VideoEncoder::Stop()
 
 }
 
+
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function called by the OMX component for event handling
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -968,131 +956,7 @@ OMX_ERRORTYPE OMXEventHandler(OMX_IN OMX_HANDLETYPE hComponent,     ///< OMX com
             break;
         case OMX_EventError:
             M_DEBUG("OMX_EventError: ");
-            switch ((OMX_ERRORTYPE)nData1) {
-                case OMX_ErrorNone:
-                    printf("OMX_ErrorNone\n");
-                    break;
-                case OMX_ErrorInsufficientResources:
-                    printf("OMX_ErrorInsufficientResources\n");
-                    break;
-                case OMX_ErrorUndefined:
-                    printf("OMX_ErrorUndefined\n");
-                    break;
-                case OMX_ErrorInvalidComponentName:
-                    printf("OMX_ErrorInvalidComponentName\n");
-                    break;
-                case OMX_ErrorComponentNotFound:
-                    printf("OMX_ErrorComponentNotFound\n");
-                    break;
-                case OMX_ErrorInvalidComponent:
-                    printf("OMX_ErrorInvalidComponent\n");
-                    break;
-                case OMX_ErrorBadParameter:
-                    printf("OMX_ErrorBadParameter\n");
-                    break;
-                case OMX_ErrorNotImplemented:
-                    printf("OMX_ErrorNotImplemented\n");
-                    break;
-                case OMX_ErrorUnderflow:
-                    printf("OMX_ErrorUnderflow\n");
-                    break;
-                case OMX_ErrorOverflow:
-                    printf("OMX_ErrorOverflow\n");
-                    break;
-                case OMX_ErrorHardware:
-                    printf("OMX_ErrorHardware\n");
-                    break;
-                case OMX_ErrorInvalidState:
-                    printf("OMX_ErrorInvalidState\n");
-                    break;
-                case OMX_ErrorStreamCorrupt:
-                    printf("OMX_ErrorStreamCorrupt\n");
-                    break;
-                case OMX_ErrorPortsNotCompatible:
-                    printf("OMX_ErrorPortsNotCompatible\n");
-                    break;
-                case OMX_ErrorResourcesLost:
-                    printf("OMX_ErrorResourcesLost\n");
-                    break;
-                case OMX_ErrorNoMore:
-                    printf("OMX_ErrorNoMore\n");
-                    break;
-                case OMX_ErrorVersionMismatch:
-                    printf("OMX_ErrorVersionMismatch\n");
-                    break;
-                case OMX_ErrorNotReady:
-                    printf("OMX_ErrorNotReady\n");
-                    break;
-                case OMX_ErrorTimeout:
-                    printf("OMX_ErrorTimeout\n");
-                    break;
-                case OMX_ErrorSameState:
-                    printf("OMX_ErrorSameState\n");
-                    break;
-                case OMX_ErrorResourcesPreempted:
-                    printf("OMX_ErrorResourcesPreempted\n");
-                    break;
-                case OMX_ErrorPortUnresponsiveDuringAllocation:
-                    printf("OMX_ErrorPortUnresponsiveDuringAllocation\n");
-                    break;
-                case OMX_ErrorPortUnresponsiveDuringDeallocation:
-                    printf("OMX_ErrorPortUnresponsiveDuringDeallocation\n");
-                    break;
-                case OMX_ErrorPortUnresponsiveDuringStop:
-                    printf("OMX_ErrorPortUnresponsiveDuringStop\n");
-                    break;
-                case OMX_ErrorIncorrectStateTransition:
-                    printf("OMX_ErrorIncorrectStateTransition\n");
-                    break;
-                case OMX_ErrorIncorrectStateOperation:
-                    printf("OMX_ErrorIncorrectStateOperation\n");
-                    break;
-                case OMX_ErrorUnsupportedSetting:
-                    printf("OMX_ErrorUnsupportedSetting\n");
-                    break;
-                case OMX_ErrorUnsupportedIndex:
-                    printf("OMX_ErrorUnsupportedIndex\n");
-                    break;
-                case OMX_ErrorBadPortIndex:
-                    printf("OMX_ErrorBadPortIndex\n");
-                    break;
-                case OMX_ErrorPortUnpopulated:
-                    printf("OMX_ErrorPortUnpopulated\n");
-                    break;
-                case OMX_ErrorComponentSuspended:
-                    printf("OMX_ErrorComponentSuspended\n");
-                    break;
-                case OMX_ErrorDynamicResourcesUnavailable:
-                    printf("OMX_ErrorDynamicResourcesUnavailable\n");
-                    break;
-                case OMX_ErrorMbErrorsInFrame:
-                    printf("OMX_ErrorMbErrorsInFrame\n");
-                    break;
-                case OMX_ErrorFormatNotDetected:
-                    printf("OMX_ErrorFormatNotDetected\n");
-                    break;
-                case OMX_ErrorContentPipeOpenFailed:
-                    printf("OMX_ErrorContentPipeOpenFailed\n");
-                    break;
-                case OMX_ErrorContentPipeCreationFailed:
-                    printf("OMX_ErrorContentPipeCreationFailed\n");
-                    break;
-                case OMX_ErrorSeperateTablesUsed:
-                    printf("OMX_ErrorSeperateTablesUsed\n");
-                    break;
-                case OMX_ErrorTunnelingUnsupported:
-                    printf("OMX_ErrorTunnelingUnsupported\n");
-                    break;
-                case OMX_ErrorKhronosExtensions:
-                    printf("OMX_ErrorKhronosExtensions\n");
-                    break;
-                case OMX_ErrorVendorStartUnused:
-                    printf("OMX_ErrorVendorStartUnused\n");
-                    break;
-                case OMX_ErrorMax:
-                    printf("OMX_ErrorMax\n");
-                    break;
-            }
+           _print_omx_error((OMX_ERRORTYPE)nData1);
             break;
         case OMX_EventMark:
             M_DEBUG("OMX Event: OMX_EventMark\n");

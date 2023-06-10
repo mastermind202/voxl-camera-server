@@ -98,8 +98,6 @@ public:
                                 OMX_U32* pBufferCount,
                                 OMX_COLOR_FORMATTYPE format);
 
-    static const uint32_t BitrateDefault       = (2*8*1024*1024);
-    static const uint32_t TargetBitrateDefault = (18*1024*1024*8);
     static const OMX_U32  PortIndexIn          = 0;
     static const OMX_U32  PortIndexOut         = 1;
 
@@ -124,5 +122,137 @@ public:
     OMX_BUFFERHEADERTYPE** m_ppOutputBuffers;       ///< Output buffers
     uint32_t               m_nextOutputBufferIndex; ///< Next input buffer to use
 };
+
+
+
+static void _print_omx_error(OMX_ERRORTYPE e)
+{
+    switch(e) {
+        case OMX_ErrorNone:
+            M_ERROR("OMX_ErrorNone\n");
+            break;
+        case OMX_ErrorInsufficientResources:
+            M_ERROR("OMX_ErrorInsufficientResources\n");
+            break;
+        case OMX_ErrorUndefined:
+            M_ERROR("OMX_ErrorUndefined\n");
+            break;
+        case OMX_ErrorInvalidComponentName:
+            M_ERROR("OMX_ErrorInvalidComponentName\n");
+            break;
+        case OMX_ErrorComponentNotFound:
+            M_ERROR("OMX_ErrorComponentNotFound\n");
+            break;
+        case OMX_ErrorInvalidComponent:
+            M_ERROR("OMX_ErrorInvalidComponent\n");
+            break;
+        case OMX_ErrorBadParameter:
+            M_ERROR("OMX_ErrorBadParameter\n");
+            break;
+        case OMX_ErrorNotImplemented:
+            M_ERROR("OMX_ErrorNotImplemented\n");
+            break;
+        case OMX_ErrorUnderflow:
+            M_ERROR("OMX_ErrorUnderflow\n");
+            break;
+        case OMX_ErrorOverflow:
+            M_ERROR("OMX_ErrorOverflow\n");
+            break;
+        case OMX_ErrorHardware:
+            M_ERROR("OMX_ErrorHardware\n");
+            break;
+        case OMX_ErrorInvalidState:
+            M_ERROR("OMX_ErrorInvalidState\n");
+            break;
+        case OMX_ErrorStreamCorrupt:
+            M_ERROR("OMX_ErrorStreamCorrupt\n");
+            break;
+        case OMX_ErrorPortsNotCompatible:
+            M_ERROR("OMX_ErrorPortsNotCompatible\n");
+            break;
+        case OMX_ErrorResourcesLost:
+            M_ERROR("OMX_ErrorResourcesLost\n");
+            break;
+        case OMX_ErrorNoMore:
+            M_ERROR("OMX_ErrorNoMore\n");
+            break;
+        case OMX_ErrorVersionMismatch:
+            M_ERROR("OMX_ErrorVersionMismatch\n");
+            break;
+        case OMX_ErrorNotReady:
+            M_ERROR("OMX_ErrorNotReady\n");
+            break;
+        case OMX_ErrorTimeout:
+            M_ERROR("OMX_ErrorTimeout\n");
+            break;
+        case OMX_ErrorSameState:
+            M_ERROR("OMX_ErrorSameState\n");
+            break;
+        case OMX_ErrorResourcesPreempted:
+            M_ERROR("OMX_ErrorResourcesPreempted\n");
+            break;
+        case OMX_ErrorPortUnresponsiveDuringAllocation:
+            M_ERROR("OMX_ErrorPortUnresponsiveDuringAllocation\n");
+            break;
+        case OMX_ErrorPortUnresponsiveDuringDeallocation:
+            M_ERROR("OMX_ErrorPortUnresponsiveDuringDeallocation\n");
+            break;
+        case OMX_ErrorPortUnresponsiveDuringStop:
+            M_ERROR("OMX_ErrorPortUnresponsiveDuringStop\n");
+            break;
+        case OMX_ErrorIncorrectStateTransition:
+            M_ERROR("OMX_ErrorIncorrectStateTransition\n");
+            break;
+        case OMX_ErrorIncorrectStateOperation:
+            M_ERROR("OMX_ErrorIncorrectStateOperation\n");
+            break;
+        case OMX_ErrorUnsupportedSetting:
+            M_ERROR("OMX_ErrorUnsupportedSetting\n");
+            break;
+        case OMX_ErrorUnsupportedIndex:
+            M_ERROR("OMX_ErrorUnsupportedIndex\n");
+            break;
+        case OMX_ErrorBadPortIndex:
+            M_ERROR("OMX_ErrorBadPortIndex\n");
+            break;
+        case OMX_ErrorPortUnpopulated:
+            M_ERROR("OMX_ErrorPortUnpopulated\n");
+            break;
+        case OMX_ErrorComponentSuspended:
+            M_ERROR("OMX_ErrorComponentSuspended\n");
+            break;
+        case OMX_ErrorDynamicResourcesUnavailable:
+            M_ERROR("OMX_ErrorDynamicResourcesUnavailable\n");
+            break;
+        case OMX_ErrorMbErrorsInFrame:
+            M_ERROR("OMX_ErrorMbErrorsInFrame\n");
+            break;
+        case OMX_ErrorFormatNotDetected:
+            M_ERROR("OMX_ErrorFormatNotDetected\n");
+            break;
+        case OMX_ErrorContentPipeOpenFailed:
+            M_ERROR("OMX_ErrorContentPipeOpenFailed\n");
+            break;
+        case OMX_ErrorContentPipeCreationFailed:
+            M_ERROR("OMX_ErrorContentPipeCreationFailed\n");
+            break;
+        case OMX_ErrorSeperateTablesUsed:
+            M_ERROR("OMX_ErrorSeperateTablesUsed\n");
+            break;
+        case OMX_ErrorTunnelingUnsupported:
+            M_ERROR("OMX_ErrorTunnelingUnsupported\n");
+            break;
+        case OMX_ErrorKhronosExtensions:
+            M_ERROR("OMX_ErrorKhronosExtensions\n");
+            break;
+        case OMX_ErrorVendorStartUnused:
+            M_ERROR("OMX_ErrorVendorStartUnused\n");
+            break;
+        case OMX_ErrorMax:
+            M_ERROR("OMX_ErrorMax\n");
+            break;
+    }
+    return;
+}
 
 #endif // VOXL_CAMERA_SERVER_VIDEO_ENCODER
