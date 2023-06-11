@@ -86,14 +86,10 @@ public:
     int ItemsInQueue(); // return how many frames are still in the process queue
 
     // Set the OMX component configuration
-    OMX_ERRORTYPE SetConfig(VideoEncoderConfig* pVideoEncoderConfig);
+    OMX_ERRORTYPE SetConfig(void);
     // Set input / output port parameters
     OMX_ERRORTYPE SetPortParams(OMX_U32  portIndex,
-                                OMX_U32  width,
-                                OMX_U32  height,
                                 OMX_U32  bufferCountMin,
-                                OMX_U32  frameRate,
-                                OMX_U32  bitrate,
                                 OMX_U32* pBufferSize,
                                 OMX_U32* pBufferCount,
                                 OMX_COLOR_FORMATTYPE format);
@@ -108,6 +104,7 @@ public:
     std::list<camera_image_metadata_t>    out_metaQueue;           ///< Out thread Message queue
 
     volatile bool          stop = false;            ///< Thread terminate indicator
+    volatile bool          stop_read = false;            ///< read thread terminate indicator
 
     VideoEncoderConfig     m_VideoEncoderConfig;
     int*                   m_outputPipe;
