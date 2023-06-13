@@ -72,14 +72,10 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("    en_small_video:      %d\n", cams[i].en_small_video);
 		printf("    small_video_width:   %d\n", cams[i].small_video_width);
 		printf("    small_video_height:  %d\n", cams[i].small_video_height);
-		printf("    small_video_bitrate: %d (bps)\n", cams[i].small_video_bitrate);
-		printf("    small_video_h265_en: %d\n", cams[i].small_video_h265_en);
 		printf("\n");
 		printf("    en_large_video:      %d\n", cams[i].en_large_video);
 		printf("    large_video_width:   %d\n", cams[i].large_video_width);
 		printf("    large_video_height:  %d\n", cams[i].large_video_height);
-		printf("    large_video_bitrate: %d (bps)\n", cams[i].large_video_bitrate);
-		printf("    large_video_h265_en: %d\n", cams[i].large_video_h265_en);
 		printf("\n");
 		printf("    en_snapshot:         %d\n", cams[i].en_snapshot);
 		printf("    snap_width:          %d\n", cams[i].snap_width);
@@ -132,6 +128,9 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 	const char* sensor_strings[] = SENSOR_STRINGS;
 	const char* ae_strings[] = AE_STRINGS;
 	const char* format_strings[] = FORMAT_STRINGS;
+	const char* venc_mode_strings[] = VENC_MODE_STRINGS;
+	const char* venc_control_strings[] = VENC_CONTROL_STRINGS;
+
 
 	cJSON* parent = NULL;
 	cJSON* cameras_json = NULL;
@@ -261,11 +260,16 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 		}
 
 		if(cJSON_GetObjectItem(item, "en_small_video")!=NULL || cam->en_small_video){
-			json_fetch_bool_with_default (item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
-			json_fetch_int_with_default  (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
-			json_fetch_int_with_default  (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
-			json_fetch_int_with_default  (item, "small_video_bitrate", &cam->small_video_bitrate, cam->small_video_bitrate);
-			json_fetch_bool_with_default (item, "small_video_h265_en", &cam->small_video_h265_en, cam->small_video_h265_en);
+			json_fetch_bool_with_default(item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
+			json_fetch_int_with_default (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
+			json_fetch_int_with_default (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
+			json_fetch_enum_with_default(item, "small_venc_mode",    (int*)&cam->small_venc_config.mode,    venc_mode_strings, VENC_MAXMODES, (int)cam->small_venc_config.mode);
+			json_fetch_enum_with_default(item, "small_venc_br_ctrl", (int*)&cam->small_venc_config.br_ctrl, venc_control_strings, VENC_MAXMODES, (int)cam->small_venc_config.br_ctrl);
+			json_fetch_int_with_default (item, "small_venc_Qfixed",   &cam->small_venc_config.Qfixed,   cam->small_venc_config.Qfixed);
+			json_fetch_int_with_default (item, "small_venc_Qmin",     &cam->small_venc_config.Qmin,     cam->small_venc_config.Qmin);
+			json_fetch_int_with_default (item, "small_venc_Qmax",     &cam->small_venc_config.Qmax,     cam->small_venc_config.Qmax);
+			json_fetch_int_with_default (item, "small_venc_nPframes", &cam->small_venc_config.nPframes, cam->small_venc_config.nPframes);
+			json_fetch_double_with_default(item, "small_venc_mbps",   &cam->small_venc_config.mbps,     cam->small_venc_config.mbps);
 			_check_and_swap_width_height(&cam->small_video_width, &cam->small_video_height);
 		}
 
@@ -273,8 +277,13 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			json_fetch_bool_with_default (item, "en_large_video",      &cam->en_large_video,      cam->en_large_video);
 			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_width,   cam->large_video_width);
 			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_height,  cam->large_video_height);
-			json_fetch_int_with_default  (item, "large_video_bitrate", &cam->large_video_bitrate, cam->large_video_bitrate);
-			json_fetch_bool_with_default (item, "large_video_h265_en", &cam->large_video_h265_en, cam->large_video_h265_en);
+			json_fetch_enum_with_default(item, "large_venc_mode",    (int*)&cam->large_venc_config.mode,    venc_mode_strings, VENC_MAXMODES, (int)cam->large_venc_config.mode);
+			json_fetch_enum_with_default(item, "large_venc_br_ctrl", (int*)&cam->large_venc_config.br_ctrl, venc_control_strings, VENC_MAXMODES, (int)cam->large_venc_config.br_ctrl);
+			json_fetch_int_with_default (item, "large_venc_Qfixed",   &cam->large_venc_config.Qfixed,   cam->large_venc_config.Qfixed);
+			json_fetch_int_with_default (item, "large_venc_Qmin",     &cam->large_venc_config.Qmin,     cam->large_venc_config.Qmin);
+			json_fetch_int_with_default (item, "large_venc_Qmax",     &cam->large_venc_config.Qmax,     cam->large_venc_config.Qmax);
+			json_fetch_int_with_default (item, "large_venc_nPframes", &cam->large_venc_config.nPframes, cam->large_venc_config.nPframes);
+			json_fetch_double_with_default(item, "large_venc_mbps",   &cam->large_venc_config.mbps,     cam->large_venc_config.mbps);
 			_check_and_swap_width_height(&cam->large_video_width, &cam->large_video_height);
 		}
 

@@ -41,10 +41,7 @@
 #include <stdio.h>
 #include <buffer_manager.h>
 
-typedef enum encode_target_t{
-    TARGET_STREAM,
-    TARGET_RECORD
-} encode_target_t;
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Video encoder config data
@@ -54,13 +51,10 @@ typedef struct VideoEncoderConfig
     uint32_t width;                 ///< Image width
     uint32_t height;                ///< Image height
     uint32_t format;                ///< Image format
-    bool     isBitRateConstant;     ///< Is the bit rate constant
-    int      targetBitRate;         ///< Desired target bitrate
+    venc_config_t venc_cfg;
     int32_t  frameRate;             ///< Frame rate
-    bool     isH265;                ///< Is it H265 encoding or H264
     BufferGroup* inputBuffers;      ///< Input buffers coming from hal3
     int*     outputPipe;            ///< Pre-configured MPA output pipe
-    encode_target_t target;         ///< TARGET_STREAM or TARGET_RECORD
 } VideoEncoderConfig;
 
 //------------------------------------------------------------------------------------------------------------------------------

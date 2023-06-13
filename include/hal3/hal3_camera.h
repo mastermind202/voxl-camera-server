@@ -106,12 +106,8 @@ public:
     const int32_t              vid_halfmt;                       ///< hal format for video
     const int32_t              small_video_width;                ///< Stream Width
     const int32_t              small_video_height;               ///< Stream Height
-    const int32_t              small_video_bitrate;              ///< Stream Bitrate
-    const int32_t              small_video_h265_en;              ///< Stream H265
     const int32_t              large_video_width;                ///< Record Width
     const int32_t              large_video_height;               ///< Record Height
-    const int32_t              large_video_bitrate;              ///< Record Bitrate
-    const int32_t              large_video_h265_en;              ///< Record H265
     const int32_t              snap_width;                       ///< Snapshot Width
     const int32_t              snap_height;                      ///< Snapshot Height
     const int32_t              snap_halfmt;                      ///< Snapshot HAL format
@@ -302,14 +298,12 @@ private:
     // Channels for stream streams
     int     smallVideoPipeGrey  = -1;
     int     smallVideoPipeColor = -1;
-    int     smallVideoPipeH264  = -1;
-    int     smallVideoPipeH265  = -1;
+    int     smallVideoPipeEncoded  = -1;
 
     // Channels for Record streams
     int     largeVideoPipeGrey  = -1;
     int     largeVideoPipeColor = -1;
-    int     largeVideoPipeH264  = -1;
-    int     largeVideoPipeH265  = -1;
+    int     largeVideoPipeEncoded  = -1;
     
     // Channels for Snapshot
     int     snapshotPipe = -1;
@@ -323,22 +317,20 @@ private:
 
     void close_my_pipes(void)
     {
-        if(     previewPipeGrey  >=0) pipe_server_close(     previewPipeGrey  );
-        if(     previewPipeColor >=0) pipe_server_close(     previewPipeColor );
-        if(  smallVideoPipeGrey  >=0) pipe_server_close(  smallVideoPipeGrey  );
-        if(  smallVideoPipeColor >=0) pipe_server_close(  smallVideoPipeColor );
-        if(  smallVideoPipeH264  >=0) pipe_server_close(  smallVideoPipeH264  );
-        if(  smallVideoPipeH265  >=0) pipe_server_close(  smallVideoPipeH265  );
-        if(  largeVideoPipeGrey  >=0) pipe_server_close(  largeVideoPipeGrey  );
-        if(  largeVideoPipeColor >=0) pipe_server_close(  largeVideoPipeColor );
-        if(  largeVideoPipeH264  >=0) pipe_server_close(  largeVideoPipeH264  );
-        if(  largeVideoPipeH265  >=0) pipe_server_close(  largeVideoPipeH265  );
-        if(    snapshotPipe      >=0) pipe_server_close(    snapshotPipe      );
-        if(         tofPipeIR    >=0) pipe_server_close(         tofPipeIR    );
-        if(         tofPipeDepth >=0) pipe_server_close(         tofPipeDepth );
-        if(         tofPipeConf  >=0) pipe_server_close(         tofPipeConf  );
-        if(         tofPipePC    >=0) pipe_server_close(         tofPipePC    );
-        if(         tofPipeFull  >=0) pipe_server_close(         tofPipeFull  );
+        if(     previewPipeGrey    >=0) pipe_server_close(     previewPipeGrey     );
+        if(     previewPipeColor   >=0) pipe_server_close(     previewPipeColor    );
+        if(  smallVideoPipeGrey    >=0) pipe_server_close(  smallVideoPipeGrey     );
+        if(  smallVideoPipeColor   >=0) pipe_server_close(  smallVideoPipeColor    );
+        if(  smallVideoPipeEncoded >=0) pipe_server_close(  smallVideoPipeEncoded  );
+        if(  largeVideoPipeGrey    >=0) pipe_server_close(  largeVideoPipeGrey     );
+        if(  largeVideoPipeColor   >=0) pipe_server_close(  largeVideoPipeColor    );
+        if(  largeVideoPipeEncoded >=0) pipe_server_close(  largeVideoPipeEncoded  );
+        if(    snapshotPipe        >=0) pipe_server_close(    snapshotPipe         );
+        if(         tofPipeIR      >=0) pipe_server_close(         tofPipeIR       );
+        if(         tofPipeDepth   >=0) pipe_server_close(         tofPipeDepth    );
+        if(         tofPipeConf    >=0) pipe_server_close(         tofPipeConf     );
+        if(         tofPipePC      >=0) pipe_server_close(         tofPipePC       );
+        if(         tofPipeFull    >=0) pipe_server_close(         tofPipeFull     );
         return;
     }
 
