@@ -40,6 +40,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <buffer_manager.h>
+#include "common_defs.h"
 
 
 
@@ -51,7 +52,7 @@ typedef struct VideoEncoderConfig
     uint32_t width;                 ///< Image width
     uint32_t height;                ///< Image height
     uint32_t format;                ///< Image format
-    venc_config_t venc_cfg;
+    venc_config_t venc_config;
     int32_t  frameRate;             ///< Frame rate
     BufferGroup* inputBuffers;      ///< Input buffers coming from hal3
     int*     outputPipe;            ///< Pre-configured MPA output pipe

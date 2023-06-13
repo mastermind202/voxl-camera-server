@@ -269,7 +269,6 @@ private:
     int                                 lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
     queue<char *>                       snapshotQueue;
     atomic_int                          numNeededSnapshots {0};
-    int                                 lastSnapshotNumber = 0;
     camera_metadata_t*                  pSessionParams = NULL;
 
     ///< TOF Specific members

@@ -84,7 +84,7 @@ typedef enum sensor_t
     SENSOR_MAX_TYPES       ///< Max types
 } sensor_t;
 
-#define SENSOR_STRINGS {"ov7251", "ov9782", "imx214", "imx412", "imx678", "pmf-tof"}
+#define SENSOR_STRINGS {"ov7251", "ov9782", "imx214", "imx412", "imx678", "pmd-tof"}
 
 
 // Get the string associated with the type

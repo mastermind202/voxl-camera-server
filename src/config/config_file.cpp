@@ -49,6 +49,30 @@ using namespace std;
 #define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
 
 
+#define CONFIG_FILE_HEADER "\
+/**\n\
+ * voxl-camera-server Configuration File\n\
+ *\n\
+ * Each camera has configurations for up to 4 HAL3 streams:\n\
+ *    - `preview` stream for raw unprocessed images from CV cameras\n\
+ *    - `small_video` 720p (ish) h264/h265 compressed for fpv video streaming\n\
+ *    - `large_video` 4k (ish) h264/h265 for onboard video recording to disk\n\
+ *    - `snapshot` ISP-processed JPG snapshots that get saved to disk\n\
+ *\n\
+ * on QRB5165 platforms (VOXL2 and VOXL2 mini) you can only have 3 of the 4 enabled\n\
+ *\n\
+ * This file is generated from default values by voxl-configure-cameras.\n\
+ * Do not expect arbitrary resolutions to work, the ISP and video compression\n\
+ * pipelines only support very specific resolutions.\n\
+ *\n\
+ * The default video compression mode is cqp or Constant Quantization Parameter\n\
+ *\n\
+ *\n\
+ *\n\
+ */\n"
+
+
+
 
 int config_file_print(PerCameraInfo* cams, int n)
 {
@@ -190,6 +214,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			M_ERROR("failed to parse type for camera %d\n", i);
 			goto ERROR_EXIT;
 		}
+		printf("FOUND CAM TYPE %s\n", sensor_strings[cam->type]);
 
 		// if not writing fresh, reset the whole cam info struct to default
 		if(!is_writing_fresh){
@@ -211,10 +236,6 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		json_fetch_bool_with_default(item, "enabled", &tmp, cam->isEnabled);
 		cam->isEnabled = tmp;
-		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
-			M_ERROR("failed for fetch pre_format for camera %d\n", i);
-			goto ERROR_EXIT;
-		}
 
 		// check cam id1 is present and not a duplicate
 		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
@@ -250,14 +271,18 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		// now we parse the 4 streams, preview, small, large video, and snapshot
 		// only populate and parse if enabled by default or explicitly set by the user
-		if(cJSON_GetObjectItem(item, "en_preview")!=NULL || cam->en_preview){
-			json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
-			json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
-			json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
-			if(cam->type != SENSOR_TOF){
-				_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
-			}
+		cJSON_GetObjectItem(item, "en_preview")!=NULL;
+		json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
+		json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
+		json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
+		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
+			M_ERROR("failed for fetch pre_format for camera %d\n", i);
+			goto ERROR_EXIT;
 		}
+		if(cam->type != SENSOR_TOF){
+			_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
+		}
+
 
 		if(cJSON_GetObjectItem(item, "en_small_video")!=NULL || cam->en_small_video){
 			json_fetch_bool_with_default(item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
@@ -322,7 +347,14 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			json_fetch_int_with_default  (item, "decimator", &cam->decimator,   cam->decimator);
 		}
 
+		// delete some old entries
+		json_remove_if_present(item, "small_video_bitrate");
+		json_remove_if_present(item, "small_video_h265_en");
+		json_remove_if_present(item, "large_video_bitrate");
+		json_remove_if_present(item, "large_video_h265_en");
+
 	} // end of loop through cameras
+
 
 
 	// check if we got any errors in that process

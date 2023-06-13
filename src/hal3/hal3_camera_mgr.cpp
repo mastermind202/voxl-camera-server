@@ -276,11 +276,11 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         try{
             VideoEncoderConfig enc_info;
             enc_info = {
-                .width =             (uint32_t)small_video_width,   ///< Image width
-                .height =            (uint32_t)small_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .venc_cfg =              pCameraInfo.small_venc_config,           ///< Desired bitrate config
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .width =             (uint32_t)small_video_width,
+                .height =            (uint32_t)small_video_height,
+                .format =            (uint32_t)vid_halfmt,
+                .venc_config =       pCameraInfo.small_venc_config,
+                .frameRate =         pCameraInfo.fps,
                 .inputBuffers =      &small_vid_bufferGroup,
                 .outputPipe =        &smallVideoPipeEncoded
             };
@@ -307,11 +307,11 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         try{
             VideoEncoderConfig enc_info;
             enc_info = {
-                .width =             (uint32_t)large_video_width,   ///< Image width
-                .height =            (uint32_t)large_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .venc_cfg =              pCameraInfo.large_venc_config,
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
+                .width =             (uint32_t)large_video_width,
+                .height =            (uint32_t)large_video_height,
+                .format =            (uint32_t)vid_halfmt,
+                .venc_config =       pCameraInfo.large_venc_config,
+                .frameRate =         pCameraInfo.fps,
                 .inputBuffers =      &large_vid_bufferGroup,
                 .outputPipe =        &largeVideoPipeEncoded
             };
@@ -2205,12 +2205,7 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(smallVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
 
-            if(configInfo.small_venc_config.mode == VENC_H265){
-                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h265", name);
-            } else {
-                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
-            }
-
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_encoded", name);
             smallVideoPipeEncoded = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(smallVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeEncoded, info, flags);
@@ -2232,11 +2227,7 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(largeVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
 
-            if(configInfo.large_venc_config.mode == VENC_H265){
-                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h265", name);
-            } else {
-                snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
-            }
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_encoded", name);
             largeVideoPipeEncoded = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(largeVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeEncoded, info, flags);
@@ -2522,17 +2513,15 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             char *filename = (char *)malloc(256);
 
             if(sscanf(cmd, "%s %s", buffer, filename) != 2){
-                // We weren't given a proper file, generate a default one
-                // find next index open for that name. e/g/ hires-0, hires-1, hires-2...
-                for(int i=lastSnapshotNumber;;i++){
-                    // construct a new path with the current dir, name, and index i
-                    sprintf(filename,"/data/snapshots/%s-%d.jpg", name, i);
-                    if(!_exists(filename)){
-                        // name with this index doesn't exist yet, good, use it!
-                        lastSnapshotNumber = i;
-                        break;
-                    }
-                }
+                // We weren't given a proper file, generate one from the date and time
+                // fetch time to use for video filename
+                time_t rawtime = time(NULL);
+                char time_formatted[100];
+                strftime(time_formatted, sizeof(time_formatted)-1, "%Y-%m-%d_%T", localtime(&rawtime));
+
+                // construct the video filename
+                sprintf(filename,"/data/snapshots/%s-%s.jpg", name, time_formatted);
+
             }
 
             M_PRINT("Camera: %s taking snapshot (destination: %s)\n", name, filename);

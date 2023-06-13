@@ -71,7 +71,7 @@
 #define VENC_H265_LARGE_DEFAULT {\
 	.mode = VENC_H265,\
 	.br_ctrl = VENC_CONTROL_CQP,\
-	.Qfixed = 40,\
+	.Qfixed = 38,\
 	.Qmin = 15,\
 	.Qmax = 50,\
 	.nPframes = 29,\
@@ -389,9 +389,9 @@ static const PerCameraInfo TOFDefaults =
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
         VENC_H264_SMALL_DEFAULT,
+         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
-        0,                          //< Enable Large Video
         VENC_H264_LARGE_DEFAULT,
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame

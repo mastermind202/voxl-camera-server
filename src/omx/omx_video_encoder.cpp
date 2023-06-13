@@ -193,7 +193,6 @@ VideoEncoder::~VideoEncoder()
 OMX_ERRORTYPE VideoEncoder::SetConfig(void)
 {
     OMX_ERRORTYPE ret;
-    int  codingType;
     char* pComponentName;
     OMX_CALLBACKTYPE                 callbacks = {OMXEventHandler, OMXEmptyBufferHandler, OMXFillHandler};
     OMX_COLOR_FORMATTYPE             omxFormat = OMX_COLOR_FormatMax;
@@ -202,13 +201,10 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     m_pHALInputBuffers = m_VideoEncoderConfig.inputBuffers;
     OMX_RESET_STRUCT(&videoPortFmt, OMX_VIDEO_PARAM_PORTFORMATTYPE);
 
-    if(m_VideoEncoderConfig.isH265 == true){
+    if(m_VideoEncoderConfig.venc_config.mode == VENC_H265){
         pComponentName = (char *)"OMX.qcom.video.encoder.hevc";
-        codingType     = OMX_VIDEO_CodingHEVC;
-    }
-    else{
+    }else{
         pComponentName = (char *)"OMX.qcom.video.encoder.avc";
-        codingType     = OMX_VIDEO_CodingAVC;
     }
 
     ret = OMXGetHandle(&m_OMXHandle, pComponentName, this, &callbacks);
@@ -274,7 +270,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     ////////////////////////////////////////////////////////////////////////////
     // set h264/h265 params
     ////////////////////////////////////////////////////////////////////////////
-    if (codingType == OMX_VIDEO_CodingAVC){
+    if(m_VideoEncoderConfig.venc_config.mode == VENC_H264){
 
         ////////////////////////////////////////////////////////////////////////
         // set OMX_VIDEO_PARAM_AVCTYPE
@@ -290,16 +286,12 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
             return OMX_ErrorUndefined;
         }
 
-        if(m_VideoEncoderConfig.target == TARGET_STREAM){
-            avc.nPFrames = (m_VideoEncoderConfig.frameRate/N_I_FRAMES_STREAM)-1;
-            avc.eProfile                  = OMX_VIDEO_AVCProfileMain;
-            avc.eLevel                    = OMX_VIDEO_AVCLevel4;
-        }else{ // record gets 1 per 2 seconds
-            avc.nPFrames = (m_VideoEncoderConfig.frameRate*2)-1;
-            avc.eProfile                  = OMX_VIDEO_AVCProfileMain;
-            avc.eLevel                    = OMX_VIDEO_AVCLevel5;
-        }
+        // TODO see if this has any benefit from being configurable
+        avc.eProfile = OMX_VIDEO_AVCProfileMain;
+        avc.eLevel   = OMX_VIDEO_AVCLevel5;
 
+        // defualts from qcom open source omx/v4l2 android implementation
+        avc.nPFrames = m_VideoEncoderConfig.venc_config.nPframes;
         avc.nBFrames = 0;
         avc.bUseHadamard = OMX_FALSE;
         avc.nRefIdx10ActiveMinus1 = 1;
@@ -308,7 +300,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         avc.bEnableFMO = OMX_FALSE;
         avc.bEnableASO = OMX_FALSE;
         avc.bEnableRS = OMX_FALSE;
-        avc.nAllowedPictureTypes = 2;
+        avc.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
         avc.bFrameMBsOnly = OMX_FALSE;
         avc.bMBAFF = OMX_FALSE;
         avc.bEntropyCodingCABAC = OMX_FALSE;
@@ -319,7 +311,9 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         avc.bDirectSpatialTemporal = OMX_FALSE;
         avc.nCabacInitIdc = 0;
         avc.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterEnable;
+        avc.nSliceHeaderSpacing       = 1024; // don't know where this came from
 
+        // other defaults from somewhere, probably thundercomm example
         // avc.nBFrames                  = 0;
         // avc.bUseHadamard              = OMX_TRUE;
         // avc.nRefFrames                = 2;
@@ -329,7 +323,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         // avc.bEnableFMO                = OMX_FALSE;
         // avc.bEnableASO                = OMX_FALSE;
         // avc.bEnableRS                 = OMX_FALSE;
-        // avc.nAllowedPictureTypes      = OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
+        // avc.nAllowedPictureTypes      =
         // avc.bFrameMBsOnly             = OMX_TRUE;
         // avc.bMBAFF                    = OMX_FALSE;
         // avc.bWeightedPPrediction      = OMX_TRUE;
@@ -339,7 +333,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         // avc.eLoopFilterMode           = OMX_VIDEO_AVCLoopFilterEnable;
         // avc.bEntropyCodingCABAC       = OMX_TRUE;
         // avc.nCabacInitIdc             = 1;
-        // avc.nSliceHeaderSpacing       = 1024;
 
         ret = OMX_SetParameter(m_OMXHandle, OMX_IndexParamVideoAvc, (OMX_PTR)&avc);
         if(ret){
@@ -350,7 +343,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     }
 
     // Configure for H265
-    else if (codingType == OMX_VIDEO_CodingHEVC)
+    else if(m_VideoEncoderConfig.venc_config.mode == VENC_H265)
     {
         ////////////////////////////////////////////////////////////////////////
         // set OMX_VIDEO_PARAM_HEVCTYPE
@@ -369,16 +362,9 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
                                       // of the I frames). 0 means interval is unspecified and
                                       // can be freely chosen by the codec. 1 means a stream of
                                       // only I frames.
-
-        if(m_VideoEncoderConfig.target == TARGET_STREAM){
-            hevc.nKeyFrameInterval = (m_VideoEncoderConfig.frameRate/N_I_FRAMES_STREAM);
-            hevc.eProfile = OMX_VIDEO_HEVCProfileMain;
-            hevc.eLevel   = OMX_VIDEO_HEVCHighTierLevel3;
-        }else{ // record gets 1 per 2 seconds
-            hevc.nKeyFrameInterval = (m_VideoEncoderConfig.frameRate*2);
-            hevc.eProfile = OMX_VIDEO_HEVCProfileMain;
-            hevc.eLevel   = OMX_VIDEO_HEVCHighTierLevel3;
-        }
+        hevc.nKeyFrameInterval = m_VideoEncoderConfig.venc_config.nPframes+1;
+        hevc.eProfile = OMX_VIDEO_HEVCProfileMain;
+        hevc.eLevel   = OMX_VIDEO_HEVCHighTierLevel5;
 
         // TODO more params here?
 
@@ -411,11 +397,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     }
 
 
-    #define QUANTIZATION_START 25
-    #define QUANTIZATION_MIN 34
-    #define QUANTIZATION_MAX 34
-
-
     ////////////////////////////////////////////////////////////////////////
     // set QOMX_EXTNINDEX_VIDEO_INITIALQP
     // bitrate still seems to fluctuate a lot on startup, but does it
@@ -424,9 +405,15 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     QOMX_EXTNINDEX_VIDEO_INITIALQP initqp;
     OMX_RESET_STRUCT_SIZE_VERSION(&initqp, QOMX_EXTNINDEX_VIDEO_INITIALQP);
     initqp.nPortIndex = PortIndexOut;
-    initqp.nQpI = QUANTIZATION_START;
-    initqp.nQpP = QUANTIZATION_START;
-    initqp.nQpB = QUANTIZATION_START;
+    int qstart;
+    if(m_VideoEncoderConfig.venc_config.br_ctrl==VENC_CONTROL_CQP){
+        qstart = m_VideoEncoderConfig.venc_config.Qfixed;
+    }else{
+        qstart = (m_VideoEncoderConfig.venc_config.Qmin + m_VideoEncoderConfig.venc_config.Qmax)/2;
+    }
+    initqp.nQpI = qstart;
+    initqp.nQpP = qstart;
+    initqp.nQpB = qstart;
     initqp.bEnableInitQp = 0x7; // apply to all I, P, and B
     ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)QOMX_IndexParamVideoInitialQp,(OMX_PTR)&initqp);
     if(ret){
@@ -444,18 +431,28 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
     OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
     qp_range.nPortIndex = PortIndexOut;
-    qp_range.minIQP = QUANTIZATION_MIN;
-    qp_range.maxIQP = QUANTIZATION_MAX;
-    qp_range.minPQP = QUANTIZATION_MIN;
-    qp_range.maxPQP = QUANTIZATION_MAX;
-    qp_range.minBQP = QUANTIZATION_MIN;
-    qp_range.maxBQP = QUANTIZATION_MAX;
+    int qmin, qmax;
+    if(m_VideoEncoderConfig.venc_config.br_ctrl==VENC_CONTROL_CQP){
+        qmin = m_VideoEncoderConfig.venc_config.Qfixed;
+        qmax = m_VideoEncoderConfig.venc_config.Qfixed;
+    }else{
+        qmin = m_VideoEncoderConfig.venc_config.Qmin;
+        qmax = m_VideoEncoderConfig.venc_config.Qmax;
+    }
+    qp_range.minIQP = qmin;
+    qp_range.maxIQP = qmax;
+    qp_range.minPQP = qmin;
+    qp_range.maxPQP = qmax;
+    qp_range.minBQP = qmin;
+    qp_range.maxBQP = qmax;
     ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_QcomIndexParamVideoIPBQPRange, (OMX_PTR)&qp_range);
     if(ret){
-        M_ERROR("%s Failed to set IPBQP Range parameter\n", __func__);
+        M_ERROR("%s Failed to set Q Range parameter\n", __func__);
         _print_omx_error(ret);
         return ret;
     }
+
+
 
 
     ////////////////////////////////////////////////////////////////////////////
@@ -465,41 +462,26 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     OMX_VIDEO_PARAM_BITRATETYPE paramBitRate;
     OMX_RESET_STRUCT_SIZE_VERSION(&paramBitRate, OMX_VIDEO_PARAM_BITRATETYPE);
     paramBitRate.nPortIndex = PortIndexOut;
-    paramBitRate.nTargetBitrate = m_VideoEncoderConfig.targetBitRate;
-    //if (m_VideoEncoderConfig.isBitRateConstant == true){
-
-
-        //this seems to stick to QMAX
-        // paramBitRate.eControlRate = OMX_Video_ControlRateDisable;
-        // paramBitRate.nTargetBitrate = m_VideoEncoderConfig.targetBitRate;
-        // printf("setting target bitrate to DISABLE: %0.2fmbps\n", (double)paramBitRate.nTargetBitrate/1000000.0);
-
-        // this seems to stick to QMAX
-        // paramBitRate.eControlRate = OMX_Video_ControlRateDisable;
-        // paramBitRate.nTargetBitrate = 0;
-        // printf("setting target bitrate to DISABLE: %0.2fmbps\n", (double)paramBitRate.nTargetBitrate/1000000.0);
-
-
-        //seems to stick to QMIN
+    OMX_U32 bps = m_VideoEncoderConfig.venc_config.mbps*1000000;
+    // constant Q mode
+    if(m_VideoEncoderConfig.venc_config.br_ctrl == VENC_CONTROL_CQP){
+        paramBitRate.eControlRate = OMX_Video_ControlRateDisable;
+        paramBitRate.nTargetBitrate = 0;
+    }
+    // constant bitrate mode
+    else if(m_VideoEncoderConfig.venc_config.br_ctrl == VENC_CONTROL_CBR){
         paramBitRate.eControlRate = OMX_Video_ControlRateConstant;
-        paramBitRate.nTargetBitrate = m_VideoEncoderConfig.targetBitRate;
-        printf("setting target bitrate to CONSTANT: %0.2fmbps\n", (double)paramBitRate.nTargetBitrate/1000000.0);
+        paramBitRate.nTargetBitrate = bps;
+    }
+    else{
+        M_ERROR("unknown control rate %d\n", m_VideoEncoderConfig.venc_config.br_ctrl);
+        return OMX_ErrorUndefined;
+    }
 
-        // seems to stick to QMIN
-        // paramBitRate.eControlRate = OMX_Video_ControlRateConstant;
-        // paramBitRate.nTargetBitrate = 0;
-        // printf("setting target bitrate to CONSTANT: %0.2fmbps\n", (double)paramBitRate.nTargetBitrate/1000000.0);
-
-        // seems to stick to QMIN
-        // paramBitRate.eControlRate = OMX_Video_ControlRateVariable;
-        // paramBitRate.nTargetBitrate = m_VideoEncoderConfig.targetBitRate;
-        // printf("setting target bitrate to VARIABLE: %0.2fmbps\n",(double)paramBitRate.nTargetBitrate/1000000.0);
-
-        // seems to stick to QMIN
-        // paramBitRate.eControlRate = OMX_Video_ControlRateVariable;
-        // paramBitRate.nTargetBitrate = 0;
-        // printf("setting target bitrate to VARIABLE: %0.2fmbps\n",(double)paramBitRate.nTargetBitrate/1000000.0);
-
+    // Other modes to try:
+    // paramBitRate.eControlRate = OMX_Video_ControlRateVariable;
+    // paramBitRate.eControlRate = QOMX_Video_ControlRateMaxBitrate;
+    // paramBitRate.eControlRate = QOMX_Video_ControlRateMaxBitrateSkipFrames;
 
     ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_IndexParamVideoBitrate, (OMX_PTR)&paramBitRate);
     if(ret){
@@ -521,7 +503,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     OMX_VIDEO_CONFIG_BITRATETYPE configBitRate;
     OMX_RESET_STRUCT_SIZE_VERSION(&configBitRate, OMX_VIDEO_CONFIG_BITRATETYPE);
     configBitRate.nPortIndex = PortIndexOut;
-    configBitRate.nEncodeBitrate = m_VideoEncoderConfig.targetBitRate;
+    configBitRate.nEncodeBitrate = bps;
     ret = OMX_SetConfig(m_OMXHandle, (OMX_INDEXTYPE)(OMX_IndexConfigVideoBitrate), (OMX_PTR)&configBitRate);
     if(ret){
         M_ERROR("OMX_SetParameter of OMX_IndexConfigVideoBitrate failed!\n");
@@ -574,6 +556,16 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         return OMX_ErrorUndefined;
     }
 
+    QOMX_ENABLETYPE enInputQueue;
+    OMX_RESET_STRUCT_SIZE_VERSION(&enInputQueue, QOMX_ENABLETYPE);
+    enInputQueue.bEnable = OMX_TRUE;
+    ret = OMX_SetParameter(m_OMXHandle, (OMX_INDEXTYPE)OMX_QcomIndexParamVencControlInputQueue, (OMX_PTR)&enInputQueue);
+    if(ret){
+        M_ERROR("%s Failed to set enable input queue parameter\n", __func__);
+        _print_omx_error(ret);
+        return ret;
+    }
+
 
     // more things to try:
     // OMX_QTIIndexParamColorSpaceConversion
@@ -606,7 +598,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     ////////////////////////////////////////////////////////////////////////
     // set OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE
     // not working, returns OMX_ErrorUnsupportedIndex
-    // maybe it would work with hevc and just not avc?
     ////////////////////////////////////////////////////////////////////////
     OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE peak_br;
     OMX_RESET_STRUCT_SIZE_VERSION(&peak_br, OMX_QCOM_VIDEO_PARAM_PEAK_BITRATE);
@@ -619,9 +610,6 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     }
 
 */
-
-
-
 
 
 
@@ -741,7 +729,7 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
     sPortDef.format.video.nFrameHeight = m_VideoEncoderConfig.height;
     sPortDef.format.video.nStride      = m_VideoEncoderConfig.width;
     sPortDef.bEnabled = OMX_TRUE;
-    // sPortDef.format.video.nSliceHeight = OMX_CORE_QCIF_HEIGHT; // TODO play with this
+    sPortDef.format.video.nSliceHeight = 1024; // TODO play with this
 
 
     // set input/output specific settings
@@ -754,11 +742,13 @@ OMX_ERRORTYPE VideoEncoder::SetPortParams(OMX_U32  portIndex,               ///<
         sPortDef.format.video.eColorFormat =  OMX_COLOR_FormatUnused;
         // if you set this to 0 it's forced into constant Q mode nomatter what
         // we set up quality and bitrate later
-        sPortDef.format.video.nBitrate = m_VideoEncoderConfig.targetBitRate;
-        //sPortDef.format.video.nBitrate = 64000;
-        //sPortDef.format.video.nBitrate = 0;
+        if(m_VideoEncoderConfig.venc_config.br_ctrl == VENC_CONTROL_CQP){
+            sPortDef.format.video.nBitrate = 0;
+        }else{
+            sPortDef.format.video.nBitrate = m_VideoEncoderConfig.venc_config.mbps * 1000000;
+        }
         sPortDef.bEnabled = OMX_TRUE;
-        if(m_VideoEncoderConfig.isH265){
+        if(m_VideoEncoderConfig.venc_config.mode == VENC_H265){
             sPortDef.format.video.eCompressionFormat =  OMX_VIDEO_CodingHEVC;
         }else{
             sPortDef.format.video.eCompressionFormat =  OMX_VIDEO_CodingAVC;
@@ -1080,7 +1070,7 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
 
         camera_image_metadata_t meta     = out_metaQueue.front();
         // h264 metadata packet, don't associate it with a frame
-        if (m_VideoEncoderConfig.isH265){
+        if(m_VideoEncoderConfig.venc_config.mode == VENC_H265){
             if(pOMXBuffer->pBuffer[4] != 0x40){
                 out_metaQueue.pop_front();
             } else {
@@ -1098,7 +1088,11 @@ void* VideoEncoder::ThreadProcessOMXOutputPort()
         frameNumber = meta.frame_id;
 
         meta.size_bytes = pOMXBuffer->nFilledLen;
-        meta.format = m_VideoEncoderConfig.isH265 ? IMAGE_FORMAT_H265 : IMAGE_FORMAT_H264;
+        if(m_VideoEncoderConfig.venc_config.mode == VENC_H265){
+            meta.format = IMAGE_FORMAT_H265;
+        }else{
+            meta.format = IMAGE_FORMAT_H264;
+        }
 
         pipe_server_write_camera_frame(*m_outputPipe, meta, pOMXBuffer->pBuffer);
         M_VERBOSE("Sent encoded frame: %d\n", frameNumber);
