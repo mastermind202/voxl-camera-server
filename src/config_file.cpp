@@ -214,11 +214,11 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			M_ERROR("failed to parse type for camera %d\n", i);
 			goto ERROR_EXIT;
 		}
-		printf("FOUND CAM TYPE %s\n", sensor_strings[cam->type]);
+		//printf("FOUND CAM TYPE %s\n", sensor_strings[cam->type]);
 
 		// if not writing fresh, reset the whole cam info struct to default
 		if(!is_writing_fresh){
-			printf("getting fresh defaults for cam type %s\n", sensor_strings[cam->type]);
+			//printf("getting fresh defaults for cam type %s\n", sensor_strings[cam->type]);
 			*cam = getDefaultCameraInfo(cam->type);
 		}
 

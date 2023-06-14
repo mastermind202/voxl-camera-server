@@ -2159,7 +2159,7 @@ int PerCameraMgr::SetupPipes()
         pipe_info_t info;
         strcpy(info.type       , "camera_image_metadata_t");
         strcpy(info.server_name, PROCESS_NAME);
-        info.size_bytes = 64*1024*1024;
+        info.size_bytes = 128*1024*1024;
 
         // preview streams
         if(en_preview){
