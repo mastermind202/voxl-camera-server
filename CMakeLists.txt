@@ -63,7 +63,11 @@ endif()
 set(CONFNAME camera-server-config-helper)
 set(CONFSOURCE "config/camera_server_config_helper.cpp")
 
+## no libexif support on voxl1
 file(GLOB_RECURSE all_src_files "src/*.c*")
+if(PLATFORM MATCHES APQ8096)
+    list(FILTER all_src_files EXCLUDE REGEX ".*gps_pose_subscriber\\.cpp$")
+endif()
 add_executable(${SERVERNAME} ${all_src_files})
 
 include_directories(
@@ -109,8 +113,8 @@ endif()
 
 add_executable(${CONFNAME}
     ${CONFSOURCE}
-    src/config/config_file.cpp
-    src/config/config_defaults.cpp
+    src/config_file.cpp
+    src/config_defaults.cpp
 )
 
 target_link_libraries(${CONFNAME}

@@ -271,7 +271,7 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		// now we parse the 4 streams, preview, small, large video, and snapshot
 		// only populate and parse if enabled by default or explicitly set by the user
-		cJSON_GetObjectItem(item, "en_preview")!=NULL;
+		cJSON_GetObjectItem(item, "en_preview");
 		json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
 		json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
 		json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);

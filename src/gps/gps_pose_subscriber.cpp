@@ -67,3 +67,9 @@ struct gps_data grab_gps_info(void)
     pthread_mutex_unlock(&data_mutex);
 	return gps_info;
 }
+
+int gps_data_grab_close(void)
+{
+	pipe_client_close(GPS_CH);
+	return;
+}

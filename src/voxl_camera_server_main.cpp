@@ -42,8 +42,7 @@
 #include <list>
 #include <condition_variable>
 
-#include "gps_pose_subscriber.h"
-
+#include <modal_journal.h>
 #include <modal_start_stop.h>
 #include <modal_pipe.h>
 #include <voxl_cutils.h>
@@ -51,11 +50,15 @@
 #include "hal3_camera.h"
 #include "common_defs.h"
 #include "config_file.h"
-#include <modal_journal.h>
 #include "hal3_camera.h"
 #include "voxl_camera_server.h"
-
 #include "config_defaults.h"
+
+#ifndef APQ8096
+#include "gps_pose_subscriber.h"
+#endif
+
+
 
 // Function prototypes
 static void   PrintHelpMessage();
@@ -86,8 +89,10 @@ int main(int argc, char* const argv[])
         return -1;
     }
 
-    (void) gps_data_grab_init();
-    
+    #ifndef APQ8096
+    gps_data_grab_init();
+    #endif
+
     // make sure another instance isn't running
     // if return value is -3 then a background process is running with
     // higher privaledges and we couldn't kill it, in which case we should
@@ -163,6 +168,11 @@ int main(int argc, char* const argv[])
     }
 
     M_PRINT("\n------ voxl-camera-server: Camera server is now stopping\n");
+
+#ifndef APQ8096
+    gps_data_grab_close();
+#endif
+
     cleanManagers();
 
     pipe_client_close_all();

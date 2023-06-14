@@ -47,7 +47,9 @@
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
 
+#ifndef APQ8096
 #include "gps_pose_subscriber.h"
+#endif
 
 #include <modal_journal.h>
 #include <modal_pipe.h>
@@ -95,7 +97,7 @@
 #endif
 
 // Libexif includes for QRB platform
-#ifndef PLATFORM_APQ8096
+#ifndef APQ8096
 #include <libexif/exif-data.h>
 #include <libexif/exif-entry.h>
 #include <libexif/exif-utils.h>
@@ -1393,7 +1395,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
 
 }
 
-#ifndef PLATFORM_APQ8096
+#ifndef APQ8096
 /* Get an existing tag, or create one if it doesn't exist */
 static ExifEntry *init_tag(ExifData *exif, ExifIfd ifd, ExifTag tag)
 {
@@ -1480,7 +1482,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 
     M_DEBUG("Snapshot jpeg start: %6d len %8d\n", start_index, extractJpgSize);
 
-#ifndef PLATFORM_APQ8096
+#ifndef APQ8096
     // Load the EXIF data from the file
     unsigned char *exif_data;
     unsigned int exif_data_len;
@@ -1585,7 +1587,7 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             }
         }
 
-#ifndef PLATFORM_APQ8096
+#ifndef APQ8096
         /* Write EXIF header */
         if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
             fprintf(stderr, "Error writing to file inin exif header %s\n", filename);

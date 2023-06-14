@@ -19,3 +19,4 @@ struct gps_data{
 
 int gps_data_grab_init(void);
 struct gps_data grab_gps_info(void);
+int gps_data_grab_close(void);

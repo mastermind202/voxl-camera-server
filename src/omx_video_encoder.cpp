@@ -428,6 +428,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     // standard OMX_VIDEO_PARAM_QUANTIZATIONTYPE doesn't work
     // this is the main quantization range that's respected!
     ////////////////////////////////////////////////////////////////////////
+#ifndef APQ8096
     OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE qp_range;
     OMX_RESET_STRUCT_SIZE_VERSION(&qp_range, OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE);
     qp_range.nPortIndex = PortIndexOut;
@@ -451,7 +452,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         _print_omx_error(ret);
         return ret;
     }
-
+#endif
 
 
 
@@ -518,6 +519,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     // QOMX_EXTNINDEX_VIDEO_LOW_LATENCY_MODE
     // https://android.googlesource.com/platform/hardware/qcom/sm7250/media/+/0aef9b5a7fda17e3fac441b565cd1fb4e37df0ff/mm-video-v4l2/vidc/venc/src/omx_video_extensions.hpp
     ////////////////////////////////////////////////////////////////////////////
+#ifndef APQ8096
     QOMX_EXTNINDEX_VIDEO_LOW_LATENCY_MODE lowLatency;
     OMX_RESET_STRUCT_SIZE_VERSION(&lowLatency, QOMX_EXTNINDEX_VIDEO_LOW_LATENCY_MODE);
     lowLatency.bEnableLowLatencyMode = OMX_TRUE;
@@ -527,7 +529,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         _print_omx_error(ret);
         return ret;
     }
-
+#endif
 
     ////////////////////////////////////////////////////////////////////////////
     // OMX_QCOM_VIDEO_CONFIG_PERF_LEVEL
@@ -548,6 +550,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
     // Configure Bitrate Savings (CAC)
     // https://android.googlesource.com/platform/hardware/qcom/sm7250/media/+/0aef9b5a7fda17e3fac441b565cd1fb4e37df0ff/mm-video-v4l2/vidc/venc/src/omx_video_extensions.hpp
     ////////////////////////////////////////////////////////////////////////////
+#ifndef APQ8096
     OMX_U32 adaptive_coding = 0;
     ret = OMX_SetConfig(m_OMXHandle, (OMX_INDEXTYPE)OMX_QTIIndexConfigContentAdaptiveCoding, (OMX_PTR)&adaptive_coding);
     if(ret){
@@ -555,6 +558,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         _print_omx_error(ret);
         return OMX_ErrorUndefined;
     }
+
 
     QOMX_ENABLETYPE enInputQueue;
     OMX_RESET_STRUCT_SIZE_VERSION(&enInputQueue, QOMX_ENABLETYPE);
@@ -565,7 +569,7 @@ OMX_ERRORTYPE VideoEncoder::SetConfig(void)
         _print_omx_error(ret);
         return ret;
     }
-
+#endif
 
     // more things to try:
     // OMX_QTIIndexParamColorSpaceConversion
