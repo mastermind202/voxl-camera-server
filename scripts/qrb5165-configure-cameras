@@ -283,6 +283,16 @@ case $CAM_CONFIG_ID in
 		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_0.bin")
 		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov9782-combo-flip/com.qti.sensormodule.ov9782_combo_flip_1.bin")
 		;;
+	16) # Hires + TOF + Dual Tracking
+		CAM_LIST+=("tof:pmd-tof:0")
+		CAM_LIST+=("hires:${HIRES_SENSOR}:1")
+		CAM_LIST+=("tracking:ov7251:2")
+		CAM_LIST+=("tracking2:ov7251:3")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_3.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/ov7251/com.qti.sensormodule.ov7251_4.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/irs1645/com.qti.sensormodule.irs1645_0.bin")
+		BIN_LIST+=("/usr/share/modalai/chi-cdk/${HIRES_SENSOR}/com.qti.sensormodule.${HIRES_SENSOR}_2.bin")
+		;;
 	*)
 		echo "invalid option"
 		echo "Please provide a camera configuration-id"
