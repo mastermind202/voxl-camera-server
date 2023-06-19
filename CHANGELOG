@@ -1,3 +1,8 @@
+1.6.1
+    * enable h265
+    * tune OMX more
+    * expose encoding parameters in config file
+    * change snapshot filename to date:time.jpg
 1.6.0
     * new pipe naming
     * snapshot enabled in qrb5165

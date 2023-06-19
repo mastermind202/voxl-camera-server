@@ -46,6 +46,30 @@
 
 using namespace std;
 
+#define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
+
+
+#define CONFIG_FILE_HEADER "\
+/**\n\
+ * voxl-camera-server Configuration File\n\
+ *\n\
+ * Each camera has configurations for up to 4 HAL3 streams:\n\
+ *    - `preview` stream for raw unprocessed images from CV cameras\n\
+ *    - `small_video` 720p (ish) h264/h265 compressed for fpv video streaming\n\
+ *    - `large_video` 4k (ish) h264/h265 for onboard video recording to disk\n\
+ *    - `snapshot` ISP-processed JPG snapshots that get saved to disk\n\
+ *\n\
+ * on QRB5165 platforms (VOXL2 and VOXL2 mini) you can only have 3 of the 4 enabled\n\
+ *\n\
+ * This file is generated from default values by voxl-configure-cameras.\n\
+ * Do not expect arbitrary resolutions to work, the ISP and video compression\n\
+ * pipelines only support very specific resolutions.\n\
+ *\n\
+ * The default video compression mode is cqp or Constant Quantization Parameter\n\
+ *\n\
+ *\n\
+ *\n\
+ */\n"
 
 
 
@@ -72,12 +96,10 @@ int config_file_print(PerCameraInfo* cams, int n)
 		printf("    en_small_video:      %d\n", cams[i].en_small_video);
 		printf("    small_video_width:   %d\n", cams[i].small_video_width);
 		printf("    small_video_height:  %d\n", cams[i].small_video_height);
-		printf("    small_video_bitrate: %d (bps)\n", cams[i].small_video_bitrate);
 		printf("\n");
 		printf("    en_large_video:      %d\n", cams[i].en_large_video);
 		printf("    large_video_width:   %d\n", cams[i].large_video_width);
 		printf("    large_video_height:  %d\n", cams[i].large_video_height);
-		printf("    large_video_bitrate: %d (bps)\n", cams[i].large_video_bitrate);
 		printf("\n");
 		printf("    en_snapshot:         %d\n", cams[i].en_snapshot);
 		printf("    snap_width:          %d\n", cams[i].snap_width);
@@ -94,7 +116,25 @@ int config_file_print(PerCameraInfo* cams, int n)
 }
 
 
-#define contains(a, b) (std::find(a.begin(), a.end(), b) != a.end())
+
+// swap height and width if necessary (common mistake when typing in config file)
+static void _check_and_swap_width_height(int* w, int* h)
+{
+	// all is well
+	if(*h <= *w) return;
+
+	M_WARN("detected swapped height and width %d %d in config file\n", *h, *w);
+	M_WARN("automatically switching them\n");
+
+	int height = *h;
+	int width = *w;
+
+	*h = width;
+	*w = height;
+	return;
+}
+
+
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Read and parse the config file. This function can be modified to support any config file format. The information for each
@@ -112,6 +152,9 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 	const char* sensor_strings[] = SENSOR_STRINGS;
 	const char* ae_strings[] = AE_STRINGS;
 	const char* format_strings[] = FORMAT_STRINGS;
+	const char* venc_mode_strings[] = VENC_MODE_STRINGS;
+	const char* venc_control_strings[] = VENC_CONTROL_STRINGS;
+
 
 	cJSON* parent = NULL;
 	cJSON* cameras_json = NULL;
@@ -171,10 +214,11 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			M_ERROR("failed to parse type for camera %d\n", i);
 			goto ERROR_EXIT;
 		}
+		//printf("FOUND CAM TYPE %s\n", sensor_strings[cam->type]);
 
 		// if not writing fresh, reset the whole cam info struct to default
 		if(!is_writing_fresh){
-			printf("getting fresh defaults for cam type %s\n", sensor_strings[cam->type]);
+			//printf("getting fresh defaults for cam type %s\n", sensor_strings[cam->type]);
 			*cam = getDefaultCameraInfo(cam->type);
 		}
 
@@ -192,10 +236,6 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		json_fetch_bool_with_default(item, "enabled", &tmp, cam->isEnabled);
 		cam->isEnabled = tmp;
-		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
-			M_ERROR("failed for fetch pre_format for camera %d\n", i);
-			goto ERROR_EXIT;
-		}
 
 		// check cam id1 is present and not a duplicate
 		if(json_fetch_int_with_default(item, "camera_id", &(cam->camId), cam->camId)){
@@ -231,30 +271,52 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 
 		// now we parse the 4 streams, preview, small, large video, and snapshot
 		// only populate and parse if enabled by default or explicitly set by the user
-		if(cJSON_GetObjectItem(item, "en_preview")!=NULL || cam->en_preview){
-			json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
-			json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
-			json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
+		cJSON_GetObjectItem(item, "en_preview");
+		json_fetch_bool_with_default (item, "en_preview",         &cam->en_preview,  cam->en_preview);
+		json_fetch_int_with_default  (item, "preview_width",      &cam->pre_width,   cam->pre_width);
+		json_fetch_int_with_default  (item, "preview_height",     &cam->pre_height,  cam->pre_height);
+		if(json_fetch_enum_with_default(item, "pre_format", (int*)&cam->pre_format, format_strings, FMT_MAXTYPES, (int)cam->pre_format)){
+			M_ERROR("failed for fetch pre_format for camera %d\n", i);
+			goto ERROR_EXIT;
+		}
+		if(cam->type != SENSOR_TOF){
+			_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
 		}
 
+
 		if(cJSON_GetObjectItem(item, "en_small_video")!=NULL || cam->en_small_video){
-			json_fetch_bool_with_default (item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
-			json_fetch_int_with_default  (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
-			json_fetch_int_with_default  (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
-			json_fetch_int_with_default  (item, "small_video_bitrate", &cam->small_video_bitrate, cam->small_video_bitrate);
+			json_fetch_bool_with_default(item, "en_small_video",      &cam->en_small_video,      cam->en_small_video);
+			json_fetch_int_with_default (item, "small_video_width",   &cam->small_video_width,   cam->small_video_width);
+			json_fetch_int_with_default (item, "small_video_height",  &cam->small_video_height,  cam->small_video_height);
+			json_fetch_enum_with_default(item, "small_venc_mode",    (int*)&cam->small_venc_config.mode,    venc_mode_strings, VENC_MAXMODES, (int)cam->small_venc_config.mode);
+			json_fetch_enum_with_default(item, "small_venc_br_ctrl", (int*)&cam->small_venc_config.br_ctrl, venc_control_strings, VENC_MAXMODES, (int)cam->small_venc_config.br_ctrl);
+			json_fetch_int_with_default (item, "small_venc_Qfixed",   &cam->small_venc_config.Qfixed,   cam->small_venc_config.Qfixed);
+			json_fetch_int_with_default (item, "small_venc_Qmin",     &cam->small_venc_config.Qmin,     cam->small_venc_config.Qmin);
+			json_fetch_int_with_default (item, "small_venc_Qmax",     &cam->small_venc_config.Qmax,     cam->small_venc_config.Qmax);
+			json_fetch_int_with_default (item, "small_venc_nPframes", &cam->small_venc_config.nPframes, cam->small_venc_config.nPframes);
+			json_fetch_double_with_default(item, "small_venc_mbps",   &cam->small_venc_config.mbps,     cam->small_venc_config.mbps);
+			_check_and_swap_width_height(&cam->small_video_width, &cam->small_video_height);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_large_video")!=NULL || cam->en_large_video){
 			json_fetch_bool_with_default (item, "en_large_video",      &cam->en_large_video,      cam->en_large_video);
-			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_height,  cam->large_video_height);
-			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_width,   cam->large_video_width);
-			json_fetch_int_with_default  (item, "large_video_bitrate", &cam->large_video_bitrate, cam->large_video_bitrate);
+			json_fetch_int_with_default  (item, "large_video_width",   &cam->large_video_width,   cam->large_video_width);
+			json_fetch_int_with_default  (item, "large_video_height",  &cam->large_video_height,  cam->large_video_height);
+			json_fetch_enum_with_default(item, "large_venc_mode",    (int*)&cam->large_venc_config.mode,    venc_mode_strings, VENC_MAXMODES, (int)cam->large_venc_config.mode);
+			json_fetch_enum_with_default(item, "large_venc_br_ctrl", (int*)&cam->large_venc_config.br_ctrl, venc_control_strings, VENC_MAXMODES, (int)cam->large_venc_config.br_ctrl);
+			json_fetch_int_with_default (item, "large_venc_Qfixed",   &cam->large_venc_config.Qfixed,   cam->large_venc_config.Qfixed);
+			json_fetch_int_with_default (item, "large_venc_Qmin",     &cam->large_venc_config.Qmin,     cam->large_venc_config.Qmin);
+			json_fetch_int_with_default (item, "large_venc_Qmax",     &cam->large_venc_config.Qmax,     cam->large_venc_config.Qmax);
+			json_fetch_int_with_default (item, "large_venc_nPframes", &cam->large_venc_config.nPframes, cam->large_venc_config.nPframes);
+			json_fetch_double_with_default(item, "large_venc_mbps",   &cam->large_venc_config.mbps,     cam->large_venc_config.mbps);
+			_check_and_swap_width_height(&cam->large_video_width, &cam->large_video_height);
 		}
 
 		if(cJSON_GetObjectItem(item, "en_snapshot")!=NULL || cam->en_large_video){
 			json_fetch_bool_with_default (item, "en_snapshot",        &cam->en_snapshot, cam->en_snapshot);
 			json_fetch_int_with_default  (item, "en_snapshot_width",  &cam->snap_width,  cam->snap_width);
 			json_fetch_int_with_default  (item, "en_snapshot_height", &cam->snap_height, cam->snap_height);
+			_check_and_swap_width_height(&cam->pre_width, &cam->pre_height);
 		}
 
 		if(json_fetch_enum_with_default(item, "ae_mode", (int*)&cam->ae_mode, ae_strings, AE_MAX_MODES, (int)cam->ae_mode)){
@@ -285,7 +347,14 @@ Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len)
 			json_fetch_int_with_default  (item, "decimator", &cam->decimator,   cam->decimator);
 		}
 
+		// delete some old entries
+		json_remove_if_present(item, "small_video_bitrate");
+		json_remove_if_present(item, "small_video_h265_en");
+		json_remove_if_present(item, "large_video_bitrate");
+		json_remove_if_present(item, "large_video_h265_en");
+
 	} // end of loop through cameras
+
 
 
 	// check if we got any errors in that process

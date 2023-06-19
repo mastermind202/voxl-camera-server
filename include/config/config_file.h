@@ -42,12 +42,7 @@
 #define CONFIG_FILE_NAME "/etc/modalai/voxl-camera-server.conf"
 
 
-#define CONFIG_FILE_HEADER "\
-/**\n\
- * voxl-camera-server Configuration File\n\
- *\n\
- *TODO write this\n\
- */\n"
+
 
 
 int config_file_print(PerCameraInfo* cams, int n);
@@ -55,9 +50,6 @@ int config_file_print(PerCameraInfo* cams, int n);
 // Read and parse the config file given in the command line argument
 Status ReadConfigFile(PerCameraInfo* cameras, int* camera_len);    ///< Returned camera info for each camera in the config file
 
-/*
-// Read and parse the config file given in the command line argument
-void WriteConfigFile(std::list<PerCameraInfo> cameras);     ///< Passed camera info for each camera in the config file
-*/
+
 
 #endif // end #define CAMERA_CONFIG_H

@@ -37,8 +37,138 @@
 #include "config_defaults.h"
 #include "common_defs.h"
 
-// small video stream is usually for rtsp
-#define RTSP_BITRATE_DEFAULT 3000000 // mbps
+
+#define VENC_H264_SMALL_DEFAULT {\
+	.mode = VENC_H264,\
+	.br_ctrl = VENC_CONTROL_CQP,\
+	.Qfixed = 30,\
+	.Qmin = 15,\
+	.Qmax = 40,\
+	.nPframes = 9,\
+	.mbps = 2.0,\
+}
+
+#define VENC_H264_LARGE_DEFAULT {\
+	.mode = VENC_H264,\
+	.br_ctrl = VENC_CONTROL_CQP,\
+	.Qfixed = 40,\
+	.Qmin = 15,\
+	.Qmax = 50,\
+	.nPframes = 29,\
+	.mbps = 40.0,\
+}
+
+#define VENC_H265_SMALL_DEFAULT {\
+	.mode = VENC_H265,\
+	.br_ctrl = VENC_CONTROL_CQP,\
+	.Qfixed = 30,\
+	.Qmin = 15,\
+	.Qmax = 40,\
+	.nPframes = 9,\
+	.mbps = 2.0,\
+}
+
+#define VENC_H265_LARGE_DEFAULT {\
+	.mode = VENC_H265,\
+	.br_ctrl = VENC_CONTROL_CQP,\
+	.Qfixed = 38,\
+	.Qmin = 15,\
+	.Qmax = 50,\
+	.nPframes = 29,\
+	.mbps = 30.0,\
+}
+
+
+
+
+//< Gain Min
+//< Gain Max
+//< Exposure Min
+//< Exposure Max
+//< Desired MSV
+//< k_p_ns
+//< k_i_ns
+//< Max i
+//< p Good Threshold
+//< Exposure Period
+//< Gain Period
+//< Display Debug
+//< Exposure offset
+
+#define AE_HIST_DEFAULTS_OV7251 {\
+    100,    \
+    1000,   \
+    20,     \
+    33000,  \
+    64.0,   \
+    8000.0, \
+    5.0,    \
+    250.0,  \
+    3,      \
+    1,      \
+    2,      \
+    0,      \
+    8000}
+
+#define AE_HIST_DEFAULTS_OV9782 {\
+    54,     \
+    835,    \
+    20,     \
+    33000,  \
+    54.0,   \
+    8000.0, \
+    5.0,    \
+    250.0,  \
+    3,      \
+    1,      \
+    2,      \
+    0,      \
+    8000}
+
+
+
+//< Gain Min
+//< Gain Max
+//< Exposure Min
+//< Exposure Max
+//< Soft min exposure
+//< Gain Slope
+//< Desired MSV
+//< Filter Alpha
+//< Most saturated ignore frac
+//< Exposure update period
+//< Gain update period
+//< Display Debug
+#define AE_MSV_DEFAULTS_OV7251 {\
+    101,  \
+    835,  \
+    20,   \
+    33000,\
+    5000, \
+    0.05, \
+    60.0, \
+    0.6,  \
+    0.2,  \
+    1,    \
+    1,    \
+    false}
+
+#define AE_MSV_DEFAULTS_OV9782 {\
+    54,   \
+    835,  \
+    20,   \
+    33000,\
+    5000, \
+    0.05, \
+    60.0, \
+    0.6,  \
+    0.2,  \
+    1,    \
+    1,    \
+    false }
+
+
+
 
 static const PerCameraInfo emptyDefaults =
     {
@@ -55,18 +185,20 @@ static const PerCameraInfo emptyDefaults =
         0,                          //< Enable Small Video
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
-        -1,                         //< Small Video Bitrate
+        VENC_H264_SMALL_DEFAULT,
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
-        -1,                         //< Large Video Bitrate
+        VENC_H264_LARGE_DEFAULT,
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_OFF,                     //< AE Mode
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
         0,                          //< Standby Enabled
-        1,                          //< Standby Decimator
+        1                           //< Standby Decimator
     };
 
 
@@ -85,45 +217,20 @@ static const PerCameraInfo OV7251Defaults =
         0,                          //< Enable Small Video
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
-        -1,                         //< Small Video Bitrate
+        VENC_H264_SMALL_DEFAULT,
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
-        -1,                         //< Large Video Bitrate
+        VENC_H264_LARGE_DEFAULT,
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_LME_MSV,                 //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            64.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            0,                      //< Display Debug
-            8000,                   //< Exposure offset
-        },
-        {                           //< MSV AE Algorithm Parameters
-            101,                    //< Gain Min
-            835,                    //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            5000,                   //< Soft min exposure
-            0.05,                   //< Gain Slope
-            60.0,                   //< Desired MSV
-            0.6,                    //< Filter Alpha
-            0.2,                    //< Most saturated ignore frac
-            1,                      //< Exposure update period
-            1,                      //< Gain update period
-            false                   //< Display Debug
-        }
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
+        0,                          //< Standby Enabled
+        1,                          //< Standby Decimator
     };
 
 
@@ -142,45 +249,20 @@ static const PerCameraInfo OV9782Defaults =
         0,                          //< Enable Small Video
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
-        -1,                         //< Small Video Bitrate
+        VENC_H264_SMALL_DEFAULT,
         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
-        -1,                         //< Large Video Bitrate
+        VENC_H264_LARGE_DEFAULT,
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_LME_MSV,                 //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            54,                     //< Gain Min
-            835,                    //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            54.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            0,                      //< Display Debug
-            8000,                   //< Exposure offset
-        },
-        {                           //< MSV AE Algorithm Parameters
-            54,                     //< Gain Min
-            835,                    //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            5000,                   //< Soft min exposure
-            0.05,                   //< Gain Slope
-            60.0,                   //< Desired MSV
-            0.6,                    //< Filter Alpha
-            0.2,                    //< Most saturated ignore frac
-            1,                      //< Exposure update period
-            1,                      //< Gain update period
-            false                   //< Display Debug
-        }
+        AE_HIST_DEFAULTS_OV9782,
+        AE_MSV_DEFAULTS_OV9782,
+        0,                          //< Standby Enabled
+        1                           //< Standby Decimator
     };
 
 
@@ -196,34 +278,34 @@ static const PerCameraInfo IMX214Defaults =
         640,                        //< Preview Width of the frame
         480,                        //< Preview Height of the frame
         FMT_NV21,                   //< Preview Frame format
+#ifdef APQ8096
         1,                          //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        VENC_H264_SMALL_DEFAULT,
+        1,                          //< Enable Large Video
+        1920,                       //< Large Video Width of the frame
+        1080,                       //< Large Video Height of the frame
+        VENC_H264_LARGE_DEFAULT,
+#else
+        1,                          //< Enable Small Video
+        1024,                       //< Small Video Width of the frame
+        768,                        //< Small Video Height of the frame
+        VENC_H265_SMALL_DEFAULT,
         1,                          //< Enable Large Video
         4096,                       //< Large Video Width of the frame
         2160,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        VENC_H265_LARGE_DEFAULT,
+#endif
         1,                          //< Enable Snapshot mode?
         4160,                       //< Snapshot Width of the frame
         3120,                       //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_ISP,                     //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            54.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            0,                      //< Display Debug
-            8000,                   //< Exposure offset
-        }
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
+        0,                          //< Standby Enabled
+        1                           //< Standby Decimator
     };
 
 
@@ -242,31 +324,20 @@ static const PerCameraInfo IMX412Defaults =
         1,                          //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        VENC_H265_SMALL_DEFAULT,
         1,                          //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        VENC_H265_LARGE_DEFAULT,
         1,                          //< Enable Snapshot mode?
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_ISP,                     //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            54.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            0,                      //< Display Debug
-            8000,                   //< Exposure offset
-        }
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
+        0,                          //< Standby Enabled
+        1                           //< Standby Decimator
     };
 
 
@@ -285,31 +356,20 @@ static const PerCameraInfo IMX678Defaults =
         1,                          //< Enable Small Video
         1024,                       //< Small Video Width of the frame
         768,                        //< Small Video Height of the frame
-        RTSP_BITRATE_DEFAULT,       //< Small Video Bitrate
+        VENC_H265_SMALL_DEFAULT,
         1,                          //< Enable Large Video
         2048,                       //< Large Video Width of the frame
         1536,                       //< Large Video Height of the frame
-        120000000,                  //< Large Video Bitrate
+        VENC_H265_LARGE_DEFAULT,
         1,                          //< Enable Snapshot mode?
         3840,                       //< Snapshot Width of the frame
         2160,                       //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_ISP,                     //< AE Mode
-        {                           //< Hist AE Algorithm Parameters
-            100,                    //< Gain Min
-            1000,                   //< Gain Max
-            20,                     //< Exposure Min
-            33000,                  //< Exposure Max
-            54.0,                   //< Desired MSV
-            8000.0,                 //< k_p_ns
-            5.0,                    //< k_i_ns
-            250.0,                  //< Max i
-            3,                      //< p Good Threshold
-            1,                      //< Exposure Period
-            2,                      //< Gain Period
-            0,                      //< Display Debug
-            8000,                   //< Exposure offset
-        }
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
+        0,                          //< Standby Enabled
+        1                           //< Standby Decimator
     };
 
 
@@ -328,18 +388,20 @@ static const PerCameraInfo TOFDefaults =
         0,                          //< Enable Small Video
         -1,                         //< Small Video Width of the frame
         -1,                         //< Small Video Height of the frame
-        -1,                         //< Small Video Bitrate
-        0,                          //< Enable Large Video
+        VENC_H264_SMALL_DEFAULT,
+         0,                          //< Enable Large Video
         -1,                         //< Large Video Width of the frame
         -1,                         //< Large Video Height of the frame
-        -1,                         //< Large Video Bitrate
+        VENC_H264_LARGE_DEFAULT,
         0,                          //< Enable Snapshot mode?
         -1,                         //< Snapshot Width of the frame
         -1,                         //< Snapshot Height of the frame
         0,                          //< Independent Exposure
         AE_OFF,                     //< AE Mode
+        AE_HIST_DEFAULTS_OV7251,
+        AE_MSV_DEFAULTS_OV7251,
         0,                          //< Standby Enabled
-        5,                          //< Standby Decimator
+        5                           //< Standby Decimator
     };
 
 

@@ -84,7 +84,7 @@ typedef enum sensor_t
     SENSOR_MAX_TYPES       ///< Max types
 } sensor_t;
 
-#define SENSOR_STRINGS {"ov7251", "ov9782", "imx214", "imx412", "imx678", "pmf-tof"}
+#define SENSOR_STRINGS {"ov7251", "ov9782", "imx214", "imx412", "imx678", "pmd-tof"}
 
 
 // Get the string associated with the type
@@ -207,6 +207,63 @@ static const inline char* GetAEModeString(int mode)
     }
 }
 
+
+
+typedef enum venc_mode_t
+{
+    VENC_H264   = 0,
+    VENC_H265,
+    VENC_MAXMODES
+} venc_mode_t;
+
+#define VENC_MODE_STRINGS {"h264", "h265"}
+
+static const inline char* GetVENCModeString(int mode)
+{
+    switch ((venc_mode_t)mode){
+        case VENC_H264:      return "h264";
+        case VENC_H265:      return "h265";
+        default:          return "Invalid";
+    }
+}
+
+
+
+// TODO get vbr and mbr going
+typedef enum venc_control_t
+{
+    VENC_CONTROL_CQP = 0,
+    VENC_CONTROL_CBR,
+    VENC_CONTROL_MAXMODES
+} venc_control_t;
+
+#define VENC_CONTROL_STRINGS {"cqp", "cbr"}
+
+static const inline char* GetVENCControlString(int mode)
+{
+    switch ((venc_control_t)mode){
+        case VENC_CONTROL_CQP:      return "cqp";
+        case VENC_CONTROL_CBR:      return "cbr";
+        default:          return "Invalid";
+    }
+}
+
+
+typedef struct venc_config_t{
+	venc_mode_t mode;
+	venc_control_t br_ctrl; ///< bitrate control mode
+	int Qfixed;		///< fixed value of Q that will be used in cqp "constant Qp" mode
+	int Qmin;		///< minium bitrate that will be used in constant bitrate mode
+	int Qmax;		///< maximum Qp that will be used in constant bitrate mode
+	int nPframes;	///< number of p frames between i frames
+	double mbps;	///< target bitrate in magabits per second for constant bitrate mode
+} venc_config_t;
+
+
+
+
+
+
 //------------------------------------------------------------------------------------------------------------------------------
 // Structure containing information for one camera
 // DON'T MESS WITH THE ORDER HERE
@@ -229,12 +286,12 @@ struct PerCameraInfo
     int     en_small_video;
     int     small_video_width;    ///< Video Stream Width of the frame
     int     small_video_height;   ///< Video Stream Height of the frame
-    int     small_video_bitrate;  ///< Video Stream Bitrate
+    venc_config_t small_venc_config; ///< configuration for small video compression
 
     int     en_large_video;
     int     large_video_width;    ///< Video Record Width of the frame
     int     large_video_height;   ///< Video Record Height of the frame
-    int     large_video_bitrate;  ///< Video Record Bitrate
+    venc_config_t large_venc_config; ///< configuration for large video compression
 
     int     en_snapshot;
     int     snap_width;            ///< Snapshot Width of the frame

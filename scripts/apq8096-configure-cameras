@@ -255,7 +255,6 @@ if [ "${ENABLE_CAMERA_SERVER}" == "0" ]; then
 else
     echo "enabling and starting voxl-camera-server"
     systemctl enable voxl-camera-server
-    systemctl restart voxl-camera-server
 fi
 
 echo "Done Configuring Cameras"

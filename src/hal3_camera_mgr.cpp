@@ -38,7 +38,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <iostream>
-#include <modal_pipe.h>
 #include <vector>
 #include <string.h>
 #include <camera/CameraMetadata.h>
@@ -47,6 +46,11 @@
 #include <voxl_cutils.h>
 #include <royale/DepthData.hpp>
 #include <tof_interface.hpp>
+
+#ifndef APQ8096
+#include "gps_pose_subscriber.h"
+#endif
+
 #include <modal_journal.h>
 #include <modal_pipe.h>
 
@@ -90,6 +94,19 @@
     #define NUM_RECORD_BUFFERS   16 // shouldn't need more than 10, if the buffer pool is empty then OMX should be dropping more frames
 #else
     #error "No Platform defined"
+#endif
+
+// Libexif includes for QRB platform
+#ifndef APQ8096
+#include <libexif/exif-data.h>
+#include <libexif/exif-entry.h>
+#include <libexif/exif-utils.h>
+/* raw EXIF header data */
+static const unsigned char exif_header[] = {
+  0xff, 0xd8, 0xff, 0xe1
+};
+static const unsigned int exif_header_len = sizeof(exif_header);
+#define FILE_BYTE_ORDER EXIF_BYTE_ORDER_INTEL
 #endif
 
 static const int  minJpegBufferSize = sizeof(camera3_jpeg_blob) + 1024 * 512;
@@ -157,10 +174,8 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
     vid_halfmt                (HAL_PIXEL_FORMAT_YCbCr_420_888),
     small_video_width         (pCameraInfo.small_video_width),
     small_video_height        (pCameraInfo.small_video_height),
-    small_video_bitrate       (pCameraInfo.small_video_bitrate),
     large_video_width         (pCameraInfo.large_video_width),
     large_video_height        (pCameraInfo.large_video_height),
-    large_video_bitrate       (pCameraInfo.large_video_bitrate),
     snap_width        (pCameraInfo.snap_width),
     snap_height       (pCameraInfo.snap_height),
     snap_halfmt       (HAL_PIXEL_FORMAT_BLOB),
@@ -261,16 +276,15 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)small_video_width,   ///< Image width
-                .height =            (uint32_t)small_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     small_video_bitrate,           ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            false,                 ///< Is it H265 encoding or H264
+            VideoEncoderConfig enc_info;
+            enc_info = {
+                .width =             (uint32_t)small_video_width,
+                .height =            (uint32_t)small_video_height,
+                .format =            (uint32_t)vid_halfmt,
+                .venc_config =       pCameraInfo.small_venc_config,
+                .frameRate =         pCameraInfo.fps,
                 .inputBuffers =      &small_vid_bufferGroup,
-                .outputPipe =        &smallVideoPipeH264
+                .outputPipe =        &smallVideoPipeEncoded
             };
             pVideoEncoderSmall = new VideoEncoder(&enc_info);
         } catch(int) {
@@ -293,17 +307,17 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
         }
 
         try{
-            VideoEncoderConfig enc_info = {
-                .width =             (uint32_t)large_video_width,   ///< Image width
-                .height =            (uint32_t)large_video_height,  ///< Image height
-                .format =            (uint32_t)vid_halfmt,  ///< Image format
-                .isBitRateConstant = true,                  ///< Is the bit rate constant
-                .targetBitRate =     large_video_bitrate,           ///< Desired target bitrate
-                .frameRate =         pCameraInfo.fps,       ///< Frame rate
-                .isH265 =            false,                 ///< Is it H265 encoding or H264
+            VideoEncoderConfig enc_info;
+            enc_info = {
+                .width =             (uint32_t)large_video_width,
+                .height =            (uint32_t)large_video_height,
+                .format =            (uint32_t)vid_halfmt,
+                .venc_config =       pCameraInfo.large_venc_config,
+                .frameRate =         pCameraInfo.fps,
                 .inputBuffers =      &large_vid_bufferGroup,
-                .outputPipe =        &largeVideoPipeH264
+                .outputPipe =        &largeVideoPipeEncoded
             };
+
             pVideoEncoderLarge = new VideoEncoder(&enc_info);
         } catch(int) {
             M_ERROR("Failed to initialize encoder for camera: %s\n", name);
@@ -669,9 +683,12 @@ void PerCameraMgr::Stop()
 
     pthread_cond_broadcast(&stereoCond);
     pthread_cond_broadcast(&resultCond);
-    pthread_join(resultThread, NULL);
+
     pthread_cond_signal(&resultCond);
     pthread_mutex_unlock(&resultMutex);
+    pthread_join(resultThread, NULL);
+
+
     pthread_mutex_destroy(&resultMutex);
     pthread_cond_destroy(&resultCond);
 
@@ -1316,11 +1333,11 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
     }
 
     // no need to pass data to OMX if there are no h264 clients
-    if(pipe_server_get_num_clients(smallVideoPipeH264)<1){
+    if(pipe_server_get_num_clients(smallVideoPipeEncoded)<1){
         bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
-
+    
     // check health of the encoder and drop this frame if it's getting backed up
     int n = pVideoEncoderSmall->ItemsInQueue();
     if(n>SMALL_VID_ALLOWED_ITEMS_IN_OMX_QUEUE){
@@ -1328,7 +1345,6 @@ void PerCameraMgr::ProcessSmallVideoFrame(image_result result)
         bufferPush(small_vid_bufferGroup, result.second.buffer);
         return;
     }
-
     // add to the OMX queue
     pVideoEncoderSmall->ProcessFrameToEncode(meta, bufferBlockInfo);
 
@@ -1366,7 +1382,7 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
     }
 
     // no need to pass data to OMX if there are no h264 clients
-    if(pipe_server_get_num_clients(largeVideoPipeH264)<1){
+    if(pipe_server_get_num_clients(largeVideoPipeEncoded)<1){
         bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
@@ -1378,11 +1394,75 @@ void PerCameraMgr::ProcessLargeVideoFrame(image_result result)
         bufferPush(large_vid_bufferGroup, result.second.buffer);
         return;
     }
-
     // add to the OMX queue
     pVideoEncoderLarge->ProcessFrameToEncode(meta, bufferBlockInfo);
 
 }
+
+#ifndef APQ8096
+/* Get an existing tag, or create one if it doesn't exist */
+static ExifEntry *init_tag(ExifData *exif, ExifIfd ifd, ExifTag tag)
+{
+	ExifEntry *entry;
+	/* Return an existing tag if one exists */
+	if (!((entry = exif_content_get_entry (exif->ifd[ifd], tag)))) {
+	    /* Allocate a new entry */
+	    entry = exif_entry_new ();
+	    assert(entry != NULL); /* catch an out of memory condition */
+	    entry->tag = tag; /* tag must be set before calling
+				 exif_content_add_entry */
+
+	    /* Attach the ExifEntry to an IFD */
+	    exif_content_add_entry (exif->ifd[ifd], entry);
+
+	    /* Allocate memory for the entry and fill with default data */
+	    exif_entry_initialize (entry, tag);
+
+	    /* Ownership of the ExifEntry has now been passed to the IFD.
+	     * One must be very careful in accessing a structure after
+	     * unref'ing it; in this case, we know "entry" won't be freed
+	     * because the reference count was bumped when it was added to
+	     * the IFD.
+	     */
+	    exif_entry_unref(entry);
+	}
+	return entry;
+}
+
+static ExifEntry *create_tag(ExifData *exif, ExifIfd ifd, ExifTag tag, size_t len)
+{
+	void *buf;
+	ExifEntry *entry;
+	
+	/* Create a memory allocator to manage this ExifEntry */
+	ExifMem *mem = exif_mem_new_default();
+	assert(mem != NULL); /* catch an out of memory condition */
+
+	/* Create a new ExifEntry using our allocator */
+	entry = exif_entry_new_mem (mem);
+	assert(entry != NULL);
+
+	/* Allocate memory to use for holding the tag data */
+	buf = exif_mem_alloc(mem, len);
+	assert(buf != NULL);
+
+	/* Fill in the entry */
+	entry->data = (unsigned char*)buf;
+	entry->size = len;
+	entry->tag = tag;
+	entry->components = len;
+	entry->format = EXIF_FORMAT_UNDEFINED;
+
+	/* Attach the ExifEntry to an IFD */
+	exif_content_add_entry (exif->ifd[ifd], entry);
+
+	/* The ExifMem and ExifEntry are now owned elsewhere */
+	exif_mem_unref(mem);
+	exif_entry_unref(entry);
+
+	return entry;
+}
+#endif
 
 void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 {
@@ -1406,6 +1486,81 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
 
     M_DEBUG("Snapshot jpeg start: %6d len %8d\n", start_index, extractJpgSize);
 
+#ifndef APQ8096
+    // Load the EXIF data from the file
+    unsigned char *exif_data;
+    unsigned int exif_data_len;
+    ExifEntry *entry;
+   
+    ExifData* exif = exif_data_new_from_data(src_data + start_index, extractJpgSize);
+    if (exif == nullptr) {
+        printf("Issue getting exif data from origin\n");
+        return;
+    }
+
+    struct gps_data gps_grabbed_info = grab_gps_info();
+
+    // Code to add latitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LATITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (gps_grabbed_info.latitude >= 0) {
+        memcpy(entry->data, "N", sizeof("N"));
+    } else {
+        memcpy(entry->data, "S", sizeof("S"));
+        gps_grabbed_info.latitude *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LATITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lat = (ExifLong)gps_grabbed_info.latitude;
+    ExifLong minutes_lat = (ExifLong)(60 * (gps_grabbed_info.latitude - degrees_lat));
+    ExifLong microseconds_lat = (ExifLong)(3600000000u * (gps_grabbed_info.latitude - degrees_lat - minutes_lat / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lat, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lat, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lat, 1000000});
+
+    // Code to add longitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LONGITUDE_REF, 2);
+    entry->format = EXIF_FORMAT_ASCII;
+    entry->components = 1;
+    if (gps_grabbed_info.longitude >= 0) {
+        memcpy(entry->data, "E", sizeof("E"));
+    } else {
+        memcpy(entry->data, "W", sizeof("W"));
+        gps_grabbed_info.longitude *= -1;
+    }
+
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_LONGITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 3;
+
+    ExifLong degrees_lon = (ExifLong)gps_grabbed_info.longitude;
+    ExifLong minutes_lon = (ExifLong)(60 * (gps_grabbed_info.longitude - degrees_lon));
+    ExifLong microseconds_lon = (ExifLong)(3600000000u * (gps_grabbed_info.longitude - degrees_lon - minutes_lon / 60.0));
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){degrees_lon, 1});
+    exif_set_rational(entry->data + sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL, (ExifRational){minutes_lon, 1});
+    exif_set_rational(entry->data + 2 * sizeof(ExifRational), EXIF_BYTE_ORDER_INTEL,
+            (ExifRational){microseconds_lon, 1000000}); 
+
+    // Code to add altitude to exif tag
+    entry = create_tag(exif, EXIF_IFD_GPS, (ExifTag)EXIF_TAG_GPS_ALTITUDE, 24);
+    entry->format = EXIF_FORMAT_RATIONAL;
+    entry->components = 1;
+
+    ExifSLong alt_lon = (ExifSLong)gps_grabbed_info.altitude;
+    unsigned int tmp = alt_lon * 1000;
+    exif_set_rational(entry->data, EXIF_BYTE_ORDER_INTEL, (ExifRational){tmp, 1000});
+    
+    /* Get a pointer to the EXIF data block we just created */
+    exif_data_fix(exif);
+    exif_data_save_data(exif, &exif_data, &exif_data_len);
+
+    assert(exif_data != NULL);
+#endif
 
     meta.magic_number = CAMERA_MAGIC_NUMBER;
     meta.width        = snap_width;
@@ -1436,11 +1591,36 @@ void PerCameraMgr::ProcessSnapshotFrame(image_result result)
             }
         }
 
-        int ret = fwrite(&src_data[start_index], extractJpgSize, 1, file_descriptor);
+#ifndef APQ8096
+        /* Write EXIF header */
+        if (fwrite(exif_header, exif_header_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file inin exif header %s\n", filename);
+        }
+        /* Write EXIF block length in big-endian order */
+        if (fputc((exif_data_len+2) >> 8, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file in big endian order %s\n", filename);
+        }
+        if (fputc((exif_data_len+2) & 0xff, file_descriptor) < 0) {
+            fprintf(stderr, "Error writing to file with fputc %s\n", filename);
+        }
+        /* Write EXIF data block */
+        if (fwrite(exif_data, exif_data_len, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with data block %s\n", filename);
+        }
 
+        // /* Write JPEG image data, skipping the non-EXIF header */
+        if (fwrite(src_data + start_index + 2, extractJpgSize - 2, 1, file_descriptor) != 1) {
+            fprintf(stderr, "Error writing to file with jpeg %s\n", filename);
+        }
+
+        free(exif_data);
+        exif_data_unref(exif);
+#else 
+        int ret = fwrite(&src_data[start_index], extractJpgSize, 1, file_descriptor);
         if(ret!=1){
             M_ERROR("snapshot failed to write to disk\n");
         }
+#endif
 
         fclose(file_descriptor);
         free(filename);
@@ -1596,7 +1776,7 @@ void* PerCameraMgr::ThreadPostProcessResult()
             pthread_cond_wait(&resultCond, &resultMutex);
         }
 
-        if(EStopped) {
+        if(EStopped || stopped) {
             pthread_mutex_unlock(&resultMutex);
             break;
         }
@@ -1702,7 +1882,7 @@ int PerCameraMgr::HasClientForSmallVideo()
 {
     if(pipe_server_get_num_clients(smallVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(smallVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(smallVideoPipeH264  )>0) return 1;
+    if(pipe_server_get_num_clients(smallVideoPipeEncoded  )>0) return 1;
     return 0;
 }
 
@@ -1710,7 +1890,7 @@ int PerCameraMgr::HasClientForLargeVideo()
 {
     if(pipe_server_get_num_clients(largeVideoPipeGrey  )>0) return 1;
     if(pipe_server_get_num_clients(largeVideoPipeColor )>0) return 1;
-    if(pipe_server_get_num_clients(largeVideoPipeH264  )>0) return 1;
+    if(pipe_server_get_num_clients(largeVideoPipeEncoded  )>0) return 1;
     return 0;
 }
 
@@ -2014,7 +2194,7 @@ int PerCameraMgr::SetupPipes()
         pipe_info_t info;
         strcpy(info.type       , "camera_image_metadata_t");
         strcpy(info.server_name, PROCESS_NAME);
-        info.size_bytes = 64*1024*1024;
+        info.size_bytes = 128*1024*1024;
 
         // preview streams
         if(en_preview){
@@ -2062,11 +2242,12 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(smallVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
 
-            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_h264", name);
-            smallVideoPipeH264 = pipe_server_get_next_available_channel();
-            pipe_server_set_control_cb(smallVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
-            pipe_server_create(smallVideoPipeH264, info, flags);
-            pipe_server_set_available_control_commands(smallVideoPipeH264, cont_cmds);
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_encoded", name);
+            smallVideoPipeEncoded = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(smallVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+            pipe_server_create(smallVideoPipeEncoded, info, flags);
+            pipe_server_set_available_control_commands(smallVideoPipeEncoded, cont_cmds);
+
         }
 
         // large encoded video stream for hires cameras
@@ -2083,11 +2264,11 @@ int PerCameraMgr::SetupPipes()
             pipe_server_create(largeVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
 
-            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_h264", name);
-            largeVideoPipeH264 = pipe_server_get_next_available_channel();
-            pipe_server_set_control_cb(largeVideoPipeH264, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
-            pipe_server_create(largeVideoPipeH264, info, flags);
-            pipe_server_set_available_control_commands(largeVideoPipeH264, cont_cmds);
+            snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_encoded", name);
+            largeVideoPipeEncoded = pipe_server_get_next_available_channel();
+            pipe_server_set_control_cb(largeVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
+            pipe_server_create(largeVideoPipeEncoded, info, flags);
+            pipe_server_set_available_control_commands(largeVideoPipeEncoded, cont_cmds);
         }
 
 
@@ -2369,17 +2550,15 @@ void PerCameraMgr::HandleControlCmd(char* cmd)
             char *filename = (char *)malloc(256);
 
             if(sscanf(cmd, "%s %s", buffer, filename) != 2){
-                // We weren't given a proper file, generate a default one
-                // find next index open for that name. e/g/ hires-0, hires-1, hires-2...
-                for(int i=lastSnapshotNumber;;i++){
-                    // construct a new path with the current dir, name, and index i
-                    sprintf(filename,"/data/snapshots/%s-%d.jpg", name, i);
-                    if(!_exists(filename)){
-                        // name with this index doesn't exist yet, good, use it!
-                        lastSnapshotNumber = i;
-                        break;
-                    }
-                }
+                // We weren't given a proper file, generate one from the date and time
+                // fetch time to use for video filename
+                time_t rawtime = time(NULL);
+                char time_formatted[100];
+                strftime(time_formatted, sizeof(time_formatted)-1, "%Y-%m-%d_%T", localtime(&rawtime));
+
+                // construct the video filename
+                sprintf(filename,"/data/snapshots/%s-%s.jpg", name, time_formatted);
+
             }
 
             M_PRINT("Camera: %s taking snapshot (destination: %s)\n", name, filename);
