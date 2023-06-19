@@ -42,10 +42,6 @@
 using std::unique_lock;
 
 /**
- * The list of possible errors which can be returned from fallible SyncQueue
- * functions
- */
-/**
  * This is a simple wrapper class which represents the union of a result, and an
  * error. It is a clean way to indicate that a function can either return an
  * error, or some value on success. It is internally implemented as a tagged
@@ -56,14 +52,14 @@ template<typename T, typename E>
 class Result {
 public:
     /// construct a new result which is Ok
-    static Result ok(T val) noexcept {
+    static Result Ok(T val) noexcept {
         ContainedUnion c;
         c.val = val;
         return Result(Tag::Ok, c);
     };
 
     /// construct a new result which contains an error
-    static Result err(E err) noexcept {
+    static Result Err(E err) noexcept {
         ContainedUnion c;
         c.err = err;
         return Result(Tag::Err);
@@ -115,11 +111,48 @@ private:
 };
 
 
+/**
+ * The list of possible errors which can be returned from fallible SyncQueue
+ * functions
+ */
 enum class SyncQueueErr {
     Canceled,
     Empty,
 };
 
+
+template <typename T, uint32_t MAX_SIZE>
+struct PushHelper {
+    void operator()(std::deque<T>& queue, std::mutex& mutex, std::condition_variable& cond, T data) const {
+        bool did_push;
+        // push data -- scope lock guard to release mutex before notifying
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (queue.size() < MAX_SIZE) {
+                queue.push_back(std::move(data));
+                did_push = true;
+            }
+        }
+
+        if (did_push) {
+            // notify waiting threads
+            cond.notify_one();
+        }
+    }
+};
+
+template <typename T>
+struct PushHelper<T, 0> {
+    void operator()(std::deque<T>& queue, std::mutex& mutex, std::condition_variable& cond, T data) const {
+        // push data -- scope lock guard to release mutex before notifying
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            queue.push_back(std::move(data));
+        }
+        // notify waiting threads
+        cond.notify_one();
+    }
+};
 
 
 /**
@@ -131,29 +164,31 @@ enum class SyncQueueErr {
  * This queue operates on owned data -- for fast operations, the contained type
  * should always be trivially copyable. I would enforce this with a C++20
  * concept, but I think we're stuck on C++11...
+ *
+ * The template parameter MAX_SIZE indicates the maximum number of elements
+ * which can be simultaneously held in the queue before new pushes start
+ * dropping data. A MAX_SIZE of 0 indicates that the size should not be bounded.
+ * The method `push` has a specialization for unbounded queues.
  */
-template<typename T>
-class SynchronizedQueue {
+template<typename T, uint32_t MAX_SIZE>
+class SyncQueue {
     typedef Result<T, SyncQueueErr> QueueRes;
 public:
     /**
      * Construct a new synchronized queue
      */
-    SynchronizedQueue() {};
+    SyncQueue() {};
 
 
     /**
     * Push a new element into the queue. This will block until a push is
     * possible.
+    *
+    * This method is in the struct PushHelper, so that we can avoid
+    * duplicating this whole class just to specialize one method.
     */
     void push(T data) {
-        // push data -- scope lock guard to release mutex before notifying
-        {
-            std::lock_guard<mutex>(m_mutex);
-            m_queue.push(data);
-        }
-        // notify waiting threads
-        m_cond.notify_one();
+        push_helper(m_queue, m_mutex, m_cond, std::move(data));
     };
 
 
@@ -249,6 +284,8 @@ public:
     }
 
 private:
+    PushHelper<T, MAX_SIZE> push_helper;
+
     std::deque<T> m_queue;
     std::mutex m_mutex;
     std::condition_variable m_cond;
