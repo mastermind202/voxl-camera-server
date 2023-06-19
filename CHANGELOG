@@ -1,3 +1,5 @@
+1.6.2
+    * add C16 config: hires + tof + dual tracking
 1.6.1
     * enable h265
     * tune OMX more
