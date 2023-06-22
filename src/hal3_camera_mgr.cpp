@@ -2322,9 +2322,9 @@ int PerCameraMgr::SetupPipes()
         pipe_server_create(tofPipePC,    PCInfo,    flags);
         pipe_server_create(tofPipeFull,  FullInfo,  flags);
 
-        UpdatePipeJson(tofPipeIR,    IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
-        UpdatePipeJson(tofPipeDepth, IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
-        UpdatePipeJson(tofPipeConf,  IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
+        UpdatePipeJson(tofPipeIR,    IMAGE_FORMAT_RAW8, 224, 172, fps);
+        UpdatePipeJson(tofPipeDepth, IMAGE_FORMAT_RAW8, 224, 172, fps);
+        UpdatePipeJson(tofPipeConf,  IMAGE_FORMAT_RAW8, 224, 172, fps);
 
     }
     return S_OK;
