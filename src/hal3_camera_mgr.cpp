@@ -969,24 +969,6 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
     }
 }
 
-// static imageIntStringFormat GetImageFormatFromHal(int halfmt){
-//     imageIntStringFormat retval;
-//     switch (halfmt){
-//     case HAL_PIXEL_FORMAT_RAW10:
-//         retval.formatInt = IMAGE_FORMAT_RAW8;
-//         retval.formatInt = "IMAGE_FORMAT_RAW8";
-//         break;
-//     case HAL3_FMT_YUV:
-//         retval.formatInt = IMAGE_FORMAT_NV12;
-//         retval.formatInt = "IMAGE_FORMAT_NV12";
-//         break;
-//     default:
-//         M_ERROR("Does not recognize halfmt");
-//         break;
-//     }
-//     return retval;
-// }
-
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
