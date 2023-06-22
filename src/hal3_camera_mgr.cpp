@@ -2271,7 +2271,7 @@ int PerCameraMgr::SetupPipes()
             pipe_server_set_control_cb(snapshotPipe, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(snapshotPipe, info, flags);
             pipe_server_set_available_control_commands(snapshotPipe, cont_cmds);
-            UpdatePipeJson(largeVideoPipeEncoded, IMAGE_FORMAT_JPG, snap_width, snap_height, 0);
+            UpdatePipeJson(snapshotPipe, IMAGE_FORMAT_JPG, snap_width, snap_height, 0);
         }
 
 
@@ -2321,6 +2321,10 @@ int PerCameraMgr::SetupPipes()
         pipe_server_create(tofPipeConf,  ConfInfo,  flags);
         pipe_server_create(tofPipePC,    PCInfo,    flags);
         pipe_server_create(tofPipeFull,  FullInfo,  flags);
+
+        UpdatePipeJson(tofPipeIR,    IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
+        UpdatePipeJson(tofPipeDepth, IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
+        UpdatePipeJson(tofPipeConf,  IMAGE_FORMAT_RAW8, TOF_1PHASE_WIDTH, TOF_1PHASE_HEIGHT, fps);
 
     }
     return S_OK;
