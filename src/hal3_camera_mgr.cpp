@@ -969,6 +969,7 @@ static void Mipi12ToRaw16(camera_image_metadata_t meta, uint8_t *raw12Buf, uint1
     }
 }
 
+
 void PerCameraMgr::ProcessPreviewFrame(image_result result)
 {
     BufferBlock* bufferBlockInfo = bufferGetBufferInfo(&pre_bufferGroup, result.second.buffer);
