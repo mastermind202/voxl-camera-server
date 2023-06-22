@@ -188,12 +188,6 @@ PerCameraMgr::PerCameraMgr(PerCameraInfo pCameraInfo) :
 {
 
     strcpy(name, pCameraInfo.name);
-    if(pCameraInfo.small_venc_config.mode == VENC_H265){
-        small_h265 = true;
-    }
-    if(pCameraInfo.large_venc_config.mode == VENC_H265){
-        large_h265 = true;
-    }
 
     cameraCallbacks.cameraCallbacks = {&CameraModuleCaptureResult, &CameraModuleNotify};
     cameraCallbacks.pPrivate        = this;
@@ -2151,15 +2145,20 @@ static const char* CmdStrings[] =
     "snapshot_no_save"
 };
 
-static bool UpdatePipeJson(int channel, const char* string_format, int int_format, int width, int height, int framerate){
+static int UpdatePipeJson(int channel, int int_format, int width, int height, int framerate)
+{
     cJSON* json = pipe_server_get_info_json_ptr(channel);
-    cJSON_AddStringToObject(json, "string_format", string_format);
+    if(json == NULL){
+        M_ERROR("got NULL pointer in %s\n", __FUNCTION__);
+        return -1;
+    }
+    cJSON_AddStringToObject(json, "string_format", pipe_image_format_to_string(int_format));
     cJSON_AddNumberToObject(json, "int_format", int_format);
     cJSON_AddNumberToObject(json, "width", width);
     cJSON_AddNumberToObject(json, "height", height);
     cJSON_AddNumberToObject(json, "framerate", framerate);
     pipe_server_update_info(channel);
-    return true;
+    return 0;
 }
 
 int PerCameraMgr::SetupPipes()
@@ -2188,7 +2187,7 @@ int PerCameraMgr::SetupPipes()
                 pipe_server_set_control_cb(previewPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeGrey, info, flags);
                 pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
-                (void) UpdatePipeJson(previewPipeGrey, "IMAGE_FORMAT_RAW8", IMAGE_FORMAT_RAW8, pre_width, pre_height, fps);
+                UpdatePipeJson(previewPipeGrey, IMAGE_FORMAT_RAW8, pre_width, pre_height, fps);
             }
             // color tracking cameras like OV9782
             else if(pre_halfmt==HAL3_FMT_YUV){
@@ -2197,14 +2196,14 @@ int PerCameraMgr::SetupPipes()
                 pipe_server_set_control_cb(previewPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeGrey, info, flags);
                 pipe_server_set_available_control_commands(previewPipeGrey, cont_cmds);
-                (void) UpdatePipeJson(previewPipeGrey, "IMAGE_FORMAT_RAW8", IMAGE_FORMAT_RAW8, pre_width, pre_height, fps);
+                UpdatePipeJson(previewPipeGrey, IMAGE_FORMAT_RAW8, pre_width, pre_height, fps);
 
                 snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_color", name);
                 previewPipeColor = pipe_server_get_next_available_channel();
                 pipe_server_set_control_cb(previewPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
                 pipe_server_create(previewPipeColor, info, flags);
                 pipe_server_set_available_control_commands(previewPipeColor, cont_cmds);
-                (void) UpdatePipeJson(previewPipeColor, "IMAGE_FORMAT_NV12", IMAGE_FORMAT_NV12, pre_width, pre_height, fps);
+                UpdatePipeJson(previewPipeColor, IMAGE_FORMAT_NV12, pre_width, pre_height, fps);
             }
             else{
                 fprintf(stderr, "UNKNOWN pre_format\n");
@@ -2220,26 +2219,23 @@ int PerCameraMgr::SetupPipes()
             pipe_server_set_control_cb(smallVideoPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeGrey, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeGrey, cont_cmds);
-            (void) UpdatePipeJson(smallVideoPipeGrey, "IMAGE_FORMAT_RAW8", IMAGE_FORMAT_RAW8, small_video_width, small_video_height, fps);
+            UpdatePipeJson(smallVideoPipeGrey, IMAGE_FORMAT_RAW8, small_video_width, small_video_height, fps);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_color", name);
             smallVideoPipeColor = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(smallVideoPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeColor, cont_cmds);
-            (void) UpdatePipeJson(smallVideoPipeColor, "IMAGE_FORMAT_NV12", IMAGE_FORMAT_NV12, small_video_width, small_video_height, fps);
+            UpdatePipeJson(smallVideoPipeColor, IMAGE_FORMAT_NV12, small_video_width, small_video_height, fps);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_small_encoded", name);
             smallVideoPipeEncoded = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(smallVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(smallVideoPipeEncoded, info, flags);
             pipe_server_set_available_control_commands(smallVideoPipeEncoded, cont_cmds);
-            if(small_h265){
-                (void) UpdatePipeJson(smallVideoPipeEncoded, "IMAGE_FORMAT_H265", IMAGE_FORMAT_H265, small_video_width, small_video_height, fps);
-            } else {
-                (void) UpdatePipeJson(smallVideoPipeEncoded, "IMAGE_FORMAT_H264", IMAGE_FORMAT_H264, small_video_width, small_video_height, fps);
-
-            }
+            int fmt = IMAGE_FORMAT_H264;
+            if(configInfo.small_venc_config.mode == VENC_H265) fmt = IMAGE_FORMAT_H265;
+            UpdatePipeJson(smallVideoPipeEncoded, fmt, small_video_width, small_video_height, fps);
         }
 
         // large encoded video stream for hires cameras
@@ -2249,25 +2245,23 @@ int PerCameraMgr::SetupPipes()
             pipe_server_set_control_cb(largeVideoPipeGrey, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeGrey, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeGrey, cont_cmds);
-            (void) UpdatePipeJson(largeVideoPipeGrey, "IMAGE_FORMAT_RAW8", IMAGE_FORMAT_RAW8, large_video_width, large_video_height, fps);
+            (void) UpdatePipeJson(largeVideoPipeGrey, IMAGE_FORMAT_RAW8, large_video_width, large_video_height, fps);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_color", name);
             largeVideoPipeColor = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(largeVideoPipeColor, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeColor, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeColor, cont_cmds);
-            (void) UpdatePipeJson(largeVideoPipeColor, "IMAGE_FORMAT_NV12", IMAGE_FORMAT_NV12, large_video_width, large_video_height, fps);
+            (void) UpdatePipeJson(largeVideoPipeColor, IMAGE_FORMAT_NV12, large_video_width, large_video_height, fps);
 
             snprintf(info.name, MODAL_PIPE_MAX_NAME_LEN-1, "%s_large_encoded", name);
             largeVideoPipeEncoded = pipe_server_get_next_available_channel();
             pipe_server_set_control_cb(largeVideoPipeEncoded, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(largeVideoPipeEncoded, info, flags);
             pipe_server_set_available_control_commands(largeVideoPipeEncoded, cont_cmds);
-            if(large_h265){
-                (void) UpdatePipeJson(largeVideoPipeEncoded, "IMAGE_FORMAT_H265", IMAGE_FORMAT_H265, large_video_width, large_video_height, fps);
-            } else {
-                (void) UpdatePipeJson(largeVideoPipeEncoded, "IMAGE_FORMAT_H264", IMAGE_FORMAT_H264, large_video_width, large_video_height, fps);
-            }
+            int fmt = IMAGE_FORMAT_H264;
+            if(configInfo.large_venc_config.mode == VENC_H265) fmt = IMAGE_FORMAT_H265;
+            UpdatePipeJson(largeVideoPipeEncoded, fmt, large_video_width, large_video_height, fps);
         }
 
 
@@ -2277,7 +2271,7 @@ int PerCameraMgr::SetupPipes()
             pipe_server_set_control_cb(snapshotPipe, [](int ch, char * string, int bytes, void* context){((PerCameraMgr*)context)->HandleControlCmd(string);},this);
             pipe_server_create(snapshotPipe, info, flags);
             pipe_server_set_available_control_commands(snapshotPipe, cont_cmds);
-            (void) UpdatePipeJson(largeVideoPipeEncoded, "IMAGE_FORMAT_NV12", IMAGE_FORMAT_NV12, snap_width, snap_height, 0);
+            UpdatePipeJson(largeVideoPipeEncoded, IMAGE_FORMAT_JPG, snap_width, snap_height, 0);
         }
 
 

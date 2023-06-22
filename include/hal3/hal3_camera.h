@@ -269,9 +269,7 @@ private:
     int                                 lastResultFrameNumber = -1;  ///< Last frame the capture result thread should wait for before terminating
     queue<char *>                       snapshotQueue;
     atomic_int                          numNeededSnapshots {0};
-    camera_metadata_t*                  pSessionParams = NULL;
-    bool                                small_h265 = false;          ///< Value for encoding type of small stream         
-    bool                                large_h265 = false;          ///< Value for encoding type of large stream                        
+    camera_metadata_t*                  pSessionParams = NULL;       ///< Value for encoding type of large stream
 
     ///< TOF Specific members
 
